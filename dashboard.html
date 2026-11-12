@@ -23,7 +23,7 @@
 <header class="top">
   <h1>Overview</h1>
   <div class="toolbar">
-    <span class="pill" id="mode"></span>
+    <span class="pill" id="mode"></span><span class="pill user" id="user" hidden></span>
     <span class="pill"><i class="dot" aria-hidden="true"></i><span id="updated">Updated just now</span></span>
     <div class="seg" role="group" aria-label="Time range"><button aria-pressed="true" data-r="24">24h</button><button aria-pressed="false" data-r="12">12h</button><button aria-pressed="false" data-r="6">6h</button></div>
     <button class="theme" id="theme" aria-label="Toggle dark mode" type="button">☾</button>
@@ -31,6 +31,9 @@
   </div>
 </header>
 <div id="banner" role="alert" hidden></div>
+<section id="gate" class="gate" hidden aria-labelledby="gate-h">
+  <div class="gate-card"><i class="gate-logo" aria-hidden="true"></i><h2 id="gate-h">Welcome back</h2><p>Sign in with Discord to manage your servers.</p><a class="btn discord" id="gate-btn" href="#">Continue with Discord</a><span class="muted" id="gate-err" role="alert"></span></div>
+</section>
 <main id="main">
   <section class="strip" id="kpis" aria-label="Key numbers"></section>
   <div class="grid">
@@ -45,11 +48,15 @@
 </div>
 <dialog id="dlg"><form method="dialog" id="form">
   <h2>New server</h2>
-  <label>Name<input name="name" required maxlength="24" placeholder="my-cool-server" autocomplete="off"></label>
+  <label>Name<input name="name" required maxlength="24" minlength="2" placeholder="my-cool-server" autocomplete="off"></label>
   <label>Template<select name="tpl"><option>Minecraft</option><option>Node.js</option><option>Python</option><option>Static site</option></select></label>
-  <label>Region<select name="region"><option>Mumbai</option><option>Singapore</option><option>Frankfurt</option><option>Virginia</option></select></label>
+    <p id="form-err" class="form-err" role="alert"></p>
   <div class="dlg-actions"><button class="btn ghost sm" value="cancel" type="submit" formnovalidate>Cancel</button><button class="btn sm" value="ok" type="submit">Create</button></div>
 </form></dialog>
+<dialog id="logdlg" class="wide"><div class="dlg-head"><h2 id="log-title">Logs</h2><div class="acts"><button type="button" id="log-refresh">Refresh</button><button type="button" id="log-close">Close</button></div></div>
+  <pre id="log-pre" tabindex="0" aria-label="Server logs"></pre>
+  <form id="cmdform" hidden><input id="cmd" placeholder="Console command, e.g. list" autocomplete="off" maxlength="200" aria-label="Console command"><button class="btn sm" type="submit">Send</button></form>
+</dialog>
 <div id="tip" role="tooltip" hidden></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="config.js"></script>

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Signing in — ButterHosting</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="styles.css">
+<style>body{display:grid;place-items:center;min-height:100vh;padding:24px;text-align:center}.box{max-width:380px}.box h1{font-size:34px;margin-bottom:12px}.box p{color:var(--ink-2);margin:0 0 20px}</style>
+</head>
+<body>
+<main class="box" id="box"><h1>Signing you in…</h1><p>One moment.</p></main>
+<script>
+(function(){
+  var h=new URLSearchParams(location.hash.slice(1)),box=document.getElementById('box');
+  history.replaceState(null,'',location.pathname); // keep the token out of the address bar and history
+  var t=h.get('token'),e=h.get('error');
+  if(t){try{localStorage.setItem('bh-token',t)}catch(x){box.innerHTML='<h1>Storage is blocked</h1><p>Allow site data for this page, then try again.</p><a class="btn" href="dashboard.html">Back</a>';return}location.replace('dashboard.html');return}
+  box.innerHTML='<h1>Sign-in didn’t work</h1><p></p><a class="btn" href="dashboard.html">Try again</a>';
+  box.querySelector('p').textContent=e||'Something went wrong. Please try again.';
+})();
+</script>
+</body>
+</html>

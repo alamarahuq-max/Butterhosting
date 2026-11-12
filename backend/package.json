@@ -1,0 +1,9 @@
+{
+  "name": "butterhosting-backend",
+  "private": true,
+  "version": "1.0.0",
+  "description": "ButterHosting API: Discord login + Docker-based server hosting. No dependencies.",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=20" }
+}

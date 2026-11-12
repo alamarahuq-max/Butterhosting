@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard — ButterHosting</title>
+<meta name="theme-color" content="#FFD84D">
+<link rel="preload" href="fonts/ntype82.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='5' width='26' height='22' rx='6' fill='%23FFD84D' stroke='%232A1C0A' stroke-width='3'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="dashboard.css">
+</head>
+<body class="dash">
+<a class="skip" href="#main">Skip to content</a>
+<aside class="side" aria-label="Sidebar">
+  <a class="logo" href="./"><i aria-hidden="true"></i>ButterHosting</a>
+  <nav aria-label="Dashboard">
+    <a href="#main" aria-current="page">Overview</a><a href="#servers">Servers</a><a href="#activity">Activity</a><a href="./">← Site</a>
+  </nav>
+  <div class="side-foot">Made by md imran</div>
+</aside>
+<div class="content">
+<header class="top">
+  <h1>Overview</h1>
+  <div class="toolbar">
+    <span class="pill" id="mode"></span>
+    <span class="pill"><i class="dot" aria-hidden="true"></i><span id="updated">Updated just now</span></span>
+    <div class="seg" role="group" aria-label="Time range"><button aria-pressed="true" data-r="24">24h</button><button aria-pressed="false" data-r="12">12h</button><button aria-pressed="false" data-r="6">6h</button></div>
+    <button class="theme" id="theme" aria-label="Toggle dark mode" type="button">☾</button>
+    <button class="btn sm" id="new" type="button">+ New server</button>
+  </div>
+</header>
+<div id="banner" role="alert" hidden></div>
+<main id="main">
+  <section class="strip" id="kpis" aria-label="Key numbers"></section>
+  <div class="grid">
+    <section class="panel chart-panel" aria-labelledby="ch-l"><div class="ph"><div><div class="lbl" id="ch-l"></div><div class="big num" id="ch-v"></div></div><div class="chips" id="chips"></div></div><div id="chart"></div></section>
+    <section class="panel" id="plan" aria-label="Plan usage"></section>
+  </div>
+  <div class="cols">
+    <section class="panel" id="servers" aria-labelledby="sv-h"><div class="ph"><h2 id="sv-h">Servers</h2><span class="muted num" id="count"></span></div><div id="list" aria-live="polite"></div></section>
+    <section class="panel" id="activity" aria-labelledby="ac-h"><div class="ph"><h2 id="ac-h">Activity</h2></div><ul id="log" class="log"></ul></section>
+  </div>
+</main>
+</div>
+<dialog id="dlg"><form method="dialog" id="form">
+  <h2>New server</h2>
+  <label>Name<input name="name" required maxlength="24" placeholder="my-cool-server" autocomplete="off"></label>
+  <label>Template<select name="tpl"><option>Minecraft</option><option>Node.js</option><option>Python</option><option>Static site</option></select></label>
+  <label>Region<select name="region"><option>Mumbai</option><option>Singapore</option><option>Frankfurt</option><option>Virginia</option></select></label>
+  <div class="dlg-actions"><button class="btn ghost sm" value="cancel" type="submit" formnovalidate>Cancel</button><button class="btn sm" value="ok" type="submit">Create</button></div>
+</form></dialog>
+<div id="tip" role="tooltip" hidden></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script src="dashboard.js"></script>
+</body></html>

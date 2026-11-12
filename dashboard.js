@@ -38,7 +38,7 @@
   function signOut(expired){setTok("");state.user=null;state.loaded=false;showGate(expired?"Your session ended. Please sign in again.":"")}
   function userPill(){
     var u=state.user,el=$('#user');if(!u){el.hidden=true;return}
-    el.hidden=false;el.innerHTML='<img src="'+esc(u.avatar)+'" alt="" width="24" height="24" referrerpolicy="no-referrer" onerror="this.style.display='none'"><span>'+esc(u.name)+'</span><button type="button" id="signout">Sign out</button>';
+    el.hidden=false;el.innerHTML='<img src="'+esc(u.avatar)+'" alt="" width="24" height="24" referrerpolicy="no-referrer" onerror="this.remove()"><span>'+esc(u.name)+'</span><button type="button" id="signout">Sign out</button>';
     $('#signout').onclick=function(){signOut(false)};
   }
 

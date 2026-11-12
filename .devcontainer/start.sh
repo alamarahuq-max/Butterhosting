@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs every time the Codespace starts. Secrets (DISCORD_CLIENT_ID, ...) arrive as environment variables.
-cd "$(dirname "$0")/../backend" || exit 1
+cd "$(dirname "$0")/../hosting-api" || exit 1
 pkill -f "node server.js" 2>/dev/null || true
 nohup node server.js >/tmp/butterhosting.log 2>&1 &
 sleep 2

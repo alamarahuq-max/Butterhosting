@@ -51,13 +51,13 @@ All routes except `/health` and `/auth/*` need `Authorization: Bearer <token>`.
 - **Game ports.** Minecraft listens on a port from 25600 to 25799 *inside* the Codespace. Codespace port forwarding is HTTP only,
   so for players outside, run a TCP tunnel to that port (playit.gg, ngrok tcp, bore, ...) and set `PUBLIC_HOST` to its hostname.
   Web templates (Node, Python, Static) are reachable at `https://<codespace>-<port>.app.github.dev` once that port is set to Public.
-- Data lives in `backend/data` (git-ignored). Each server has its own Docker volume.
+- Data lives in `hosting-api/data` (git-ignored). Each server has its own Docker volume.
 - Limits: 3 servers per person by default (`MAX_SERVERS_PER_USER`), 1.5 GB for Minecraft, 256 MB for the rest.
 
 ## Run it on your own machine
 
 ```bash
-cd backend
+cd hosting-api
 FRONTEND_URL=http://localhost:3000 DISCORD_CLIENT_ID=... DISCORD_CLIENT_SECRET=... node server.js
 ```
 For testing without Discord, add `DEV_LOGIN=1` and open `/auth/dev?id=1`. Never set it in production.

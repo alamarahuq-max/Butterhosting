@@ -3,7 +3,7 @@
  * ButterHosting API — runs inside a GitHub Codespace (or any Docker host).
  * Zero npm dependencies. Node 20+. Real servers are Docker containers.
  *
- * Config comes from environment variables (Codespaces secrets in production, see backend/README.md).
+ * Config comes from environment variables (Codespaces secrets in production, see hosting-api/README.md).
  */
 const http = require("http");
 const crypto = require("crypto");

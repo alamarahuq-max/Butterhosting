@@ -32,3 +32,13 @@ That is close to your 200 MB goal, and can land on either side of it. If it come
 
 - It is a purpose-built Alpine install, not a from-scratch kernel. Writing your own kernel is a multi-year job; Alpine already gives you the small footprint.
 - Hardware needs: 64-bit CPU with virtualisation not required, wired network recommended, SSD strongly recommended (world saves).
+
+## RAM mode (for slow USB sticks)
+
+Install with `sh install.sh <repo> --ram /media/usb`. Worlds and the API database run from a RAM disk (`/ram`), so a slow USB stick is only touched for backups. `ramsync` copies them to `/media/usb/butter-backup`: restore on boot, a save every 5 minutes (it asks Minecraft to flush first, and swaps the backup in only after a full copy), and a final save on shutdown.
+
+- **A power cut loses up to 5 minutes of progress**, because a backup only happens every 5 minutes. Shut down from the menu.
+- Docker images (about 400 MB for Minecraft) stay on the USB. Only the first start of each server type reads them slowly.
+- Size the RAM disk with `RAM_SIZE` (default `1g`). On a 4 GB machine, 1 GB for worlds is about right; each Java server also needs 1.3 to 1.5 GB of RAM to run.
+- If you instead want the whole OS in RAM (Alpine's own diskless mode), that works too, but Docker plus Node unpacked in RAM costs roughly 300 to 400 MB. That is more than the 200 MB goal, so I use disk-backed OS files and put only the worlds in RAM.
+- Not run on real hardware: syntax-checked only.

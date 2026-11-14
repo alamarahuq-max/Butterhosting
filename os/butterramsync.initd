@@ -1,0 +1,18 @@
+#!/sbin/openrc-run
+name="butterramsync"
+description="ButterOS: restore worlds into RAM on boot, back them up periodically and on shutdown"
+depend() { need localmount; before butterhosting docker; }
+start() {
+  ebegin "Mounting RAM disk and restoring worlds"
+  mkdir -p /ram && mountpoint -q /ram || mount -t tmpfs -o size="${RAM_SIZE:-1g}" tmpfs /ram
+  /usr/local/bin/ramsync restore
+  # backup loop every 5 minutes
+  start-stop-daemon --start --background --make-pidfile --pidfile /run/butterramsync.pid --exec /bin/sh -- -c 'while sleep 300; do /usr/local/bin/ramsync save; done'
+  eend $?
+}
+stop() {
+  ebegin "Backing up worlds to disk"
+  start-stop-daemon --stop --pidfile /run/butterramsync.pid 2>/dev/null
+  /usr/local/bin/ramsync save
+  eend $?
+}

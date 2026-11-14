@@ -8,4 +8,4 @@ pidfile="/run/butterhosting.pid"
 output_log="/var/log/butterhosting.log"
 error_log="/var/log/butterhosting.log"
 depend() { need docker net; }
-start_pre() { set -a; [ -f /etc/butterhosting.env ] && . /etc/butterhosting.env; set +a; export DATA_DIR=/var/lib/butterhosting; mkdir -p "$DATA_DIR"; }
+start_pre() { set -a; [ -f /etc/butterhosting.env ] && . /etc/butterhosting.env; set +a; export DATA_DIR="${DATA_DIR:-/var/lib/butterhosting}"; mkdir -p "$DATA_DIR"; }

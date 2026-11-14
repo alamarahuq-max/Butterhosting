@@ -79,12 +79,16 @@ function dk(args, { timeout = 60000 } = {}) {
 const HELLO_NODE = "require('http').createServer((q,r)=>{r.setHeader('content-type','text/html');r.end('<h1>Hello from ButterHosting</h1>')}).listen(process.env.PORT||3000)";
 const TEMPLATES = {
   minecraft: { label: "Minecraft", kind: "game", image: "itzg/minecraft-server:latest", cport: 25565, mem: "2048m", cpus: 2, vol: "/data", env: [], cmd: [] },
+  bedrock: { label: "Bedrock", kind: "game", proto: "udp", image: "itzg/minecraft-bedrock-server:latest", cport: 19132, mem: "768m", cpus: 1, vol: "/data", env: ["EULA=TRUE", "VERSION=LATEST", "SERVER_NAME=A ButterHosting server", "GAMEMODE=survival", "DIFFICULTY=normal", "MAX_PLAYERS=10", "ONLINE_MODE=true"], cmd: [] },
   node: { label: "Node.js", kind: "web", image: "node:22-alpine", cport: 3000, mem: "256m", cpus: 0.5, vol: "/app", env: ["PORT=3000", "BH_DEFAULT=" + HELLO_NODE], cmd: ["sh", "-c", 'cd /app && [ -f server.js ] || printf "%s" "$BH_DEFAULT" > server.js; exec node server.js'] },
   python: { label: "Python", kind: "web", image: "python:3.12-alpine", cport: 8000, mem: "256m", cpus: 0.5, vol: "/srv/www", env: [], cmd: ["sh", "-c", 'cd /srv/www && [ -f index.html ] || echo "<h1>Hello from ButterHosting</h1>" > index.html; exec python -m http.server 8000'] },
   static: { label: "Static site", kind: "web", image: "nginx:alpine", cport: 80, mem: "128m", cpus: 0.25, vol: "/usr/share/nginx/html", env: [], cmd: [] },
 };
 const cname = (id) => `bh-${id}`;
 const vname = (id) => `bh-${id}-data`;
+// RAM mode (ButterOS): worlds live in WORLD_DIR (a tmpfs) and are backed up to disk by os/ramsync. Without it, Docker named volumes are used.
+const WORLD_DIR = env.WORLD_DIR || "";
+const volSrc = (id) => { if (!WORLD_DIR) return vname(id); const d = path.join(WORLD_DIR, id); fs.mkdirSync(d, { recursive: true }); return d; };
 
 let snapCache = { at: 0, p: null };
 const invalidate = () => { snapCache = { at: 0, p: null }; };
@@ -182,8 +186,8 @@ async function view(s, snap) {
     ram = Math.round(d.ram || 0);
     if (s.tpl === "minecraft") pl = await players(s.id);
   } else if (d && (d.state === "restarting" || d.state === "created")) status = "busy";
-  const address = t.kind === "game" ? (s.link || "") : CS ? csUrl(s.port) : `http://${PUBLIC_HOST}:${s.port}`;
-  return { id: s.id, name: s.name, tpl: t.label, tplKey: s.tpl, kind: t.kind, status, cpu, ram, players: pl, port: s.port, address, error: s.error || null, linking: linking.has(s.id), settings: s.tpl === "minecraft" ? mcSettings(s) : null, canLink: s.tpl === "minecraft" ? linkable(mcSettings(s)) : false, modDir: s.tpl === "minecraft" ? MOD_DIR[mcSettings(s).software] : null, linkError: s.linkError || null, createdAt: s.createdAt };
+  const address = t.kind === "game" ? (s.tpl === "bedrock" ? (s.bedrockAddr || "") : (s.link || "")) : CS ? csUrl(s.port) : `http://${PUBLIC_HOST}:${s.port}`;
+  return { id: s.id, name: s.name, tpl: t.label, tplKey: s.tpl, kind: t.kind, status, cpu, ram, players: pl, port: s.port, address, error: s.error || null, linking: linking.has(s.id), udp: t.proto === "udp", settings: s.tpl === "minecraft" ? mcSettings(s) : null, canLink: s.tpl === "minecraft" ? linkable(mcSettings(s)) : false, modDir: s.tpl === "minecraft" ? MOD_DIR[mcSettings(s).software] : null, linkError: s.linkError || null, createdAt: s.createdAt };
 }
 
 /* Join link: Minekube Connect (free, no domain, no port forwarding) gives <name>.play.minekube.net */
@@ -222,7 +226,7 @@ async function provision(s) {
     await dk(["run", "-d", "--name", cname(s.id), "--restart", st && st.autostop ? "no" : "unless-stopped",
       "--label", "butterhosting=1", "--label", "bh.owner=" + s.owner, "--label", "bh.id=" + s.id,
       "--memory", mem, "--cpus", String(t.cpus),
-      "-p", `${s.port}:${t.cport}`, "-v", `${vname(s.id)}:${t.vol}`,
+      "-p", `${s.port}:${t.cport}${t.proto ? "/" + t.proto : ""}`, "-v", `${volSrc(s.id)}:${t.vol}`,
       ...envs.flatMap((e) => ["-e", e]), t.image, ...t.cmd], { timeout: 15 * 60 * 1000 });
     s.state = "ready"; s.error = null;
   } catch (e) {
@@ -376,6 +380,14 @@ async function handle(req, res) {
   }
   if (m !== "POST") return json(req, res, 405, { error: "method not allowed" });
   if (jobs.has(s.id)) return json(req, res, 409, { error: "Server is still being created" });
+  if (action === "address") {
+    if (s.tpl !== "bedrock") return json(req, res, 400, { error: "Only Bedrock servers take a manual address" });
+    let b; try { b = await readJson(req); } catch (e) { return json(req, res, 400, { error: e.message }); }
+    const a = String(b.address || "").trim().toLowerCase();
+    if (a && !/^[a-z0-9]([a-z0-9.-]{0,60}[a-z0-9])?:\d{2,5}$/.test(a)) return json(req, res, 400, { error: "Use host:port, like 123.ply.gg:12345" });
+    s.bedrockAddr = a; saveDb();
+    return json(req, res, 200, { ok: true });
+  }
   if (action === "settings") {
     if (s.tpl !== "minecraft") return json(req, res, 400, { error: "Settings are for Minecraft servers" });
     let b; try { b = await readJson(req); } catch (e) { return json(req, res, 400, { error: e.message }); }
@@ -435,7 +447,8 @@ async function handle(req, res) {
     else if (action === "restart") await dk(["restart", "-t", "20", cname(s.id)], { timeout: 60000 });
     else if (action === "delete") {
       await dk(["rm", "-f", cname(s.id)]).catch(() => {});
-      await dk(["volume", "rm", "-f", vname(s.id)]).catch(() => {});
+      if (WORLD_DIR) fs.rmSync(path.join(WORLD_DIR, s.id), { recursive: true, force: true });
+      else await dk(["volume", "rm", "-f", vname(s.id)]).catch(() => {});
       delete db.servers[s.id]; saveDb();
     } else if (action === "command") {
       if (s.tpl !== "minecraft") return json(req, res, 400, { error: "Console commands are for Minecraft servers" });

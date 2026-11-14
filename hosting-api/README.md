@@ -73,3 +73,18 @@ For testing without Discord, add `DEV_LOGIN=1` and open `/auth/dev?id=1`. Never 
 - **Mods and plugins:** upload a `.jar` in the same dialog (max `MAX_UPLOAD_MB`, default 100). Paper and Purpur use `plugins/`, Fabric and Forge use `mods/`. Restart to load. Free join links only work on Paper and Purpur.
 - `MAX_RAM_GB` (default 2) caps the memory a user can give one server.
 - **Bedrock:** Minekube lists Bedrock support on its Hangar page ("handled by the Connect edge"), so the same join link should work for Bedrock players. This is not tested by us; their docs don't spell out the Bedrock port or address format.
+
+## Bedrock servers (UDP)
+
+Choose **Minecraft Bedrock only** when creating a server. It runs the official Bedrock server on a UDP port. Bedrock players need a UDP tunnel, and the Java link provider (Minekube) is TCP only, so this part is **not one-click**:
+
+1. Make a free account at [playit.gg](https://playit.gg) and create an **agent** there. Copy its secret key.
+2. In Codespaces secrets add `PLAYIT_SECRET` with that key and restart the Codespace. The agent then runs next to the servers.
+3. On playit.gg click **Create Tunnel → Minecraft Bedrock**, and set the local address to `127.0.0.1:<port>`. The port is the one the dashboard shows for that server (25600 or above).
+4. Copy the address playit shows (like `180.ip.ply.gg:17019`) and press **Address** on the server in the dashboard.
+
+You do steps 1, 2 once. Step 3 and 4 are per server. I couldn't check playit's free-tier limits on tunnel count, so check them on their site.
+
+## RAM mode
+
+Set `WORLD_DIR` to a tmpfs folder and worlds are stored there instead of in Docker volumes (see `os/` for the backup service).

@@ -1,0 +1,28 @@
+#!/bin/sh
+# ButterOS RAM mode helper. Worlds and the API database run from RAM (fast, no USB wear),
+# and are copied to a backup folder on the USB stick: on boot (restore), every few minutes, and on shutdown.
+#   ramsync restore | save
+RAM=${RAM_DIR:-/ram/butter}          # tmpfs: worlds + API data
+BACKUP=${BACKUP_DIR:-/media/usb/butter-backup}
+mkdir -p "$RAM/worlds" "$RAM/data" "$BACKUP"
+
+case "${1:-}" in
+restore)
+  [ -d "$BACKUP/worlds" ] && cp -a "$BACKUP/worlds/." "$RAM/worlds/"
+  [ -d "$BACKUP/data" ] && cp -a "$BACKUP/data/." "$RAM/data/"
+  ;;
+save)
+  # ask running Minecraft servers to flush so the copy is consistent
+  for c in $(docker ps -q --filter label=butterhosting=1 2>/dev/null); do
+    docker exec "$c" rcon-cli save-off >/dev/null 2>&1; docker exec "$c" rcon-cli save-all flush >/dev/null 2>&1
+  done
+  sleep 3
+  # copy to a temp name, then swap, so a power cut mid-copy never leaves a half backup
+  rm -rf "$BACKUP/new" && mkdir -p "$BACKUP/new"
+  if cp -a "$RAM/worlds" "$BACKUP/new/worlds" && cp -a "$RAM/data" "$BACKUP/new/data" && sync; then OK=0; else OK=1; fi
+  for c in $(docker ps -q --filter label=butterhosting=1 2>/dev/null); do docker exec "$c" rcon-cli save-on >/dev/null 2>&1; done
+  if [ $OK -eq 0 ]; then rm -rf "$BACKUP/old"; [ -d "$BACKUP/worlds" ] && mkdir -p "$BACKUP/old" && mv "$BACKUP/worlds" "$BACKUP/data" "$BACKUP/old/" 2>/dev/null
+    mv "$BACKUP/new/worlds" "$BACKUP/worlds" && mv "$BACKUP/new/data" "$BACKUP/data"; rmdir "$BACKUP/new" 2>/dev/null; fi
+  ;;
+*) echo "usage: ramsync restore|save"; exit 2 ;;
+esac

@@ -1,19 +1,12 @@
 (function(){
-  var API=(window.BUTTER_API||"").replace(/\/$/,""),LIVE=!!API,DEMO_LIMIT=10,HOT=80,POLL=4000;
+  var API=(window.BUTTER_API||"").replace(/\/$/,""),HOT=80,POLL=4000;
   var $=function(s){return document.querySelector(s)};
-  var state={servers:[],log:[],range:24,metric:"cpu",loadedAt:Date.now(),err:null,loading:true,loaded:false,user:null,limit:DEMO_LIMIT,hist:{cpu:[],ram:[],players:[]}};
-  var seed=[
-    {id:"1",name:"survival-smp",tpl:"Minecraft",tplKey:"minecraft",kind:"game",address:"play.example.net:25565",status:"on",cpu:46,ram:62,players:12},
-    {id:"2",name:"api-gateway",tpl:"Node.js",tplKey:"node",kind:"web",address:"https://api.example.net",status:"on",cpu:21,ram:34,players:0},
-    {id:"3",name:"game-lobby",tpl:"Minecraft",tplKey:"minecraft",kind:"game",address:"play.example.net:25566",status:"on",cpu:86,ram:71,players:9},
-    {id:"4",name:"photo-bot",tpl:"Python",tplKey:"python",kind:"web",address:"https://bot.example.net",status:"off",cpu:0,ram:0,players:0}
-  ];
+  var state={servers:[],log:[],range:24,metric:"cpu",loadedAt:Date.now(),err:null,loading:true,loaded:false,user:null,limit:null,hist:{cpu:[],ram:[],players:[]}};
   var NAMES={cpu:"CPU",ram:"Memory",players:"Players"},timers=[];
   function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
   function toast(m){var t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(function(){t.classList.remove('show')},2600)}
   function clock(){return new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}
-  function note(m){state.log.unshift({t:clock(),m:m});state.log=state.log.slice(0,8);save()}
-  function save(){if(LIVE||!state.loaded)return;try{localStorage.setItem('bh-demo-v3',JSON.stringify({s:state.servers,l:state.log}))}catch(e){}}
+  function note(m){state.log.unshift({t:clock(),m:m});state.log=state.log.slice(0,8)}
   function getTok(){try{return localStorage.getItem('bh-token')||""}catch(e){return ""}}
   function setTok(t){try{if(t)localStorage.setItem('bh-token',t);else localStorage.removeItem('bh-token')}catch(e){}}
 
@@ -30,10 +23,10 @@
   }
 
   /* ---------- sign in ---------- */
-  function showGate(msg){
+  function showGate(msg,nobtn){
     timers.forEach(clearInterval);timers=[];
     document.body.classList.add('gated');$('#gate').hidden=false;$('#user').hidden=true;$('#banner').hidden=true;
-    $('#gate-btn').href=API+"/auth/discord";$('#gate-err').textContent=msg||"";
+    $('#gate-btn').href=API+"/auth/discord";$('#gate-btn').style.display=nobtn?'none':'';$('#gate-err').textContent=msg||"";
   }
   function signOut(expired){setTok("");state.user=null;state.loaded=false;showGate(expired?"Your session ended. Please sign in again.":"")}
   function userPill(){
@@ -50,11 +43,6 @@
   function load(silent){
     var id=++reqId;
     if(!silent&&!state.loaded){state.loading=true;render()}
-    if(!LIVE){
-      var fin=function(){if(id!==reqId)return;state.loading=false;state.loaded=true;state.loadedAt=Date.now();render()};
-      try{var d=JSON.parse(localStorage.getItem('bh-demo-v3'));if(d&&d.s){state.servers=d.s;state.log=d.l||[];return setTimeout(fin,350)}}catch(e){}
-      state.servers=seed.map(function(x){return Object.assign({},x)});state.log=[{t:clock(),m:"Demo workspace ready"}];return setTimeout(fin,350);
-    }
     return call("/servers").then(function(d){
       if(id!==reqId)return;
       state.servers=d.servers;state.maxRam=d.maxRam||2;state.err=d.dockerOk===false?"Docker isn't running on the host, so servers can't be managed right now.":null;
@@ -69,38 +57,27 @@
     var s=find(id);if(!s)return;
     if(action==="logs")return openLogs(s);
     if(action==="settings")return openSettings(s);
+    if(action==="address"){
+      var a=prompt("Paste the join address from your playit.gg UDP tunnel (host:port). Leave empty to clear.",s.address||"");
+      if(a===null)return;
+      return call("/servers/"+encodeURIComponent(s.id)+"/address",{method:"POST",body:{address:a}}).then(function(){note(s.name+" join address saved");return load(true)}).catch(function(e){toast(e.message)});
+    }
     if(action==="link"){
       s.linking=true;render();
-      if(!LIVE)return setTimeout(function(){s.linking=false;s.address=s.name+"-demo.play.minekube.net";note(s.name+" join link ready (demo)");render()},1800);
       return call("/servers/"+encodeURIComponent(s.id)+"/link",{method:"POST"}).then(function(){note(s.name+" making join link");return load(true)}).catch(function(e){s.linking=false;toast(e.message);return load(true)});
     }
     if(action==="delete"&&!confirm("Delete "+s.name+"? Its files are removed too and this can't be undone."))return;
-    if(!LIVE){
-      var fin=function(){
-        if(action==="start"){s.status="on";s.cpu=12+Math.round(Math.random()*30);s.ram=20+Math.round(Math.random()*40)}
-        if(action==="stop"){s.status="off";s.cpu=0;s.ram=0;s.players=0}
-        if(action==="restart"){s.status="on";s.cpu=15+Math.round(Math.random()*25)}
-        if(action==="delete")state.servers=state.servers.filter(function(x){return x!==s});
-        state.loadedAt=Date.now();note(s.name+" "+action);render();
-      };
-      if(action!=="delete"){s.status="busy";render()}
-      return setTimeout(fin,700);
-    }
     s.status="busy";render();
     call("/servers/"+encodeURIComponent(s.id)+"/"+action,{method:"POST"}).then(function(){note(s.name+" "+action);return load(true)}).catch(function(e){toast(e.message);return load(true)});
   }
 
   /* ---------- numbers ---------- */
-  function series(key,cur,n){
-    var raw=[],i;for(i=0;i<24;i++)raw.push(Math.sin(i*.55+key.length)*.18+Math.cos(i*1.7)*.07);
-    return raw.map(function(r){return Math.max(0,cur*(1+r-raw[23]))}).slice(24-n);
-  }
   function stat(key,noSeries){
     var on=state.servers.filter(function(x){return x.status==="on"});
     if(!on.length)return {cur:null};
     var cur=key==="players"?on.reduce(function(a,x){return a+(x.players||0)},0):Math.round(on.reduce(function(a,x){return a+x[key]},0)/on.length);
     if(noSeries)return {cur:cur};
-    var s=LIVE?(state.hist[key].length>=2?state.hist[key].slice():[cur,cur]):series(key,cur,state.range);
+    var s=state.hist[key].length>=2?state.hist[key].slice():[cur,cur];
     return {cur:cur,s:s};
   }
   function fmt(k,v){return v==null?"—":v+(k==="players"?"":"%")}
@@ -111,15 +88,14 @@
   }
   function delta(k,st){
     if(!st.s)return '<span class="d">—</span>';
-    if(LIVE&&st.s.length<15)return '<span class="d">live</span>';
+    if(st.s.length<15)return '<span class="d">live</span>';
     var a=st.s[0],b=st.s[st.s.length-1],d=Math.round(b-a),u=k==="players"?"":" pts";
-    var base=LIVE?Math.max(1,Math.round((st.s.length-1)*POLL/60000))+"m":state.range+"h";
+    var base=Math.max(1,Math.round((st.s.length-1)*POLL/60000))+"m";
     if(k==="players"&&Math.abs(a)<5&&Math.abs(b)<5)return '<span class="d">was '+Math.round(a)+'</span>';
     return '<span class="d num">'+(d===0?"±0":(d>0?"▲ ":"▼ ")+Math.abs(d)+u)+' vs '+base+'</span>';
   }
   function agoLbl(i,n){
     if(i===n-1)return "now";
-    if(!LIVE)return (n-1-i)+"h ago";
     var sec=(n-1-i)*POLL/1000;return sec<60?Math.round(sec)+"s ago":Math.round(sec/60)+"m ago";
   }
 
@@ -141,7 +117,7 @@
     $('#ch-v').textContent=fmt(k,st.cur);
     if(!st.s){$('#ch-l').textContent=NAMES[k];$('#chips').innerHTML='';$('#chart').innerHTML='<div class="empty">No online servers to chart<button class="btn sm" id="empty-new" type="button">Start a server</button></div>';var b=$('#empty-new');if(b)b.onclick=function(){$('#new').click()};return}
     var s=st.s,n=s.length;
-    $('#ch-l').textContent=NAMES[k]+(k==="players"?"":" load")+(LIVE?" · live":" · last "+state.range+"h");
+    $('#ch-l').textContent=NAMES[k]+(k==="players"?"":" load")+" · live";
     var pk=Math.max.apply(null,s),lo=Math.min.apply(null,s),avg=s.reduce(function(a,b){return a+b},0)/n;
     $('#chips').innerHTML=['Peak '+fmt(k,Math.round(pk)),'Low '+fmt(k,Math.round(lo)),'Avg '+fmt(k,Math.round(avg))].map(function(c){return '<span class="num">'+c+'</span>'}).join("");
     var W=Math.max(300,Math.round($('#chart').clientWidth||760)),H=W<520?190:230,P={l:38,r:10,t:10,b:26},max=k==="players"?niceMax(pk):100;
@@ -178,11 +154,12 @@
       var on=s.status==="on",busy=s.status==="busy",bad=s.status==="error",hot=on&&s.cpu>=HOT;
       var chip=busy?'<span class="chip busy">working</span>':bad?'<span class="chip err" data-tip="'+esc(s.error||"Couldn't start")+'" tabindex="0">failed</span>':hot?'<span class="chip hot" data-tip="CPU at '+s.cpu+'%. Over '+HOT+'% usually means lag." tabindex="0">▲ High CPU</span>':on?'<span class="chip on">online</span>':'<span class="chip off">offline</span>';
       var where=s.address?(s.kind==="web"?(on?'<a href="'+esc(s.address)+'" target="_blank" rel="noopener">Open</a>':''):'<button class="copy" type="button" data-copy="'+esc(s.address)+'" data-tip="Copy join link">'+esc(s.address)+'</button>'):'';
-      if(s.kind==="game"&&!s.address)where=s.linking?'<span class="muted">making link…</span>':on&&s.canLink===false?'<span class="muted" data-tip="Free join links need Paper or Purpur" tabindex="0">no join link</span>':on?'<button class="mk" type="button" data-a="link" data-id="'+esc(s.id)+'" data-tip="'+esc(s.linkError||"Free link players type into Minecraft. Restarts the server once.")+'">Make join link</button>':'';
+      if(s.udp&&!s.address)where='<span class="muted" data-tip="Bedrock needs a UDP tunnel. Use Address to paste yours (see the README)." tabindex="0">no join address</span>';
+      else if(s.kind==="game"&&!s.address)where=s.linking?'<span class="muted">making link…</span>':on&&s.canLink===false?'<span class="muted" data-tip="Free join links need Paper or Purpur" tabindex="0">no join link</span>':on?'<button class="mk" type="button" data-a="link" data-id="'+esc(s.id)+'" data-tip="'+esc(s.linkError||"Free link players type into Minecraft. Restarts the server once.")+'">Make join link</button>':'';
       var id=esc(s.id);
       return '<div class="row"><div><div class="nm"><span class="n">'+esc(s.name)+'</span>'+chip+'</div><div class="m">'+esc(s.tpl)+(on&&s.players?' · '+s.players+' players':'')+(where?' · '+where:'')+'</div></div>'+
         '<div class="val num" data-tip="CPU '+s.cpu+'% · Memory '+s.ram+'%">'+(on?s.cpu+'%':'—')+'</div>'+
-        '<div class="acts">'+(bad?'':'<button data-a="'+(on?"stop":"start")+'" data-id="'+id+'"'+(busy?" disabled":"")+'>'+(on?"Stop":"Start")+'</button><button class="'+(hot?"hotbtn":"")+'" data-a="restart" data-id="'+id+'"'+(!on||busy?" disabled":"")+'>Restart</button>')+'<button data-a="logs" data-id="'+id+'">Logs</button>'+(s.tplKey==="minecraft"&&!bad?'<button data-a="settings" data-id="'+id+'">Settings</button>':'')+'<button data-a="delete" data-id="'+id+'" aria-label="Delete '+esc(s.name)+'" data-tip="Delete"'+(busy?" disabled":"")+'>✕</button></div>'+
+        '<div class="acts">'+(bad?'':'<button data-a="'+(on?"stop":"start")+'" data-id="'+id+'"'+(busy?" disabled":"")+'>'+(on?"Stop":"Start")+'</button><button class="'+(hot?"hotbtn":"")+'" data-a="restart" data-id="'+id+'"'+(!on||busy?" disabled":"")+'>Restart</button>')+'<button data-a="logs" data-id="'+id+'">Logs</button>'+(s.tplKey==="minecraft"&&!bad?'<button data-a="settings" data-id="'+id+'">Settings</button>':'')+(s.udp&&!bad?'<button data-a="address" data-id="'+id+'">Address</button>':'')+'<button data-a="delete" data-id="'+id+'" aria-label="Delete '+esc(s.name)+'" data-tip="Delete"'+(busy?" disabled":"")+'>✕</button></div>'+
         (on?'<div class="bar" aria-hidden="true"><i style="width:'+s.cpu+'%"></i></div>':'')+'</div>';
     }).join("");
   }
@@ -194,17 +171,17 @@
   }
   function ago(){var s=Math.floor((Date.now()-state.loadedAt)/1000);$('#updated').textContent=s<15?"Updated just now":s<60?"Updated "+s+"s ago":"Updated "+Math.floor(s/60)+" min ago"}
   function render(){
-    if(LIVE&&!state.user)return;
-    banner();kpis();chart();plan();list();logList();ago();save();
+    if(!state.user)return;
+    banner();kpis();chart();plan();list();logList();ago();
   }
 
 
   /* ---------- settings & mods ---------- */
   var setDlg=$('#setdlg'),setForm=$('#setform'),setId=null,MODDIR={PAPER:"plugins",PURPUR:"plugins",FABRIC:"mods",FORGE:"mods",VANILLA:null};
-  var DEMO_SET={software:"PAPER",version:"LATEST",memory:1,motd:"A ButterHosting server",gamemode:"survival",difficulty:"normal",maxPlayers:10,viewDistance:10,pvp:true,hardcore:false,whitelist:false,whitelistNames:"",seed:"",allowNether:true,allowFlight:false,autostop:false};
+  var SET_DEFAULTS={software:"PAPER",version:"LATEST",memory:1,motd:"A ButterHosting server",gamemode:"survival",difficulty:"normal",maxPlayers:10,viewDistance:10,pvp:true,hardcore:false,whitelist:false,whitelistNames:"",seed:"",allowNether:true,allowFlight:false,autostop:false};
   function openSettings(s){
     setId=s.id;$('#set-title').textContent=s.name+" settings";$('#set-err').textContent="";
-    var st=Object.assign({},DEMO_SET,s.settings||{}),mem=setForm.elements.memory,mx=state.maxRam||2;mem.innerHTML="";
+    var st=Object.assign({},SET_DEFAULTS,s.settings||{}),mem=setForm.elements.memory,mx=state.maxRam||2;mem.innerHTML="";
     for(var g=1;g<=mx;g++){var o=document.createElement('option');o.value=g;o.textContent=g+" GB";mem.appendChild(o)}
     Array.prototype.forEach.call(setForm.elements,function(el){
       if(!el.name)return;
@@ -215,13 +192,12 @@
   }
   function modsRefresh(){
     var s=find(setId);if(!s)return;
-    var sw=setForm.elements.software.value,dir=MODDIR[(s.settings||DEMO_SET).software];
+    var sw=setForm.elements.software.value,dir=MODDIR[(s.settings||SET_DEFAULTS).software];
     $('#mods-h').textContent=dir==="plugins"?"Plugins":dir==="mods"?"Mods":"Mods and plugins";
     var list=$('#mods-list'),note=$('#mod-note'),drop=$('#drop');
     if(!dir){list.innerHTML="";drop.style.display="none";note.textContent="Vanilla can't load mods. Pick Paper, Purpur, Fabric or Forge above and save.";return}
     drop.style.display="";
     note.textContent=(s.status==="on"?"Restart the server after uploading so it loads.":"Start the server to upload.")+(s.canLink===false&&s.tplKey==="minecraft"?" Free join links work on Paper and Purpur only.":"");
-    if(!LIVE){list.innerHTML=(s.demoMods||[]).map(modRow).join("")||'<li class="muted">Nothing uploaded yet</li>';return}
     call("/servers/"+encodeURIComponent(setId)+"/files").then(function(r){list.innerHTML=r.files.map(modRow).join("")||'<li class="muted">Nothing uploaded yet</li>'}).catch(function(e){list.innerHTML='<li class="muted">'+esc(e.message)+'</li>'});
   }
   function modRow(n){return '<li><span>'+esc(n)+'</span><button type="button" data-del="'+esc(n)+'" aria-label="Remove '+esc(n)+'">Remove</button></li>'}
@@ -229,7 +205,6 @@
     var s=find(setId),t=$('#drop-t');if(!file||!s)return;
     if(!/\.jar$/i.test(file.name)){toast("Only .jar files");return}
     if(s.status!=="on"){toast("Start the server first");return}
-    if(!LIVE){s.demoMods=(s.demoMods||[]).concat(file.name);note("Uploaded "+file.name+" (demo)");save();modsRefresh();return}
     t.textContent="Uploading "+file.name+"…";
     fetch(API+"/servers/"+encodeURIComponent(setId)+"/files?name="+encodeURIComponent(file.name),{method:"POST",headers:{Authorization:"Bearer "+getTok()},body:file})
       .then(function(r){return r.json().catch(function(){return {}}).then(function(j){if(!r.ok)throw new Error(j.error||"Upload failed");return j})})
@@ -243,7 +218,6 @@
   dz.addEventListener('drop',function(e){upload(e.dataTransfer.files[0])});
   $('#mods-list').addEventListener('click',function(e){
     var b=e.target.closest('[data-del]');if(!b)return;var n=b.dataset.del,s=find(setId);
-    if(!LIVE){s.demoMods=(s.demoMods||[]).filter(function(x){return x!==n});save();return modsRefresh()}
     call("/servers/"+encodeURIComponent(setId)+"/files/delete?name="+encodeURIComponent(n),{method:"POST"}).then(function(){note("Removed "+n);modsRefresh()}).catch(function(er){toast(er.message)});
   });
   setForm.elements.software.addEventListener('change',function(){$('#set-note').textContent=MODDIR[this.value]===undefined?"":"Changing software keeps the world but old mods may not load. Applying restarts the server."});
@@ -254,7 +228,6 @@
       if(!el.name)return;
       body[el.name]=el.type==="checkbox"?el.checked:(el.type==="number"||el.name==="memory")?Number(el.value):el.value;
     });
-    if(!LIVE){s.settings=Object.assign({},DEMO_SET,body);s.canLink=body.software==="PAPER"||body.software==="PURPUR";s.status="busy";setDlg.close();render();return setTimeout(function(){s.status="on";note(s.name+" settings applied");toast("Settings applied");render()},1200)}
     var btn=$('#set-save');btn.disabled=true;
     call("/servers/"+encodeURIComponent(setId)+"/settings",{method:"POST",body:body}).then(function(){setDlg.close();note(s.name+" settings applied");toast("Applying settings. The server restarts.");return load(true)}).catch(function(x){er.textContent=x.message}).then(function(){btn.disabled=false});
   });
@@ -262,11 +235,10 @@
   /* ---------- logs & console ---------- */
   var logId=null,logDlg=$('#logdlg'),pre=$('#log-pre');
   function fetchLogs(){
-    if(!LIVE){pre.textContent="Demo mode: connect the backend to see real server logs here.";return}
     call("/servers/"+encodeURIComponent(logId)+"/logs").then(function(j){pre.textContent=j.logs||"(no output yet)";pre.scrollTop=pre.scrollHeight}).catch(function(e){pre.textContent=e.message});
   }
   function openLogs(s){
-    logId=s.id;$('#log-title').textContent=s.name;$('#cmdform').hidden=!(LIVE&&s.tplKey==="minecraft"&&s.status==="on");
+    logId=s.id;$('#log-title').textContent=s.name;$('#cmdform').hidden=!(s.tplKey==="minecraft"&&s.status==="on");
     pre.textContent="Loading…";logDlg.showModal();fetchLogs();
   }
   $('#log-refresh').onclick=fetchLogs;$('#log-close').onclick=function(){logDlg.close()};
@@ -294,28 +266,23 @@
   });
   document.querySelectorAll('.seg button').forEach(function(b){b.onclick=function(){state.range=+b.dataset.r;document.querySelectorAll('.seg button').forEach(function(x){x.setAttribute('aria-pressed',x===b)});render()}});
   var dlg=$('#dlg'),ferr=$('#form-err');
-  $('#new').onclick=function(){if(LIVE&&!state.user)return;$('#form').reset();ferr.textContent="";dlg.showModal();dlg.querySelector('input').focus()};
+  $('#new').onclick=function(){if(!state.user)return;$('#form').reset();ferr.textContent="";dlg.showModal();dlg.querySelector('input').focus()};
   $('#form').addEventListener('submit',function(e){
     if(e.submitter&&e.submitter.value!=="ok")return;
     e.preventDefault();
     var f=new FormData(e.target),name=String(f.get('name')).trim().replace(/\s+/g,'-'),tpl=String(f.get('tpl'));
     if(!/^[A-Za-z0-9][A-Za-z0-9-]{1,23}$/.test(name)){ferr.textContent="Use 2 to 24 letters, numbers or dashes";return}
     if(state.limit!=null&&state.servers.length>=state.limit){ferr.textContent="You've reached your plan limit";return}
-    if(!LIVE){
-      var s={id:String(Date.now()),name:name.toLowerCase(),tpl:tpl,tplKey:tpl.toLowerCase().replace(/[^a-z]/g,""),kind:tpl==="Minecraft"?"game":"web",address:"",status:"busy",cpu:0,ram:0,players:0};
-      state.servers.push(s);dlg.close();render();
-      return setTimeout(function(){s.status="on";s.cpu=8+Math.round(Math.random()*20);s.ram=15+Math.round(Math.random()*25);state.loadedAt=Date.now();note("Created "+s.name);toast(s.name+" is online");render()},1200);
-    }
     var btn=e.target.querySelector('button[value=ok]');btn.disabled=true;
     call("/servers",{method:"POST",body:{name:name,tpl:tpl}}).then(function(){dlg.close();note("Created "+name);toast(name+" is starting. The first launch can take a few minutes.");return load(true)}).catch(function(er){ferr.textContent=er.message}).then(function(){btn.disabled=false});
   });
 
   /* ---------- boot ---------- */
   function boot(){
-    var mode=$('#mode');mode.textContent=LIVE?"Live":"Demo";mode.setAttribute('data-tip',LIVE?"Connected to your backend":"Sample data stored in this browser. Set BUTTER_API in config.js to go live.");mode.tabIndex=0;
-    if(LIVE)$('.seg').style.display='none';
+    var mode=$('#mode');mode.textContent="Live";mode.setAttribute('data-tip',"Connected to your backend");mode.tabIndex=0;
+    $('.seg').style.display='none';
     timers.push(setInterval(ago,10000));
-    if(!LIVE){load();return}
+    if(!API)return showGate("The backend isn't connected yet. The site owner needs to set BUTTER_API in config.js.",true);
     if(!getTok())return showGate("");
     call("/me").then(function(u){
       state.user=u;state.limit=u.limit==null?null:u.limit;document.body.classList.remove('gated');$('#gate').hidden=true;userPill();

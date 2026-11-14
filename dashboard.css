@@ -108,3 +108,5 @@ dialog.wide{max-height:92vh;overflow:auto}
 .row .nm .n{font-family:var(--display);font-weight:400;font-size:21px;letter-spacing:.005em}
 .side nav a{font-size:19px}.pill.cta,.btn{font-size:18px}
 .inner .nl{font-family:var(--display);font-weight:400;font-size:34px;letter-spacing:-.03em}
+
+.gate-logo{width:96px;height:auto;background:none;border:0;box-shadow:none;border-radius:0;display:block;margin:0 auto 6px}

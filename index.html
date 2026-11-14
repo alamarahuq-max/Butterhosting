@@ -7,13 +7,13 @@
 <meta name="description" content="ButterHosting: fast, friendly game and app server hosting. Spin up a server in seconds and manage it from one smooth dashboard.">
 <meta name="theme-color" content="#FFD23F">
 <link rel="preload" href="fonts/ntype82.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='5' width='26' height='22' rx='6' fill='%23FFD84D' stroke='%232A1C0A' stroke-width='3'/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="nav"><div class="wrap">
-  <a class="logo" href="./" aria-label="ButterHosting home"><i aria-hidden="true"></i>ButterHosting</a>
+  <a class="logo" href="./" aria-label="ButterHosting home"><img src="logo.svg" alt="" aria-hidden="true">ButterHosting</a>
   <nav aria-label="Main">
     <a class="h" href="#features">Features</a><a class="h" href="#how">How it works</a><a class="h" href="#pricing">Pricing</a>
     <button class="theme" id="theme" aria-label="Toggle dark mode" type="button">☾</button>
@@ -31,6 +31,7 @@
   </div>
   <div class="stack" aria-hidden="true">
     <svg class="butter" viewBox="0 0 400 400" role="img" focusable="false">
+      <defs><linearGradient id="hf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE27A"/><stop offset=".55" stop-color="#FFD23F"/><stop offset="1" stop-color="#FFC21A"/></linearGradient><linearGradient id="ht" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFF6C4"/><stop offset="1" stop-color="#FFEB8F"/></linearGradient><linearGradient id="hs" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F7B90A"/><stop offset="1" stop-color="#E59A00"/></linearGradient></defs>
       <ellipse cx="212" cy="318" rx="176" ry="44" fill="#1D1A3A"/>
       <ellipse cx="200" cy="306" rx="176" ry="44" fill="var(--card)" stroke="#1D1A3A" stroke-width="3"/>
       <ellipse cx="200" cy="304" rx="132" ry="30" fill="none" stroke="var(--line)" stroke-width="3"/>
@@ -39,9 +40,9 @@
         <path class="s1" d="M150 128c-12-14 12-24 0-40"/><path class="s2" d="M200 118c-12-14 12-24 0-40"/><path class="s3" d="M250 128c-12-14 12-24 0-40"/>
       </g>
       <g class="block" stroke="#1D1A3A" stroke-width="3" stroke-linejoin="round">
-        <path d="M96 196 140 158H330L284 196Z" fill="#FFF0A8"/>
-        <path d="M284 196 330 158V250L284 292Z" fill="#F0B010"/>
-        <rect x="96" y="196" width="188" height="96" rx="8" fill="#FFD23F"/>
+        <path d="M96 196 140 158H330L284 196Z" fill="url(#ht)"/>
+        <path d="M284 196 330 158V250L284 292Z" fill="url(#hs)"/>
+        <rect x="96" y="196" width="188" height="96" rx="9" fill="url(#hf)"/>
         <path class="shine" d="M118 214h58" stroke="#FFF8D6" stroke-width="7" stroke-linecap="round"/>
         <path d="M172 176h86" stroke="#FFFBE6" stroke-width="5" stroke-linecap="round" opacity=".8" fill="none"/>
         <g class="drips" fill="#FFD23F">

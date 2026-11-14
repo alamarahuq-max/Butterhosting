@@ -42,3 +42,6 @@ Install with `sh install.sh <repo> --ram /media/usb`. Worlds and the API databas
 - Size the RAM disk with `RAM_SIZE` (default `1g`). On a 4 GB machine, 1 GB for worlds is about right; each Java server also needs 1.3 to 1.5 GB of RAM to run.
 - If you instead want the whole OS in RAM (Alpine's own diskless mode), that works too, but Docker plus Node unpacked in RAM costs roughly 300 to 400 MB. That is more than the 200 MB goal, so I use disk-backed OS files and put only the worlds in RAM.
 - Not run on real hardware: syntax-checked only.
+
+## Design files
+`os/design/` has the boot-menu, console and web-UI mockups (PNG), the logo (`logo.svg`), the display font, and the prompt used to have an AI build the OS. The numbers in the mockups are placeholders.

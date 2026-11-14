@@ -1,0 +1,11 @@
+#!/sbin/openrc-run
+name="butterhosting"
+description="ButterHosting API"
+command="/usr/bin/node"
+command_args="/opt/butterhosting/hosting-api/server.js"
+command_background=true
+pidfile="/run/butterhosting.pid"
+output_log="/var/log/butterhosting.log"
+error_log="/var/log/butterhosting.log"
+depend() { need docker net; }
+start_pre() { set -a; [ -f /etc/butterhosting.env ] && . /etc/butterhosting.env; set +a; export DATA_DIR=/var/lib/butterhosting; mkdir -p "$DATA_DIR"; }

@@ -78,7 +78,7 @@ function dk(args, { timeout = 60000 } = {}) {
 
 const HELLO_NODE = "require('http').createServer((q,r)=>{r.setHeader('content-type','text/html');r.end('<h1>Hello from ButterHosting</h1>')}).listen(process.env.PORT||3000)";
 const TEMPLATES = {
-  minecraft: { label: "Minecraft", kind: "game", image: "itzg/minecraft-server:latest", cport: 25565, mem: "1536m", cpus: 2, vol: "/data", env: ["EULA=TRUE", "TYPE=PAPER", "MEMORY=1G", "MODRINTH_PROJECTS=minekube-connect", "ENFORCE_SECURE_PROFILE=FALSE"], cmd: [] },
+  minecraft: { label: "Minecraft", kind: "game", image: "itzg/minecraft-server:latest", cport: 25565, mem: "2048m", cpus: 2, vol: "/data", env: [], cmd: [] },
   node: { label: "Node.js", kind: "web", image: "node:22-alpine", cport: 3000, mem: "256m", cpus: 0.5, vol: "/app", env: ["PORT=3000", "BH_DEFAULT=" + HELLO_NODE], cmd: ["sh", "-c", 'cd /app && [ -f server.js ] || printf "%s" "$BH_DEFAULT" > server.js; exec node server.js'] },
   python: { label: "Python", kind: "web", image: "python:3.12-alpine", cport: 8000, mem: "256m", cpus: 0.5, vol: "/srv/www", env: [], cmd: ["sh", "-c", 'cd /srv/www && [ -f index.html ] || echo "<h1>Hello from ButterHosting</h1>" > index.html; exec python -m http.server 8000'] },
   static: { label: "Static site", kind: "web", image: "nginx:alpine", cport: 80, mem: "128m", cpus: 0.25, vol: "/usr/share/nginx/html", env: [], cmd: [] },
@@ -129,6 +129,45 @@ async function players(id) {
   return n;
 }
 
+
+/* ---------- Minecraft settings (what players of Aternos-style hosts expect) ---------- */
+const MAX_RAM_GB = Number(env.MAX_RAM_GB || 2);
+const MAX_UPLOAD = Number(env.MAX_UPLOAD_MB || 100) * 1024 * 1024;
+const MOD_DIR = { PAPER: "plugins", PURPUR: "plugins", FABRIC: "mods", FORGE: "mods", VANILLA: null };
+const MC_DEFAULTS = { software: "PAPER", version: "LATEST", memory: 1, motd: "A ButterHosting server", gamemode: "survival", difficulty: "normal",
+  maxPlayers: 10, viewDistance: 10, pvp: true, hardcore: false, whitelist: false, whitelistNames: "", seed: "", allowNether: true, allowFlight: false, autostop: false };
+const ONE_OF = { software: Object.keys(MOD_DIR), gamemode: ["survival", "creative", "adventure", "spectator"], difficulty: ["peaceful", "easy", "normal", "hard"] };
+function cleanSettings(input, base) {
+  const o = Object.assign({}, MC_DEFAULTS, base || {}), i = input || {};
+  for (const k of Object.keys(ONE_OF)) if (i[k] !== undefined) { if (!ONE_OF[k].includes(i[k])) return { error: "Bad " + k }; o[k] = i[k]; }
+  if (i.version !== undefined) { const v = String(i.version).trim(); if (!/^(LATEST|\d{1,2}\.\d{1,2}(\.\d{1,2})?)$/i.test(v)) return { error: "Version looks like 1.21.4 or LATEST" }; o.version = v.toUpperCase(); }
+  const num = (k, lo, hi) => { if (i[k] === undefined) return null; const n = Number(i[k]); if (!Number.isInteger(n) || n < lo || n > hi) return "Bad " + k + " (" + lo + " to " + hi + ")"; o[k] = n; return null; };
+  const bad = num("memory", 1, MAX_RAM_GB) || num("maxPlayers", 1, 100) || num("viewDistance", 3, 16);
+  if (bad) return { error: bad };
+  for (const k of ["pvp", "hardcore", "whitelist", "allowNether", "allowFlight", "autostop"]) if (i[k] !== undefined) o[k] = !!i[k];
+  if (i.motd !== undefined) { const m = String(i.motd); if (m.length > 60 || /[\r\n]/.test(m)) return { error: "MOTD: one line, up to 60 characters" }; o.motd = m; }
+  if (i.seed !== undefined) { const m = String(i.seed); if (m.length > 64 || /[\r\n]/.test(m)) return { error: "Seed is too long" }; o.seed = m; }
+  if (i.whitelistNames !== undefined) {
+    const names = String(i.whitelistNames).split(/[\s,]+/).filter(Boolean);
+    if (names.length > 100 || names.some((n) => !/^[A-Za-z0-9_.]{2,16}$/.test(n))) return { error: "Whitelist: Minecraft usernames separated by commas" };
+    o.whitelistNames = names.join(",");
+  }
+  if (o.whitelist && !o.whitelistNames) return { error: "Add at least one username to turn the whitelist on" };
+  return { settings: o };
+}
+function mcEnv(st) {
+  const e = ["EULA=TRUE", "TYPE=" + st.software, "VERSION=" + st.version, "MEMORY=" + st.memory + "G", "MOTD=" + st.motd, "MODE=" + st.gamemode, "DIFFICULTY=" + st.difficulty,
+    "MAX_PLAYERS=" + st.maxPlayers, "VIEW_DISTANCE=" + st.viewDistance, "PVP=" + st.pvp, "HARDCORE=" + st.hardcore, "ALLOW_NETHER=" + st.allowNether, "ALLOW_FLIGHT=" + st.allowFlight,
+    "ENFORCE_SECURE_PROFILE=FALSE", "ONLINE_MODE=TRUE"];
+  if (st.seed) e.push("SEED=" + st.seed);
+  if (st.whitelist) e.push("ENABLE_WHITELIST=TRUE", "WHITELIST=" + st.whitelistNames, "OVERRIDE_WHITELIST=TRUE");
+  if (st.autostop) e.push("ENABLE_AUTOSTOP=TRUE", "AUTOSTOP_TIMEOUT_EST=600");
+  if (linkable(st)) e.push("MODRINTH_PROJECTS=minekube-connect");
+  return e;
+}
+const linkable = (st) => st.software === "PAPER" || st.software === "PURPUR"; // Minekube Connect is a Bukkit/Velocity plugin
+const mcSettings = (s) => Object.assign({}, MC_DEFAULTS, s.settings || {});
+
 const jobs = new Set(); // server ids currently being created
 const linking = new Set(); // server ids waiting for a join link
 async function view(s, snap) {
@@ -144,7 +183,7 @@ async function view(s, snap) {
     if (s.tpl === "minecraft") pl = await players(s.id);
   } else if (d && (d.state === "restarting" || d.state === "created")) status = "busy";
   const address = t.kind === "game" ? (s.link || "") : CS ? csUrl(s.port) : `http://${PUBLIC_HOST}:${s.port}`;
-  return { id: s.id, name: s.name, tpl: t.label, tplKey: s.tpl, kind: t.kind, status, cpu, ram, players: pl, port: s.port, address, error: s.error || null, linking: linking.has(s.id), linkError: s.linkError || null, createdAt: s.createdAt };
+  return { id: s.id, name: s.name, tpl: t.label, tplKey: s.tpl, kind: t.kind, status, cpu, ram, players: pl, port: s.port, address, error: s.error || null, linking: linking.has(s.id), settings: s.tpl === "minecraft" ? mcSettings(s) : null, canLink: s.tpl === "minecraft" ? linkable(mcSettings(s)) : false, modDir: s.tpl === "minecraft" ? MOD_DIR[mcSettings(s).software] : null, linkError: s.linkError || null, createdAt: s.createdAt };
 }
 
 /* Join link: Minekube Connect (free, no domain, no port forwarding) gives <name>.play.minekube.net */
@@ -177,12 +216,14 @@ function freePort() {
 async function provision(s) {
   const t = TEMPLATES[s.tpl];
   jobs.add(s.id);
+  const st = s.tpl === "minecraft" ? mcSettings(s) : null;
+  const envs = st ? mcEnv(st) : t.env, mem = st ? `${st.memory * 1024 + 512}m` : t.mem;
   try {
-    await dk(["run", "-d", "--name", cname(s.id), "--restart", "unless-stopped",
+    await dk(["run", "-d", "--name", cname(s.id), "--restart", st && st.autostop ? "no" : "unless-stopped",
       "--label", "butterhosting=1", "--label", "bh.owner=" + s.owner, "--label", "bh.id=" + s.id,
-      "--memory", t.mem, "--cpus", String(t.cpus),
+      "--memory", mem, "--cpus", String(t.cpus),
       "-p", `${s.port}:${t.cport}`, "-v", `${vname(s.id)}:${t.vol}`,
-      ...t.env.flatMap((e) => ["-e", e]), t.image, ...t.cmd], { timeout: 15 * 60 * 1000 });
+      ...envs.flatMap((e) => ["-e", e]), t.image, ...t.cmd], { timeout: 15 * 60 * 1000 });
     s.state = "ready"; s.error = null;
   } catch (e) {
     s.state = "error"; s.error = e.message;
@@ -292,7 +333,7 @@ async function handle(req, res) {
   if (parts.length === 1 && m === "GET") {
     const snap = await snapshot();
     const servers = await Promise.all(mine.sort((a, b) => a.createdAt - b.createdAt).map((s) => view(s, snap)));
-    return json(req, res, 200, { servers, dockerOk: snap.__ok !== false, dockerError: snap.__err || null });
+    return json(req, res, 200, { servers, maxRam: MAX_RAM_GB, maxUploadMb: MAX_UPLOAD / 1048576, dockerOk: snap.__ok !== false, dockerError: snap.__err || null });
   }
 
   if (parts.length === 1 && m === "POST") {
@@ -326,10 +367,60 @@ async function handle(req, res) {
     } catch (e) { return json(req, res, 200, { logs: s.error ? "Provisioning failed:\n" + s.error : "No logs yet" }); }
   }
 
+  if (action === "files" && m === "GET") {
+    if (s.tpl !== "minecraft") return json(req, res, 400, { error: "Mods and plugins are for Minecraft servers" });
+    const dir = MOD_DIR[mcSettings(s).software];
+    if (!dir) return json(req, res, 200, { dir: null, files: [] });
+    const r = await dk(["exec", cname(s.id), "ls", "-1", "/data/" + dir]).catch(() => ({ out: "" }));
+    return json(req, res, 200, { dir, files: r.out.split("\n").map((x) => x.trim()).filter((x) => /\.jar$/i.test(x)) });
+  }
   if (m !== "POST") return json(req, res, 405, { error: "method not allowed" });
   if (jobs.has(s.id)) return json(req, res, 409, { error: "Server is still being created" });
+  if (action === "settings") {
+    if (s.tpl !== "minecraft") return json(req, res, 400, { error: "Settings are for Minecraft servers" });
+    let b; try { b = await readJson(req); } catch (e) { return json(req, res, 400, { error: e.message }); }
+    const r = cleanSettings(b, s.settings);
+    if (r.error) return json(req, res, 400, { error: r.error });
+    s.settings = r.settings; s.state = "creating"; saveDb();
+    await dk(["rm", "-f", cname(s.id)]).catch(() => {});
+    provision(s); // same data volume, new settings; the dashboard shows "working" until it is back
+    return json(req, res, 200, { ok: true });
+  }
+  if (action === "files") {
+    if (s.tpl !== "minecraft") return json(req, res, 400, { error: "Mods and plugins are for Minecraft servers" });
+    const dir = MOD_DIR[mcSettings(s).software];
+    if (!dir) return json(req, res, 400, { error: "Vanilla can't load mods. Change the software to Paper, Purpur, Fabric or Forge in Settings." });
+    const name = String(u.searchParams.get("name") || "");
+    if (!/^[A-Za-z0-9._+-]{1,100}\.jar$/i.test(name) || name.includes("..")) return json(req, res, 400, { error: "File must be a .jar with a simple name" });
+    if (parts[3] === "delete") {
+      await dk(["exec", cname(s.id), "rm", "-f", `/data/${dir}/${name}`]).catch((e) => { throw e; });
+      return json(req, res, 200, { ok: true });
+    }
+    const len = Number(req.headers["content-length"] || 0);
+    if (!len) return json(req, res, 411, { error: "Empty upload" });
+    if (len > MAX_UPLOAD) return json(req, res, 413, { error: `Max upload is ${MAX_UPLOAD / 1048576} MB` });
+    try { const r = await dk(["inspect", "-f", "{{.State.Running}}", cname(s.id)]); if (!/true/.test(r.out)) throw new Error(); }
+    catch { return json(req, res, 409, { error: "Start the server first, then upload" }); }
+    const tmp = path.join(DATA_DIR, "up-" + crypto.randomBytes(6).toString("hex"));
+    try {
+      await new Promise((resolve, reject) => {
+        let n = 0; const w = fs.createWriteStream(tmp);
+        req.on("data", (c) => { n += c.length; if (n > MAX_UPLOAD) { reject(new Error("File too large")); req.destroy(); w.destroy(); } });
+        req.on("aborted", () => reject(new Error("Upload cancelled")));
+        req.on("error", reject); w.on("error", reject); w.on("finish", resolve); req.pipe(w);
+      });
+      const fd = fs.openSync(tmp, "r"), head = Buffer.alloc(4); fs.readSync(fd, head, 0, 4, 0); fs.closeSync(fd);
+      if (head.toString("hex") !== "504b0304") return json(req, res, 400, { error: "That isn't a valid .jar file" });
+      await dk(["exec", "-u", "1000", cname(s.id), "mkdir", "-p", "/data/" + dir]);
+      await dk(["cp", tmp, `${cname(s.id)}:/data/${dir}/${name}`], { timeout: 120000 });
+      await dk(["exec", cname(s.id), "chown", "1000:1000", `/data/${dir}/${name}`]).catch(() => {});
+    } catch (e) { return json(req, res, 502, { error: e.message }); }
+    finally { fs.rm(tmp, { force: true }, () => {}); }
+    return json(req, res, 200, { ok: true, restartNeeded: true });
+  }
   if (action === "link") {
     if (s.tpl !== "minecraft") return json(req, res, 400, { error: "Join links are for Minecraft servers" });
+    if (!linkable(mcSettings(s))) return json(req, res, 400, { error: "Free join links need Paper or Purpur (Fabric and Forge can't run the link plugin yet)" });
     if (s.link) return json(req, res, 200, { ok: true, link: s.link });
     if (linking.has(s.id)) return json(req, res, 200, { ok: true });
     try { await dk(["inspect", "-f", "{{.State.Running}}", cname(s.id)]).then((r) => { if (!/true/.test(r.out)) throw new Error("Start the server first"); }); }

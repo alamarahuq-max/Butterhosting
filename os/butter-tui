@@ -1,0 +1,34 @@
+#!/bin/sh
+# ButterOS console: the only thing that runs on the screen. Needs: dialog, docker, node.
+ENVF=/etc/butterhosting.env
+ip4() { ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1; }
+mem() { free -m | awk '/Mem:/ {printf "%d MB used of %d MB", $3, $2}'; }
+api() { rc-service butterhosting status >/dev/null 2>&1 && echo running || echo stopped; }
+count() { docker ps -q --filter label=butterhosting=1 2>/dev/null | wc -l; }
+
+setvar() { # name prompt
+  cur=$(grep "^$1=" "$ENVF" 2>/dev/null | cut -d= -f2-)
+  val=$(dialog --stdout --inputbox "$2" 9 66 "$cur") || return
+  touch "$ENVF"; chmod 600 "$ENVF"
+  grep -v "^$1=" "$ENVF" > "$ENVF.tmp"; echo "$1=$val" >> "$ENVF.tmp"; mv "$ENVF.tmp" "$ENVF"
+  dialog --msgbox "Saved. Restart the API for it to take effect." 6 50
+}
+
+while :; do
+  c=$(dialog --stdout --no-cancel --title "ButterOS" \
+    --menu "IP $(ip4)   |   API $(api)   |   $(count) game servers\nRAM $(mem)" 20 70 9 \
+    1 "Start / restart API" 2 "Stop API" 3 "API log" 4 "Discord client ID" 5 "Discord client secret" \
+    6 "Frontend URL (your Vercel site)" 7 "Running containers" 8 "Shell" 9 "Power off" 10 "Reboot")
+  case $c in
+    1) rc-service butterhosting restart >/dev/null 2>&1; dialog --msgbox "API: $(api)" 6 30 ;;
+    2) rc-service butterhosting stop >/dev/null 2>&1 ;;
+    3) dialog --textbox /var/log/butterhosting.log 22 78 ;;
+    4) setvar DISCORD_CLIENT_ID "Discord application client ID" ;;
+    5) setvar DISCORD_CLIENT_SECRET "Discord client secret" ;;
+    6) setvar FRONTEND_URL "https://your-site.vercel.app" ;;
+    7) docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' > /tmp/ps.txt 2>&1; dialog --textbox /tmp/ps.txt 20 78 ;;
+    8) clear; echo "Type exit to come back."; /bin/sh ;;
+    9) poweroff ;;
+    10) reboot ;;
+  esac
+done

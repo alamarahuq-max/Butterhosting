@@ -57,7 +57,7 @@
     }
     return call("/servers").then(function(d){
       if(id!==reqId)return;
-      state.servers=d.servers;state.err=d.dockerOk===false?"Docker isn't running on the host, so servers can't be managed right now.":null;
+      state.servers=d.servers;state.maxRam=d.maxRam||2;state.err=d.dockerOk===false?"Docker isn't running on the host, so servers can't be managed right now.":null;
       state.loading=false;state.loaded=true;state.loadedAt=Date.now();pushHist();render();
     }).catch(function(e){
       if(id!==reqId||!state.user)return;
@@ -68,6 +68,7 @@
   function act(id,action){
     var s=find(id);if(!s)return;
     if(action==="logs")return openLogs(s);
+    if(action==="settings")return openSettings(s);
     if(action==="link"){
       s.linking=true;render();
       if(!LIVE)return setTimeout(function(){s.linking=false;s.address=s.name+"-demo.play.minekube.net";note(s.name+" join link ready (demo)");render()},1800);
@@ -177,11 +178,11 @@
       var on=s.status==="on",busy=s.status==="busy",bad=s.status==="error",hot=on&&s.cpu>=HOT;
       var chip=busy?'<span class="chip busy">working</span>':bad?'<span class="chip err" data-tip="'+esc(s.error||"Couldn't start")+'" tabindex="0">failed</span>':hot?'<span class="chip hot" data-tip="CPU at '+s.cpu+'%. Over '+HOT+'% usually means lag." tabindex="0">▲ High CPU</span>':on?'<span class="chip on">online</span>':'<span class="chip off">offline</span>';
       var where=s.address?(s.kind==="web"?(on?'<a href="'+esc(s.address)+'" target="_blank" rel="noopener">Open</a>':''):'<button class="copy" type="button" data-copy="'+esc(s.address)+'" data-tip="Copy join link">'+esc(s.address)+'</button>'):'';
-      if(s.kind==="game"&&!s.address)where=s.linking?'<span class="muted">making link…</span>':on?'<button class="mk" type="button" data-a="link" data-id="'+esc(s.id)+'" data-tip="'+esc(s.linkError||"Free link players type into Minecraft. Restarts the server once.")+'">Make join link</button>':'';
+      if(s.kind==="game"&&!s.address)where=s.linking?'<span class="muted">making link…</span>':on&&s.canLink===false?'<span class="muted" data-tip="Free join links need Paper or Purpur" tabindex="0">no join link</span>':on?'<button class="mk" type="button" data-a="link" data-id="'+esc(s.id)+'" data-tip="'+esc(s.linkError||"Free link players type into Minecraft. Restarts the server once.")+'">Make join link</button>':'';
       var id=esc(s.id);
       return '<div class="row"><div><div class="nm"><span class="n">'+esc(s.name)+'</span>'+chip+'</div><div class="m">'+esc(s.tpl)+(on&&s.players?' · '+s.players+' players':'')+(where?' · '+where:'')+'</div></div>'+
         '<div class="val num" data-tip="CPU '+s.cpu+'% · Memory '+s.ram+'%">'+(on?s.cpu+'%':'—')+'</div>'+
-        '<div class="acts">'+(bad?'':'<button data-a="'+(on?"stop":"start")+'" data-id="'+id+'"'+(busy?" disabled":"")+'>'+(on?"Stop":"Start")+'</button><button class="'+(hot?"hotbtn":"")+'" data-a="restart" data-id="'+id+'"'+(!on||busy?" disabled":"")+'>Restart</button>')+'<button data-a="logs" data-id="'+id+'">Logs</button><button data-a="delete" data-id="'+id+'" aria-label="Delete '+esc(s.name)+'" data-tip="Delete"'+(busy?" disabled":"")+'>✕</button></div>'+
+        '<div class="acts">'+(bad?'':'<button data-a="'+(on?"stop":"start")+'" data-id="'+id+'"'+(busy?" disabled":"")+'>'+(on?"Stop":"Start")+'</button><button class="'+(hot?"hotbtn":"")+'" data-a="restart" data-id="'+id+'"'+(!on||busy?" disabled":"")+'>Restart</button>')+'<button data-a="logs" data-id="'+id+'">Logs</button>'+(s.tplKey==="minecraft"&&!bad?'<button data-a="settings" data-id="'+id+'">Settings</button>':'')+'<button data-a="delete" data-id="'+id+'" aria-label="Delete '+esc(s.name)+'" data-tip="Delete"'+(busy?" disabled":"")+'>✕</button></div>'+
         (on?'<div class="bar" aria-hidden="true"><i style="width:'+s.cpu+'%"></i></div>':'')+'</div>';
     }).join("");
   }
@@ -196,6 +197,67 @@
     if(LIVE&&!state.user)return;
     banner();kpis();chart();plan();list();logList();ago();save();
   }
+
+
+  /* ---------- settings & mods ---------- */
+  var setDlg=$('#setdlg'),setForm=$('#setform'),setId=null,MODDIR={PAPER:"plugins",PURPUR:"plugins",FABRIC:"mods",FORGE:"mods",VANILLA:null};
+  var DEMO_SET={software:"PAPER",version:"LATEST",memory:1,motd:"A ButterHosting server",gamemode:"survival",difficulty:"normal",maxPlayers:10,viewDistance:10,pvp:true,hardcore:false,whitelist:false,whitelistNames:"",seed:"",allowNether:true,allowFlight:false,autostop:false};
+  function openSettings(s){
+    setId=s.id;$('#set-title').textContent=s.name+" settings";$('#set-err').textContent="";
+    var st=Object.assign({},DEMO_SET,s.settings||{}),mem=setForm.elements.memory,mx=state.maxRam||2;mem.innerHTML="";
+    for(var g=1;g<=mx;g++){var o=document.createElement('option');o.value=g;o.textContent=g+" GB";mem.appendChild(o)}
+    Array.prototype.forEach.call(setForm.elements,function(el){
+      if(!el.name)return;
+      if(el.type==="checkbox")el.checked=!!st[el.name];else el.value=st[el.name]==null?"":st[el.name];
+    });
+    modsRefresh();
+    if(!setDlg.open)setDlg.showModal();
+  }
+  function modsRefresh(){
+    var s=find(setId);if(!s)return;
+    var sw=setForm.elements.software.value,dir=MODDIR[(s.settings||DEMO_SET).software];
+    $('#mods-h').textContent=dir==="plugins"?"Plugins":dir==="mods"?"Mods":"Mods and plugins";
+    var list=$('#mods-list'),note=$('#mod-note'),drop=$('#drop');
+    if(!dir){list.innerHTML="";drop.style.display="none";note.textContent="Vanilla can't load mods. Pick Paper, Purpur, Fabric or Forge above and save.";return}
+    drop.style.display="";
+    note.textContent=(s.status==="on"?"Restart the server after uploading so it loads.":"Start the server to upload.")+(s.canLink===false&&s.tplKey==="minecraft"?" Free join links work on Paper and Purpur only.":"");
+    if(!LIVE){list.innerHTML=(s.demoMods||[]).map(modRow).join("")||'<li class="muted">Nothing uploaded yet</li>';return}
+    call("/servers/"+encodeURIComponent(setId)+"/files").then(function(r){list.innerHTML=r.files.map(modRow).join("")||'<li class="muted">Nothing uploaded yet</li>'}).catch(function(e){list.innerHTML='<li class="muted">'+esc(e.message)+'</li>'});
+  }
+  function modRow(n){return '<li><span>'+esc(n)+'</span><button type="button" data-del="'+esc(n)+'" aria-label="Remove '+esc(n)+'">Remove</button></li>'}
+  function upload(file){
+    var s=find(setId),t=$('#drop-t');if(!file||!s)return;
+    if(!/\.jar$/i.test(file.name)){toast("Only .jar files");return}
+    if(s.status!=="on"){toast("Start the server first");return}
+    if(!LIVE){s.demoMods=(s.demoMods||[]).concat(file.name);note("Uploaded "+file.name+" (demo)");save();modsRefresh();return}
+    t.textContent="Uploading "+file.name+"…";
+    fetch(API+"/servers/"+encodeURIComponent(setId)+"/files?name="+encodeURIComponent(file.name),{method:"POST",headers:{Authorization:"Bearer "+getTok()},body:file})
+      .then(function(r){return r.json().catch(function(){return {}}).then(function(j){if(!r.ok)throw new Error(j.error||"Upload failed");return j})})
+      .then(function(){note("Uploaded "+file.name);toast(file.name+" uploaded. Restart to load it.");modsRefresh()})
+      .catch(function(e){toast(e.message)}).then(function(){t.textContent="Drop a .jar here or click to upload"});
+  }
+  $('#mod-file').addEventListener('change',function(e){upload(e.target.files[0]);e.target.value=""});
+  var dz=$('#drop');
+  ['dragenter','dragover'].forEach(function(n){dz.addEventListener(n,function(e){e.preventDefault();dz.classList.add('over')})});
+  ['dragleave','drop'].forEach(function(n){dz.addEventListener(n,function(e){e.preventDefault();dz.classList.remove('over')})});
+  dz.addEventListener('drop',function(e){upload(e.dataTransfer.files[0])});
+  $('#mods-list').addEventListener('click',function(e){
+    var b=e.target.closest('[data-del]');if(!b)return;var n=b.dataset.del,s=find(setId);
+    if(!LIVE){s.demoMods=(s.demoMods||[]).filter(function(x){return x!==n});save();return modsRefresh()}
+    call("/servers/"+encodeURIComponent(setId)+"/files/delete?name="+encodeURIComponent(n),{method:"POST"}).then(function(){note("Removed "+n);modsRefresh()}).catch(function(er){toast(er.message)});
+  });
+  setForm.elements.software.addEventListener('change',function(){$('#set-note').textContent=MODDIR[this.value]===undefined?"":"Changing software keeps the world but old mods may not load. Applying restarts the server."});
+  $('#set-close').onclick=function(){setDlg.close()};
+  setForm.addEventListener('submit',function(e){
+    e.preventDefault();var s=find(setId),er=$('#set-err');er.textContent="";if(!s)return;
+    var body={};Array.prototype.forEach.call(setForm.elements,function(el){
+      if(!el.name)return;
+      body[el.name]=el.type==="checkbox"?el.checked:(el.type==="number"||el.name==="memory")?Number(el.value):el.value;
+    });
+    if(!LIVE){s.settings=Object.assign({},DEMO_SET,body);s.canLink=body.software==="PAPER"||body.software==="PURPUR";s.status="busy";setDlg.close();render();return setTimeout(function(){s.status="on";note(s.name+" settings applied");toast("Settings applied");render()},1200)}
+    var btn=$('#set-save');btn.disabled=true;
+    call("/servers/"+encodeURIComponent(setId)+"/settings",{method:"POST",body:body}).then(function(){setDlg.close();note(s.name+" settings applied");toast("Applying settings. The server restarts.");return load(true)}).catch(function(x){er.textContent=x.message}).then(function(){btn.disabled=false});
+  });
 
   /* ---------- logs & console ---------- */
   var logId=null,logDlg=$('#logdlg'),pre=$('#log-pre');

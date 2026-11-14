@@ -66,3 +66,10 @@ cd hosting-api
 FRONTEND_URL=http://localhost:3000 DISCORD_CLIENT_ID=... DISCORD_CLIENT_SECRET=... node server.js
 ```
 For testing without Discord, add `DEV_LOGIN=1` and open `/auth/dev?id=1`. Never set it in production.
+
+## Settings, mods and Bedrock
+
+- **Settings** (dashboard, Settings button on a Minecraft server): software (Paper, Purpur, Fabric, Forge, Vanilla), version, memory, game mode, difficulty, max players, view distance, seed, MOTD, whitelist, PvP, hardcore, nether, flight, auto-stop when empty. Saving recreates the container with the new settings; the world is kept.
+- **Mods and plugins:** upload a `.jar` in the same dialog (max `MAX_UPLOAD_MB`, default 100). Paper and Purpur use `plugins/`, Fabric and Forge use `mods/`. Restart to load. Free join links only work on Paper and Purpur.
+- `MAX_RAM_GB` (default 2) caps the memory a user can give one server.
+- **Bedrock:** Minekube lists Bedrock support on its Hangar page ("handled by the Connect edge"), so the same join link should work for Bedrock players. This is not tested by us; their docs don't spell out the Bedrock port or address format.

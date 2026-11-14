@@ -57,6 +57,32 @@
   <pre id="log-pre" tabindex="0" aria-label="Server logs"></pre>
   <form id="cmdform" hidden><input id="cmd" placeholder="Console command, e.g. list" autocomplete="off" maxlength="200" aria-label="Console command"><button class="btn sm" type="submit">Send</button></form>
 </dialog>
+<dialog id="setdlg" class="wide"><div class="dlg-head"><h2 id="set-title">Settings</h2><div class="acts"><button type="button" id="set-close">Close</button></div></div>
+  <form id="setform" class="setgrid">
+    <label>Software<select name="software"><option value="PAPER">Paper (plugins)</option><option value="PURPUR">Purpur (plugins)</option><option value="FABRIC">Fabric (mods)</option><option value="FORGE">Forge (mods)</option><option value="VANILLA">Vanilla</option></select></label>
+    <label>Version<input name="version" placeholder="LATEST or 1.21.4" maxlength="10" autocomplete="off"></label>
+    <label>Memory<select name="memory"></select></label>
+    <label>Max players<input name="maxPlayers" type="number" min="1" max="100"></label>
+    <label>Game mode<select name="gamemode"><option>survival</option><option>creative</option><option>adventure</option><option>spectator</option></select></label>
+    <label>Difficulty<select name="difficulty"><option>peaceful</option><option>easy</option><option>normal</option><option>hard</option></select></label>
+    <label>View distance<input name="viewDistance" type="number" min="3" max="16"></label>
+    <label>World seed<input name="seed" maxlength="64" placeholder="random" autocomplete="off"></label>
+    <label class="full">MOTD<input name="motd" maxlength="60" autocomplete="off"></label>
+    <label class="full">Whitelist usernames<input name="whitelistNames" placeholder="steve, alex (leave empty for open server)" autocomplete="off"></label>
+    <div class="full checks">
+      <label><input type="checkbox" name="pvp"> PvP</label><label><input type="checkbox" name="hardcore"> Hardcore</label>
+      <label><input type="checkbox" name="allowNether"> Nether</label><label><input type="checkbox" name="allowFlight"> Allow flight</label>
+      <label><input type="checkbox" name="whitelist"> Use whitelist</label><label data-tip="Stops the server after 10 minutes with nobody online, saves memory. Start it again from the dashboard."><input type="checkbox" name="autostop"> Auto-stop when empty</label>
+    </div>
+    <p id="set-err" class="form-err full" role="alert"></p>
+    <div class="dlg-actions full"><span class="muted" id="set-note">Applying restarts the server. Worlds are kept.</span><button class="btn sm" type="submit" id="set-save">Save and restart</button></div>
+  </form>
+  <div class="mods"><h3 id="mods-h">Mods</h3>
+    <ul id="mods-list" class="modlist"></ul>
+    <label class="drop" id="drop"><input type="file" id="mod-file" accept=".jar" hidden><span id="drop-t">Drop a .jar here or click to upload</span></label>
+    <p class="muted" id="mod-note"></p>
+  </div>
+</dialog>
 <div id="tip" role="tooltip" hidden></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="config.js"></script>

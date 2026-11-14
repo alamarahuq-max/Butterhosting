@@ -39,7 +39,7 @@ main.stale{opacity:.45;pointer-events:none;transition:opacity .2s}
 .grid{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(240px,1fr);gap:16px;margin-bottom:16px}
 .cols{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px}
 #chart{position:relative}#chart svg{width:100%;height:auto;display:block;overflow:visible}#chart text{font:11px var(--sans);fill:var(--ink-2)}
-.ctip{position:absolute;pointer-events:none;background:#2A1C0A;color:#FFF3C4;border-radius:10px;padding:8px 12px;font-size:12px;transform:translate(-50%,-110%);white-space:nowrap;z-index:2}.ctip b{display:block;font-size:20px;font-weight:400}.ctip span{opacity:.7}
+.ctip{position:absolute;pointer-events:none;background:#1D1A3A;color:#FFF3C4;border-radius:10px;padding:8px 12px;font-size:12px;transform:translate(-50%,-110%);white-space:nowrap;z-index:2}.ctip b{display:block;font-size:20px;font-weight:400}.ctip span{opacity:.7}
 /* plan tick bar */
 .plan .top2{display:flex;justify-content:space-between;color:var(--ink-2);font-size:13px}
 .inner{margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--cream)}
@@ -57,13 +57,13 @@ main.stale{opacity:.45;pointer-events:none;transition:opacity .2s}
 .log{list-style:none;margin:0;padding:0;display:grid;gap:10px;font-size:13px}.log li{display:grid;grid-template-columns:auto 1fr;gap:10px}.log time{color:var(--ink-2)}
 .empty{padding:26px 8px;text-align:center;color:var(--ink-2);display:grid;gap:12px;justify-items:center}
 .sk{background:linear-gradient(90deg,var(--line),color-mix(in srgb,var(--line) 40%,transparent),var(--line));background-size:200% 100%;animation:sk 1.2s linear infinite;border-radius:10px;height:56px;margin-bottom:10px}@keyframes sk{to{background-position:-200% 0}}
-#tip{position:fixed;z-index:60;background:#2A1C0A;color:#FFF3C4;font-size:12px;border-radius:8px;padding:6px 10px;pointer-events:none;max-width:260px}#tip[hidden]{display:none}
+#tip{position:fixed;z-index:60;background:#1D1A3A;color:#FFF3C4;font-size:12px;border-radius:8px;padding:6px 10px;pointer-events:none;max-width:260px}#tip[hidden]{display:none}
 dialog{border:2px solid var(--ink);border-radius:18px;background:var(--card);color:var(--ink);padding:24px;width:min(420px,92vw);box-shadow:8px 8px 0 var(--ink)}
-dialog::backdrop{background:rgba(42,28,10,.55)}dialog h2{font-size:28px;margin-bottom:16px}
+dialog::backdrop{background:rgba(18,16,42,.6)}dialog h2{font-size:28px;margin-bottom:16px}
 dialog label{display:grid;gap:6px;margin-bottom:14px;font-size:13px;color:var(--ink-2)}
 dialog input,dialog select{font:inherit;font-size:16px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--cream);color:var(--ink);min-height:44px}
 .dlg-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:8px}
-#toast{position:fixed;bottom:20px;left:50%;transform:translate(-50%,40px);opacity:0;background:#2A1C0A;color:#FFF3C4;padding:10px 18px;border-radius:999px;transition:.25s;pointer-events:none;z-index:70}#toast.show{transform:translate(-50%,0);opacity:1}
+#toast{position:fixed;bottom:20px;left:50%;transform:translate(-50%,40px);opacity:0;background:#1D1A3A;color:#FFF3C4;padding:10px 18px;border-radius:999px;transition:.25s;pointer-events:none;z-index:70}#toast.show{transform:translate(-50%,0);opacity:1}
 .dash section{padding:0}.dash section.panel{padding:18px}
 @media (min-width:1700px){.grid{grid-template-columns:minmax(0,2.6fr) minmax(280px,1fr)}.cols{grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr)}}
 @media (max-width:1100px){.grid,.cols{grid-template-columns:1fr}}
@@ -94,3 +94,17 @@ dialog.wide{width:min(760px,94vw)}.dlg-head{display:flex;justify-content:space-b
 .drop.over,.drop:hover{border-color:var(--toast);background:var(--cream)}
 @media (max-width:640px){.setgrid{grid-template-columns:minmax(0,1fr)}}
 dialog.wide{max-height:92vh;overflow:auto}
+
+/* ===== v2: blueberry data on butter brand; display font for names and numbers ===== */
+.side nav a,.kpi .v,.big,.plan-n,.btn,.pill.cta{font-family:var(--display);font-weight:400}
+.side nav a{font-size:17px;padding:8px 12px}.kpi .v{font-size:32px;letter-spacing:0}.big{font-size:38px;letter-spacing:0}
+.side nav a[aria-current]{background:var(--butter);color:#1D1A3A;box-shadow:3px 3px 0 var(--ink)}
+.kpi[aria-pressed=true]{background:color-mix(in srgb,var(--toast) 12%,transparent)}
+.seg button[aria-pressed=true]{background:color-mix(in srgb,var(--toast) 16%,transparent)}
+.panel h2,.ph h2,.top h1{font-weight:400}
+.ad{margin:18px 0 0;border:1px dashed var(--line);border-radius:14px;padding:8px 8px 10px;text-align:center;min-height:100px;grid-column:1/-1}.ad small{display:block;color:var(--ink-2);font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+.chip.on{color:var(--ok)}
+.kpi .v,.big{letter-spacing:-.05em}.kpi .v{font-size:34px}
+.row .nm .n{font-family:var(--display);font-weight:400;font-size:21px;letter-spacing:.005em}
+.side nav a{font-size:19px}.pill.cta,.btn{font-size:18px}
+.inner .nl{font-family:var(--display);font-weight:400;font-size:34px;letter-spacing:-.03em}

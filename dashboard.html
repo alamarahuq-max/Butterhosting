@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Dashboard — ButterHosting</title>
-<meta name="theme-color" content="#FFD84D">
+<meta name="theme-color" content="#FFD23F">
 <link rel="preload" href="fonts/ntype82.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='5' width='26' height='22' rx='6' fill='%23FFD84D' stroke='%232A1C0A' stroke-width='3'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="styles.css">
@@ -44,6 +44,7 @@
     <section class="panel" id="servers" aria-labelledby="sv-h"><div class="ph"><h2 id="sv-h">Servers</h2><span class="muted num" id="count"></span></div><div id="list" aria-live="polite"></div></section>
     <section class="panel" id="activity" aria-labelledby="ac-h"><div class="ph"><h2 id="ac-h">Activity</h2></div><ul id="log" class="log"></ul></section>
   </div>
+  <aside class="ad" data-ad="dash" hidden><small>Advertisement</small></aside>
 </main>
 </div>
 <dialog id="dlg"><form method="dialog" id="form">
@@ -86,6 +87,7 @@
 <div id="tip" role="tooltip" hidden></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="config.js"></script>
+<script src="ads.js"></script>
 <script src="app.js"></script>
 <script src="dashboard.js"></script>
 </body></html>

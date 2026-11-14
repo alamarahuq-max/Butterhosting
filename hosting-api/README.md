@@ -24,7 +24,7 @@ Templates: **Minecraft** (Paper), **Node.js**, **Python**, **Static site**.
    The API starts by itself (`.devcontainer/start.sh`). Its log prints the exact **redirect URL** to use next.
 4. **Back in Discord → OAuth2 → Redirects**, add:
    `https://<your-codespace-name>-8080.app.github.dev/auth/discord/callback`
-5. In the Codespace *Ports* tab, make port **8080** *Public* (the start script tries to do this for you).
+5. **No manual port step.** Codespaces resets port 8080 to private after every restart, so the Codespace re-publishes it itself every minute. For that, add one more Codespaces secret once: `GH_TOKEN` = a [classic personal access token](https://github.com/settings/tokens/new?scopes=codespace) with only the `codespace` scope. (Without it you have to set 8080 to Public by hand each time.) The Codespace's own default token can't change port visibility, which is why this is needed.
 6. Put the API address in **`config.js`** at the repo root, commit, and Vercel redeploys:
    ```js
    window.BUTTER_API = "https://<your-codespace-name>-8080.app.github.dev";
@@ -88,3 +88,14 @@ You do steps 1, 2 once. Step 3 and 4 are per server. I couldn't check playit's f
 ## RAM mode
 
 Set `WORLD_DIR` to a tmpfs folder and worlds are stored there instead of in Docker volumes (see `os/` for the backup service).
+
+
+## Ads (free, ad-supported)
+
+ButterHosting is meant to be free and paid for by ads. The code is ready: `ads.js` loads Google AdSense only when you fill `BUTTER_ADS` in `config.js` (publisher ID and one slot ID each for `landing` and `dash`). While it is empty, no ad script loads and no ad boxes show. Things to know:
+
+- AdSense must approve your site first. They tend to reject pages that are mostly a login wall, or have very little content, and `*.vercel.app` addresses are often a poor fit; a custom domain helps a lot. I can't promise approval.
+- Ads are on the landing page and below the server list. None sit next to buttons, because AdSense bans layouts that cause accidental clicks.
+- Visitors in the EU/UK need a cookie-consent banner for personalised ads. That isn't built.
+- Ad blockers hide ads. Income from a small site is usually tiny, so don't count on it covering a server bill.
+- You could swap in another ad network by editing `ads.js`.

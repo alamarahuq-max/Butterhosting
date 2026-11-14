@@ -19,7 +19,7 @@
         if(!r.ok)throw new Error(j.error||"Something went wrong");
         return j;
       });
-    },function(){throw new Error("Can't reach the server")});
+    },function(){throw new Error("Can't reach the server. If the Codespace just restarted, wait a minute")});
   }
 
   /* ---------- sign in ---------- */
@@ -128,7 +128,7 @@
     var lbl=[0,.25,.5,.75,1].map(function(f){var i=Math.round(f*(n-1));return '<text x="'+x(i)+'" y="'+(H-6)+'" text-anchor="'+(i===0?"start":i===n-1?"end":"middle")+'">'+agoLbl(i,n)+'</text>'}).join("");
     $('#chart').setAttribute('aria-label',NAMES[k]+": now "+fmt(k,st.cur)+", peak "+fmt(k,Math.round(pk))+", low "+fmt(k,Math.round(lo)));
     $('#chart').setAttribute('role','img');
-    $('#chart').innerHTML='<svg viewBox="0 0 '+W+' '+H+'"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--butter-2)" stop-opacity=".35"/><stop offset="1" stop-color="var(--butter-2)" stop-opacity="0"/></linearGradient></defs>'+grid+'<path d="'+area+'" fill="url(#g)"/><polyline points="'+pts.join(" ")+'" fill="none" stroke="var(--toast)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'+lbl+'<line id="cl" y1="'+P.t+'" y2="'+(H-P.b)+'" stroke="var(--ink-2)" stroke-dasharray="2 3" visibility="hidden"/><circle id="cd" r="4.5" fill="var(--toast)" stroke="var(--card)" stroke-width="2" visibility="hidden"/></svg><div class="ctip" id="ctip" hidden></div>';
+    $('#chart').innerHTML='<svg viewBox="0 0 '+W+' '+H+'"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--toast)" stop-opacity=".28"/><stop offset="1" stop-color="var(--toast)" stop-opacity="0"/></linearGradient></defs>'+grid+'<path d="'+area+'" fill="url(#g)"/><polyline points="'+pts.join(" ")+'" fill="none" stroke="var(--toast)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'+lbl+'<line id="cl" y1="'+P.t+'" y2="'+(H-P.b)+'" stroke="var(--ink-2)" stroke-dasharray="2 3" visibility="hidden"/><circle id="cd" r="4.5" fill="var(--toast)" stroke="var(--card)" stroke-width="2" visibility="hidden"/></svg><div class="ctip" id="ctip" hidden></div>';
     var svg=$('#chart svg'),tip=$('#ctip');
     svg.addEventListener('pointermove',function(e){
       var r=svg.getBoundingClientRect(),px=(e.clientX-r.left)/r.width*W,i=Math.max(0,Math.min(n-1,Math.round((px-P.l)/(W-P.l-P.r)*(n-1))));

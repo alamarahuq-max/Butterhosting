@@ -68,6 +68,11 @@
   function act(id,action){
     var s=find(id);if(!s)return;
     if(action==="logs")return openLogs(s);
+    if(action==="link"){
+      s.linking=true;render();
+      if(!LIVE)return setTimeout(function(){s.linking=false;s.address=s.name+"-demo.play.minekube.net";note(s.name+" join link ready (demo)");render()},1800);
+      return call("/servers/"+encodeURIComponent(s.id)+"/link",{method:"POST"}).then(function(){note(s.name+" making join link");return load(true)}).catch(function(e){s.linking=false;toast(e.message);return load(true)});
+    }
     if(action==="delete"&&!confirm("Delete "+s.name+"? Its files are removed too and this can't be undone."))return;
     if(!LIVE){
       var fin=function(){
@@ -171,7 +176,8 @@
     $('#list').innerHTML=sorted.map(function(s){
       var on=s.status==="on",busy=s.status==="busy",bad=s.status==="error",hot=on&&s.cpu>=HOT;
       var chip=busy?'<span class="chip busy">working</span>':bad?'<span class="chip err" data-tip="'+esc(s.error||"Couldn't start")+'" tabindex="0">failed</span>':hot?'<span class="chip hot" data-tip="CPU at '+s.cpu+'%. Over '+HOT+'% usually means lag." tabindex="0">▲ High CPU</span>':on?'<span class="chip on">online</span>':'<span class="chip off">offline</span>';
-      var where=s.address?(s.kind==="web"?(on?'<a href="'+esc(s.address)+'" target="_blank" rel="noopener">Open</a>':''):'<button class="copy" type="button" data-copy="'+esc(s.address)+'" data-tip="Copy address">'+esc(s.address)+'</button>'):'';
+      var where=s.address?(s.kind==="web"?(on?'<a href="'+esc(s.address)+'" target="_blank" rel="noopener">Open</a>':''):'<button class="copy" type="button" data-copy="'+esc(s.address)+'" data-tip="Copy join link">'+esc(s.address)+'</button>'):'';
+      if(s.kind==="game"&&!s.address)where=s.linking?'<span class="muted">making link…</span>':on?'<button class="mk" type="button" data-a="link" data-id="'+esc(s.id)+'" data-tip="'+esc(s.linkError||"Free link players type into Minecraft. Restarts the server once.")+'">Make join link</button>':'';
       var id=esc(s.id);
       return '<div class="row"><div><div class="nm"><span class="n">'+esc(s.name)+'</span>'+chip+'</div><div class="m">'+esc(s.tpl)+(on&&s.players?' · '+s.players+' players':'')+(where?' · '+where:'')+'</div></div>'+
         '<div class="val num" data-tip="CPU '+s.cpu+'% · Memory '+s.ram+'%">'+(on?s.cpu+'%':'—')+'</div>'+

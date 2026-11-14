@@ -18,7 +18,7 @@ Templates: **Minecraft** (Paper), **Node.js**, **Python**, **Static site**.
    | `FRONTEND_URL` | your Vercel URL, e.g. `https://butterhosting.vercel.app` (no trailing slash) |
    | `SESSION_SECRET` | any long random string (`openssl rand -hex 32`) |
    | `ADMIN_DISCORD_IDS` | optional: your Discord user ID(s), they get no server limit |
-   | `PUBLIC_HOST` | optional: hostname players use to join game servers (see *Game ports*) |
+   | `PUBLIC_HOST` | optional: host for web template links outside Codespaces |
 
 3. **Open a Codespace** on this repo (*Code → Codespaces → Create codespace on main*, pick at least 2 cores / 8 GB).
    The API starts by itself (`.devcontainer/start.sh`). Its log prints the exact **redirect URL** to use next.
@@ -44,12 +44,17 @@ All routes except `/health` and `/auth/*` need `Authorization: Bearer <token>`.
 | `POST /servers/:id/start` `stop` `restart` `delete` | control a server |
 | `GET /servers/:id/logs` | last 150 log lines |
 | `POST /servers/:id/command` | `{ "cmd": "list" }` Minecraft console (RCON) |
+| `POST /servers/:id/link` | Minecraft: create the free join link |
 
 ## Good to know
 
 - **Codespaces sleep** when idle, and servers stop with them. Containers use `--restart unless-stopped`, so they come back when the Codespace wakes.
-- **Game ports.** Minecraft listens on a port from 25600 to 25799 *inside* the Codespace. Codespace port forwarding is HTTP only,
-  so for players outside, run a TCP tunnel to that port (playit.gg, ngrok tcp, bore, ...) and set `PUBLIC_HOST` to its hostname.
+- **Join links (Minecraft).** In the dashboard, click **Make join link** on a running Minecraft server. It sets up
+  [Minekube Connect](https://connect.minekube.com), which gives a free address like `bh-myserver-a1b2.play.minekube.net`.
+  Nothing to forward or buy, and no domain. The server restarts once (about a minute). Catches, honestly:
+  it's a third-party service (if Minekube is down, the link is down); Java Edition only; it turns off
+  `enforce-secure-profile` (affects signed chat only); names are first come, first served and are not reserved by an account.
+  Linking needs Codespace internet access to modrinth.com and minekube.net (default Codespaces allow it).
   Web templates (Node, Python, Static) are reachable at `https://<codespace>-<port>.app.github.dev` once that port is set to Public.
 - Data lives in `hosting-api/data` (git-ignored). Each server has its own Docker volume.
 - Limits: 3 servers per person by default (`MAX_SERVERS_PER_USER`), 1.5 GB for Minecraft, 256 MB for the rest.

@@ -78,7 +78,7 @@ function dk(args, { timeout = 60000 } = {}) {
 
 const HELLO_NODE = "require('http').createServer((q,r)=>{r.setHeader('content-type','text/html');r.end('<h1>Hello from ButterHosting</h1>')}).listen(process.env.PORT||3000)";
 const TEMPLATES = {
-  minecraft: { label: "Minecraft", kind: "game", image: "itzg/minecraft-server:latest", cport: 25565, mem: "1536m", cpus: 2, vol: "/data", env: ["EULA=TRUE", "TYPE=PAPER", "MEMORY=1G"], cmd: [] },
+  minecraft: { label: "Minecraft", kind: "game", image: "itzg/minecraft-server:latest", cport: 25565, mem: "1536m", cpus: 2, vol: "/data", env: ["EULA=TRUE", "TYPE=PAPER", "MEMORY=1G", "MODRINTH_PROJECTS=minekube-connect", "ENFORCE_SECURE_PROFILE=FALSE"], cmd: [] },
   node: { label: "Node.js", kind: "web", image: "node:22-alpine", cport: 3000, mem: "256m", cpus: 0.5, vol: "/app", env: ["PORT=3000", "BH_DEFAULT=" + HELLO_NODE], cmd: ["sh", "-c", 'cd /app && [ -f server.js ] || printf "%s" "$BH_DEFAULT" > server.js; exec node server.js'] },
   python: { label: "Python", kind: "web", image: "python:3.12-alpine", cport: 8000, mem: "256m", cpus: 0.5, vol: "/srv/www", env: [], cmd: ["sh", "-c", 'cd /srv/www && [ -f index.html ] || echo "<h1>Hello from ButterHosting</h1>" > index.html; exec python -m http.server 8000'] },
   static: { label: "Static site", kind: "web", image: "nginx:alpine", cport: 80, mem: "128m", cpus: 0.25, vol: "/usr/share/nginx/html", env: [], cmd: [] },
@@ -130,6 +130,7 @@ async function players(id) {
 }
 
 const jobs = new Set(); // server ids currently being created
+const linking = new Set(); // server ids waiting for a join link
 async function view(s, snap) {
   const t = TEMPLATES[s.tpl];
   const d = snap[cname(s.id)];
@@ -142,8 +143,29 @@ async function view(s, snap) {
     ram = Math.round(d.ram || 0);
     if (s.tpl === "minecraft") pl = await players(s.id);
   } else if (d && (d.state === "restarting" || d.state === "created")) status = "busy";
-  const address = t.kind === "game" ? `${PUBLIC_HOST}:${s.port}` : CS ? csUrl(s.port) : `http://${PUBLIC_HOST}:${s.port}`;
-  return { id: s.id, name: s.name, tpl: t.label, tplKey: s.tpl, kind: t.kind, status, cpu, ram, players: pl, port: s.port, address, error: s.error || null, createdAt: s.createdAt };
+  const address = t.kind === "game" ? (s.link || "") : CS ? csUrl(s.port) : `http://${PUBLIC_HOST}:${s.port}`;
+  return { id: s.id, name: s.name, tpl: t.label, tplKey: s.tpl, kind: t.kind, status, cpu, ram, players: pl, port: s.port, address, error: s.error || null, linking: linking.has(s.id), linkError: s.linkError || null, createdAt: s.createdAt };
+}
+
+/* Join link: Minekube Connect (free, no domain, no port forwarding) gives <name>.play.minekube.net */
+async function makeLink(s) {
+  linking.add(s.id);
+  try {
+    const slug = s.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 16) || "server";
+    const endpoint = `bh-${slug}-${crypto.randomBytes(2).toString("hex")}`;
+    await dk(["exec", cname(s.id), "sh", "-c", 'mkdir -p /data/plugins/connect && printf "endpoint: %s\\n" "$1" > /data/plugins/connect/config.yml', "sh", endpoint]);
+    const since = String(Math.floor(Date.now() / 1000));
+    await dk(["restart", "-t", "20", cname(s.id)], { timeout: 60000 });
+    const re = /Your public address:\s*([a-z0-9-]+\.play\.minekube\.net)/i;
+    for (let i = 0; i < 60 && !s.link; i++) {
+      await new Promise((r) => setTimeout(r, 3000));
+      const r = await dk(["logs", "--since", since, cname(s.id)], { timeout: 15000 }).catch(() => null);
+      const m = r && re.exec((r.out + r.err).replace(/\x1b\[[0-9;]*m/g, ""));
+      if (m) s.link = m[1].toLowerCase();
+    }
+    s.linkError = s.link ? null : "No link yet. Open Logs and look for 'Your public address', then try again.";
+  } catch (e) { s.linkError = e.message; }
+  finally { linking.delete(s.id); invalidate(); saveDb(); }
 }
 
 function freePort() {
@@ -306,6 +328,15 @@ async function handle(req, res) {
 
   if (m !== "POST") return json(req, res, 405, { error: "method not allowed" });
   if (jobs.has(s.id)) return json(req, res, 409, { error: "Server is still being created" });
+  if (action === "link") {
+    if (s.tpl !== "minecraft") return json(req, res, 400, { error: "Join links are for Minecraft servers" });
+    if (s.link) return json(req, res, 200, { ok: true, link: s.link });
+    if (linking.has(s.id)) return json(req, res, 200, { ok: true });
+    try { await dk(["inspect", "-f", "{{.State.Running}}", cname(s.id)]).then((r) => { if (!/true/.test(r.out)) throw new Error("Start the server first"); }); }
+    catch (e) { return json(req, res, 409, { error: e.message }); }
+    s.linkError = null; makeLink(s);
+    return json(req, res, 200, { ok: true });
+  }
 
   try {
     if (action === "start") await dk(["start", cname(s.id)]);

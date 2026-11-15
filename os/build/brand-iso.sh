@@ -50,8 +50,15 @@ set timeout=-1
 set default=0
 insmod all_video
 search --no-floppy --file --set=isoroot /boot/grub/butter/bg-dark.png
+echo "butter: isoroot=[\$isoroot] root=[\$root] prefix=[\$prefix]"
 if [ -n "\$isoroot" ]; then set root=\$isoroot; set prefix=(\$isoroot)/boot/grub; fi
-for m in gfxterm gfxmenu png font all_video; do insmod \$m || { echo "butter: grub module \$m failed"; sleep 4; }; done
+ls (\$isoroot)/boot/grub/x86_64-efi/png.mod (\$isoroot)/boot/grub/x86_64-efi/gfxmenu.mod
+insmod (\$isoroot)/boot/grub/x86_64-efi/png.mod
+echo "png rc=\$?"
+insmod (\$isoroot)/boot/grub/x86_64-efi/gfxmenu.mod
+echo "gfxmenu rc=\$?"
+insmod gfxterm
+sleep 12
 if loadfont /boot/grub/butter/unicode.pf2 ; then true; elif loadfont unicode ; then true; fi
 set gfxmode=1920x1080,1280x720,auto
 set gfxpayload=keep

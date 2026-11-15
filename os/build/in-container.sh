@@ -24,6 +24,7 @@ install -m 644 -o build "$SRC/os/build/mkimg.butteros.sh" "$S/mkimg.butteros.sh"
 install -m 755 -o build "$SRC/os/build/genapkovl-butteros.sh" "$S/genapkovl-butteros.sh"
 
 # optional packages: only add the ones this Alpine release actually has (names change between releases)
+apk update >/dev/null 2>&1 || apk update
 OPT=""
 for p in linux-firmware-rtl_nic linux-firmware-i915 linux-firmware-amdgpu linux-firmware-radeon linux-firmware-nvidia linux-firmware-intel \
          docker docker-openrc nodejs dialog e2fsprogs exfatprogs dosfstools util-linux lsblk chrony ethtool pciutils usbutils parted rsync; do

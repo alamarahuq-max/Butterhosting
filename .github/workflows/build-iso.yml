@@ -61,6 +61,6 @@ jobs:
             gh release delete latest-iso -y --cleanup-tag 2>/dev/null || true
             gh release create latest-iso out/ButterOS.iso out/ButterOS.iso.sha256 --title "ButterOS ISO (latest build)" --notes "Built by GitHub Actions run ${{ github.run_id }}. Flash with balenaEtcher or Rufus (DD mode)."
           fi
-          d=$(mktemp -d); cp -r shots "$d/" 2>/dev/null || true; cp build.log "$d/" 2>/dev/null || true
+          d=$(mktemp -d); cp -r shots "$d/" 2>/dev/null || true; cp build.log "$d/" 2>/dev/null || true; cp -r out/diag "$d/" 2>/dev/null || true
           cd "$d"; git init -q -b ci-shots; git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
           git add -A; git commit -qm "build ${{ github.run_id }} screenshots"; git push -f origin ci-shots

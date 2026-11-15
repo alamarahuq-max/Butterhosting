@@ -11,6 +11,7 @@ cp "$IN" "$OUT"
 # 1. read the kernel/initrd command lines Alpine itself generated, so we never guess them
 xorriso -osirrox on -indev "$IN" -extract /boot/grub/grub.cfg "$W/orig-grub.cfg" 2>/dev/null || true
 xorriso -osirrox on -indev "$IN" -extract /boot/syslinux/syslinux.cfg "$W/orig-sys.cfg" 2>/dev/null || true
+mkdir -p "$(dirname "$OUT")/diag"; cp "$W"/orig-*.cfg "$(dirname "$OUT")/diag/" 2>/dev/null || true
 KARGS=$(sed -n 's/^[[:space:]]*linux[[:space:]]\+[^ ]\+[[:space:]]\+//p' "$W/orig-grub.cfg" | head -1)
 [ -n "$KARGS" ] || KARGS="modules=loop,squashfs,sd-mod,usb-storage quiet"
 KARGS=$(echo "$KARGS" | sed 's/[[:space:]]*quiet//')

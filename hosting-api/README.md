@@ -98,3 +98,17 @@ ButterHosting is meant to be free and paid for by ads. The code is ready: `ads.j
 - Visitors in the EU/UK need a cookie-consent banner for personalised ads. That isn't built.
 - Ad blockers hide ads. Income from a small site is usually tiny, so don't count on it covering a server bill.
 - You could swap in another ad network by editing `ads.js`.
+
+## Failover (backup machine)
+
+If the Codespace is asleep, a ButterOS machine can run the servers instead, and hand everything back afterwards. Nobody sees the machine's address: the browser only talks to your site, and the site's `api/relay.js` function forwards to whichever machine is alive.
+
+One-time setup:
+1. In the private repo make a **fine-grained token** with *Contents: read and write* (for the machines) and another with *Contents: read* (for Vercel).
+2. Codespaces secrets: `REGISTRY_REPO` (`owner/repo`), `REGISTRY_TOKEN` (the read+write one), and a fixed `SESSION_SECRET` (any long random text). The Codespace then publishes its state and worlds (worlds under 400 MB each, hourly) to the private repo (a `registry` branch and a private release called `butter-worlds`).
+3. Vercel project env vars: `REGISTRY_REPO`, `REGISTRY_READ_TOKEN`, `PRIMARY_URL` (the Codespace API URL, the same as `BUTTER_API`).
+4. On each ButterOS machine: menu, *Failover: be the backup machine*. Enter the repo, the read+write token and the same `SESSION_SECRET`.
+
+What happens: the machine watches the Codespace's heartbeat. If it is silent for 2.5 minutes the machine downloads the database and worlds and starts the servers. When the Codespace wakes up it asks for the work back, the machine stops the servers cleanly, uploads everything and the Codespace carries on. The same upload happens when the machine is shut down.
+
+Limits, on purpose: only one machine is active at a time; while on a backup machine nobody can start a *new* Discord sign-in (existing logins keep working), and uploads through the site are limited to 4 MB; backup machines need a free tunnel (Cloudflare quick tunnel, no account) so the site can reach them; worlds over 400 MB are not synced; a server you had stopped starts again after a takeover.

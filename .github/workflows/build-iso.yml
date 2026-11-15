@@ -5,6 +5,8 @@ on:
       alpine:
         description: "Alpine release (e.g. 3.22)"
         default: "3.22"
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -49,3 +51,16 @@ jobs:
             out/ButterOS.iso.sha256
             build.log
             shots/
+      - name: Publish release and screenshots
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global user.name "butter-ci"; git config --global user.email "ci@users.noreply.github.com"
+          if [ -f out/ButterOS.iso ]; then
+            gh release delete latest-iso -y --cleanup-tag 2>/dev/null || true
+            gh release create latest-iso out/ButterOS.iso out/ButterOS.iso.sha256 --title "ButterOS ISO (latest build)" --notes "Built by GitHub Actions run ${{ github.run_id }}. Flash with balenaEtcher or Rufus (DD mode)."
+          fi
+          d=$(mktemp -d); cp -r shots "$d/" 2>/dev/null || true; cp build.log "$d/" 2>/dev/null || true
+          git checkout --orphan ci-shots; git rm -rf . >/dev/null 2>&1 || true
+          cp -r "$d"/. .; git add -A; git commit -qm "build ${{ github.run_id }} screenshots"; git push -f origin ci-shots

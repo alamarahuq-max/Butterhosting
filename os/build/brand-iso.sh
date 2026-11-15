@@ -46,48 +46,17 @@ T
 done
 # (the light/dark entry just reloads the menu with the other picture; the choice resets at next boot, which is fine for a boot menu)
 cat > "$W/grub.cfg" <<G
+# UEFI: plain GRUB menu (the themed picture menu is BIOS-only for now)
 set timeout=-1
 set default=0
-insmod all_video
-search --no-floppy --file --set=isoroot /boot/grub/butter/bg-dark.png
-echo "butter: isoroot=[\$isoroot] root=[\$root] prefix=[\$prefix]"
-if [ -n "\$isoroot" ]; then set root=\$isoroot; set prefix=(\$isoroot)/boot/grub; fi
-ls (\$isoroot)/boot/grub/x86_64-efi/png.mod (\$isoroot)/boot/grub/x86_64-efi/gfxmenu.mod
-insmod (\$isoroot)/boot/grub/x86_64-efi/png.mod
-echo "png rc=\$?"
-insmod (\$isoroot)/boot/grub/x86_64-efi/gfxmenu.mod
-echo "gfxmenu rc=\$?"
-insmod gfxterm
-sleep 12
-if loadfont /boot/grub/butter/unicode.pf2 ; then true; elif loadfont unicode ; then true; fi
-set gfxmode=1920x1080,1280x720,auto
-set gfxpayload=keep
-terminal_output gfxterm
-if ! background_image /boot/grub/butter/bg-dark.png ; then echo "butter: background_image failed"; lsmod; sleep 9; fi
-if [ -z "\$butter_theme" ]; then set butter_theme=dark; fi
-set theme=/boot/grub/butter/theme-\$butter_theme.txt
-
-menuentry " " {
+menuentry "ButterOS - Live USB (RAM only, 1-2 servers)" {
   linux $KFILE $KARGS butter=live
   initrd $IFILE
 }
-menuentry "  " {
+menuentry "ButterOS - Download OS (install to this computer)" {
   linux $KFILE $KARGS butter=install
   initrd $IFILE
 }
-if [ "\$butter_theme" = dark ]; then
-  menuentry "   " {
-    set butter_theme=light
-    export butter_theme
-    configfile /boot/grub/grub.cfg
-  }
-else
-  menuentry "   " {
-    set butter_theme=dark
-    export butter_theme
-    configfile /boot/grub/grub.cfg
-  }
-fi
 G
 # a font GRUB can use (small, ships with the grub package: unicode.pf2 is usually in /usr/share/grub)
 ls /usr/share/grub /usr/share/fonts 2>&1 | head -20
@@ -157,8 +126,6 @@ cp "$W/sys/syslinux.cfg" "$W/sys/dark.cfg"
 # 4. write them into the ISO (keeping the boot records Alpine made)
 set -- -indev "$IN" -outdev "$OUT" -boot_image any replay \
   -map "$W/grub.cfg" /boot/grub/grub.cfg \
-  -map "$W/grub/butter" /boot/grub/butter \
-  -map "$W/grubmods/x86_64-efi" /boot/grub/x86_64-efi \
   -map "$W/sys" /boot/syslinux
 # keep syslinux's own other .c32 files (the -map above only adds/overwrites ours)
 rm -f "$OUT"

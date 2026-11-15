@@ -37,6 +37,8 @@ jobs:
             sleep 15; echo "screendump shots/$name-menu.ppm" | nc -U -q1 mon-$name >/dev/null
             echo "sendkey ret" | nc -U -q1 mon-$name >/dev/null
             sleep 60; echo "screendump shots/$name-booted.ppm" | nc -U -q1 mon-$name >/dev/null
+            echo "sendkey ret" | nc -U -q1 mon-$name >/dev/null
+            sleep 6; echo "screendump shots/$name-main.ppm" | nc -U -q1 mon-$name >/dev/null
             kill $pid 2>/dev/null || true
           }
           boot bios || true

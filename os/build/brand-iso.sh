@@ -54,6 +54,7 @@ if loadfont /boot/grub/butter/unicode.pf2 ; then true; elif loadfont unicode ; t
 set gfxmode=1920x1080,1280x720,auto
 set gfxpayload=keep
 terminal_output gfxterm
+if ! background_image /boot/grub/butter/bg-dark.png ; then echo "butter: background_image failed"; lsmod; sleep 9; fi
 if [ -z "\$butter_theme" ]; then set butter_theme=dark; fi
 set theme=/boot/grub/butter/theme-\$butter_theme.txt
 

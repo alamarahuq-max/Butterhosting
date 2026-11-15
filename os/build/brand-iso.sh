@@ -26,29 +26,21 @@ mkdir -p "$W/grub/butter"
 cp "$HERE/boot/bg-dark-1920x1080.png"  "$W/grub/butter/bg-dark.png"
 cp "$HERE/boot/bg-light-1920x1080.png" "$W/grub/butter/bg-light.png"
 for th in dark light; do
-  if [ $th = dark ]; then FG="#f4f0e6"; SEL="#ffd23f"; else FG="#1d1b2e"; SEL="#3b34c9"; fi
+  cp "$HERE"/boot/sel-${th}_*.png "$W/grub/butter/"
   cat > "$W/grub/butter/theme-$th.txt" <<T
 desktop-image: "bg-$th.png"
-desktop-image-scale-method: "stretch"
 desktop-color: "#000000"
 title-text: ""
-terminal-font: "Unifont Regular 16"
 + boot_menu {
-  left = 8%
-  width = 84%
+  left = 41%
   top = 72%
-  height = 22%
-  item_font = "Unifont Regular 16"
-  selected_item_font = "Unifont Regular 16"
-  item_color = "$FG"
-  selected_item_color = "$SEL"
-  item_height = 34
-  item_padding = 8
-  item_spacing = 4
-  icon_width = 0
-  icon_height = 0
+  width = 18%
+  height = 17%
+  item_height = 60
+  item_padding = 0
+  item_spacing = 0
   item_icon_space = 0
-  scrollbar = false
+  selected_item_pixmap_style = "sel-${th}_*.png"
 }
 T
 done
@@ -61,28 +53,28 @@ insmod gfxterm
 insmod png
 insmod font
 if loadfont /boot/grub/butter/unicode.pf2 ; then true; elif loadfont unicode ; then true; fi
-set gfxmode=auto
+set gfxmode=1920x1080,1280x720,auto
 set gfxpayload=keep
 terminal_output gfxterm
 if [ -z "\$butter_theme" ]; then set butter_theme=dark; fi
 set theme=/boot/grub/butter/theme-\$butter_theme.txt
 
-menuentry "Live USB   (RAM only, 1-2 servers)" {
+menuentry " " {
   linux $KFILE $KARGS butter=live
   initrd $IFILE
 }
-menuentry "Download OS   (install to this computer)" {
+menuentry "  " {
   linux $KFILE $KARGS butter=install
   initrd $IFILE
 }
 if [ "\$butter_theme" = dark ]; then
-  menuentry "Light mode" {
+  menuentry "   " {
     set butter_theme=light
     export butter_theme
     configfile /boot/grub/grub.cfg
   }
 else
-  menuentry "Dark mode" {
+  menuentry "   " {
     set butter_theme=dark
     export butter_theme
     configfile /boot/grub/grub.cfg
@@ -90,11 +82,9 @@ else
 fi
 G
 # a font GRUB can use (small, ships with the grub package: unicode.pf2 is usually in /usr/share/grub)
+ls /usr/share/grub /usr/share/fonts 2>&1 | head -20
 for f in /usr/share/grub/unicode.pf2 /usr/share/grub/unifont.pf2; do [ -f "$f" ] && cp "$f" "$W/grub/butter/unicode.pf2" && break; done
-if [ ! -f "$W/grub/butter/unicode.pf2" ]; then
-  # no font file found: GRUB's built-in default font is used instead
-  sed -i '/item_font\|selected_item_font\|terminal-font/d' "$W/grub/butter/"theme-*.txt
-fi
+[ -f "$W/grub/butter/unicode.pf2" ] && echo "grub font: bundled unicode.pf2" || echo "grub font: NOT FOUND"
 
 # 3. syslinux (BIOS) menu, vesamenu with a background picture
 mkdir -p "$W/sys"
@@ -104,7 +94,7 @@ for f in vesamenu.c32 libcom32.c32 libutil.c32; do
   for d in /usr/share/syslinux /usr/lib/syslinux/modules/bios; do [ -f "$d/$f" ] && cp "$d/$f" "$W/sys/$f" && break; done
 done
 mk_sys() { # $1 theme  $2 other theme  -> file
-  if [ "$1" = dark ]; then FG="ffe6e1d3"; SEL="ffffd23f"; else FG="ff1d1b2e"; SEL="ff3b34c9"; fi
+  if [ $1 = dark ]; then SEL="ffffd23f"; else SEL="ff3b34c9"; fi
   cat > "$3" <<S
 UI vesamenu.c32
 PROMPT 0
@@ -114,34 +104,37 @@ MENU BACKGROUND bg-$1.png
 MENU TITLE
 MENU CLEAR
 MENU MARGIN 0
-MENU ROWS 4
-MENU VSHIFT 14
-MENU HSHIFT 10
-MENU WIDTH 60
+MENU ROWS 5
+MENU VSHIFT 21
+MENU HSHIFT 33
+MENU WIDTH 4
 MENU TABMSG
 MENU AUTOBOOT
 MENU HELPMSGROW 24
-MENU COLOR screen   0 #$FG #00000000 none
+MENU COLOR screen   0 #ffffffff #00000000 none
 MENU COLOR border   0 #00000000 #00000000 none
-MENU COLOR title    0 #$FG #00000000 none
-MENU COLOR unsel    0 #$FG #00000000 none
+MENU COLOR title    0 #00000000 #00000000 none
+MENU COLOR unsel    0 #00000000 #00000000 none
 MENU COLOR sel      0 #$SEL #00000000 none
 MENU COLOR hotsel   0 #$SEL #00000000 none
-MENU COLOR hotkey   0 #$FG #00000000 none
-MENU COLOR tabmsg   0 #$FG #00000000 none
+MENU COLOR hotkey   0 #00000000 #00000000 none
+MENU COLOR hotkey   0 #00000000 #00000000 none
+MENU COLOR tabmsg   0 #00000000 #00000000 none
 DEFAULT live
 LABEL live
-  MENU LABEL > Live USB   (RAM only, 1-2 servers)
+  MENU LABEL >
   LINUX $KFILE
   INITRD $IFILE
   APPEND $KARGS butter=live
+MENU SEPARATOR
 LABEL install
-  MENU LABEL > Download OS   (install to this computer)
+  MENU LABEL >
   LINUX $KFILE
   INITRD $IFILE
   APPEND $KARGS butter=install
+MENU SEPARATOR
 LABEL $2
-  MENU LABEL > $4
+  MENU LABEL >
   KERNEL vesamenu.c32
   APPEND $2.cfg
 S

@@ -49,9 +49,7 @@ cat > "$W/grub.cfg" <<G
 set timeout=-1
 set default=0
 insmod all_video
-insmod gfxterm
-insmod png
-insmod font
+for m in gfxterm gfxmenu png font all_video; do insmod \$m || { echo "butter: grub module \$m failed"; sleep 4; }; done
 if loadfont /boot/grub/butter/unicode.pf2 ; then true; elif loadfont unicode ; then true; fi
 set gfxmode=1920x1080,1280x720,auto
 set gfxpayload=keep
@@ -86,6 +84,9 @@ ls /usr/share/grub /usr/share/fonts 2>&1 | head -20
 for f in /usr/share/grub/unicode.pf2 /usr/share/grub/unifont.pf2; do [ -f "$f" ] && cp "$f" "$W/grub/butter/unicode.pf2" && break; done
 [ -f "$W/grub/butter/unicode.pf2" ] && echo "grub font: bundled unicode.pf2" || echo "grub font: NOT FOUND"
 
+for d in /usr/lib/grub/x86_64-efi /usr/lib/grub/i386-pc; do
+  [ -d "$d" ] && { mkdir -p "$W/grubmods"; cp -r "$d" "$W/grubmods/$(basename $d)"; echo "grub modules: $d"; }
+done
 # 3. syslinux (BIOS) menu, vesamenu with a background picture
 mkdir -p "$W/sys"
 cp "$HERE/boot/bg-dark-800x600.png"  "$W/sys/bg-dark.png"
@@ -107,7 +108,7 @@ MENU MARGIN 0
 MENU ROWS 5
 MENU VSHIFT 21
 MENU HSHIFT 33
-MENU WIDTH 4
+MENU WIDTH 24
 MENU TABMSG
 MENU AUTOBOOT
 MENU HELPMSGROW 24
@@ -147,6 +148,7 @@ cp "$W/sys/syslinux.cfg" "$W/sys/dark.cfg"
 set -- -indev "$IN" -outdev "$OUT" -boot_image any replay \
   -map "$W/grub.cfg" /boot/grub/grub.cfg \
   -map "$W/grub/butter" /boot/grub/butter \
+  -map "$W/grubmods/x86_64-efi" /boot/grub/x86_64-efi \
   -map "$W/sys" /boot/syslinux
 # keep syslinux's own other .c32 files (the -map above only adds/overwrites ours)
 rm -f "$OUT"

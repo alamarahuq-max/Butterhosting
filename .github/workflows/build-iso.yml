@@ -33,7 +33,8 @@ jobs:
             rm -f mon-$name
             qemu-system-x86_64 -m 2048 -cdrom out/ButterOS.iso -boot d -vga std -display none -monitor unix:mon-$name,server,nowait -netdev user,id=n -device e1000,netdev=n "$@" &
             pid=$!
-            sleep 25; echo "screendump shots/$name-menu.ppm" | nc -U -q1 mon-$name >/dev/null
+            sleep 10; echo "screendump shots/$name-early.ppm" | nc -U -q1 mon-$name >/dev/null
+            sleep 15; echo "screendump shots/$name-menu.ppm" | nc -U -q1 mon-$name >/dev/null
             echo "sendkey ret" | nc -U -q1 mon-$name >/dev/null
             sleep 60; echo "screendump shots/$name-booted.ppm" | nc -U -q1 mon-$name >/dev/null
             kill $pid 2>/dev/null || true

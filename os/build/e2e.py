@@ -54,22 +54,21 @@ class VM:
             if re.search(pat, self.buf.decode(errors="ignore")): return True
         return False
     def sh(self, cmd, timeout=120):
-        tag = "__END%d__" % int(time.time() * 1000)
+        n = str(int(time.time() * 1000)); tag = "__END" + n + "__"
         self.buf = b""
-        self.sock.send(("%s; echo %s$?\n" % (cmd, tag)).encode())
+        # the marker is built from two pieces so the terminal echo of this line can never match it
+        self.sock.send(("%s; echo __E\"\"ND%s__$?\n" % (cmd, n)).encode())
         end = time.time() + timeout
         while time.time() < end:
             self.read(1)
-            m = re.search(tag + r"(\d+)", self.buf.decode(errors="ignore").replace(cmd, ""))
-            if m:
-                txt = self.buf.decode(errors="ignore")
-                out = txt.split(tag)[0] if tag in txt else txt
-                return int(m.group(1)), out
+            txt = self.buf.decode(errors="ignore")
+            m = re.search(tag + r"(\d+)", txt)
+            if m: return int(m.group(1)), txt[:m.start()]
         return 124, self.buf.decode(errors="ignore")
     def boot_to_shell(self, first_enter=True, timeout=300):
         if first_enter:
             time.sleep(25); self.shot(self.name + "-menu"); self.mon_cmd("sendkey ret")
-        self.sock.send(b"\n"); t0 = time.time()
+        self.sock.send(b"\nstty -echo cols 500 2>/dev/null\n"); t0 = time.time()
         while time.time() - t0 < timeout:
             self.sock.send(b"\necho SHELL_READY\n"); self.read(3)
             if b"SHELL_READY" in self.buf.replace(b"echo SHELL_READY", b""): return True
@@ -136,6 +135,9 @@ def main():
             if st.get("ok"): break
             time.sleep(2)
         check("Local web page answers (status JSON)", st.get("ok"), json.dumps(st)[:200])
+        if not st.get("ok"):
+            c, o = vm.sh("rc-status -a 2>&1 | head -40; echo ---; ps w | grep -E 'httpd|node|dockerd' | grep -v grep; echo ---; netstat -ltn; echo ---; ip -4 a | grep inet; echo ---; tail -15 /var/log/messages; echo ---; tail -15 /var/log/butterhosting.log; echo ---; ls -l /opt/butterweb /opt/butterweb/cgi-bin; cat /opt/butterweb/httpd.conf; busybox httpd --help 2>&1 | head -3; rc-service butterweb restart 2>&1; sleep 2; netstat -ltn | grep ':80 '", 60)
+            extra.append("Diagnostics (web page down):\n```\n" + o + "\n```"); open(os.path.join(OUT, "diag-web.txt"), "w").write(o)
         try:
             html = urllib.request.urlopen("http://127.0.0.1:8081/", timeout=10).read().decode()
             check("Local web page serves the UI", "Butter" in html and "Overview" in html)
@@ -143,9 +145,10 @@ def main():
         rss = st.get("web_rss_mb", 99); check("Web agent RSS under 30 MB", rss is not None and rss < 30, "%s MB" % rss)
         check("Status reports engine ok and capacity advice", st.get("engine") == "ok" and "capacity" in st, st.get("engine"))
         # Java server
-        r = api("a=create&n=test-java&type=java&mem=1024", timeout=900); check("Create Java server via web API", r.get("ok"), r)
+        r = api("a=create&n=test-java&type=java&mem=1024", timeout=900) if st.get("ok") else {"ok": False, "error": "skipped, web page is down"}; check("Create Java server via web API", r.get("ok"), r)
+        lg = ""
         up = False
-        for i in range(120):
+        for i in range(90 if st.get('ok') else 0):
             lg = api("a=logs&n=test-java").get("logs", "")
             if re.search(r"Done \(", lg): up = True; break
             time.sleep(10)
@@ -155,9 +158,9 @@ def main():
             except Exception as e: check("Java server answers a real Minecraft status ping", False, e)
         st = api("a=status"); extra.append("Status after Java:\n```\n" + json.dumps({k: st.get(k) for k in ("mem", "web_rss_mb", "capacity")}) + "\n```")
         # Bedrock
-        r = api("a=create&n=test-bed&type=bedrock", timeout=900); check("Create Bedrock server via web API", r.get("ok"), r)
+        r = api("a=create&n=test-bed&type=bedrock", timeout=900) if st.get("ok") else {"ok": False, "error": "skipped"}; check("Create Bedrock server via web API", r.get("ok"), r)
         up = False
-        for i in range(90):
+        for i in range(60 if st.get('ok') else 0):
             lg = api("a=logs&n=test-bed").get("logs", "")
             if "Server started" in lg: up = True; break
             time.sleep(10)

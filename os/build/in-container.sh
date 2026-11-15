@@ -1,8 +1,8 @@
 #!/bin/sh
 # Runs INSIDE an Alpine container (see build.sh / the GitHub Actions workflow). Builds the ButterOS ISO with Alpine's own mkimage.
 set -eu
-SRC=/work                      # the repo
-OUT=/work/out                  # ISO lands here
+SRC="${SRC:-/work}"
+OUT="${OUT:-/work/out}"
 ALPINE_BRANCH="${ALPINE_BRANCH:-3.22}"
 mkdir -p "$OUT"
 

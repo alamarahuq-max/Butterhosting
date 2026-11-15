@@ -13,6 +13,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build ISO inside an Alpine container
         run: |
+          set -o pipefail
           mkdir -p out
           docker run --rm --privileged \
             -e ALPINE_BRANCH=${{ github.event.inputs.alpine || '3.22' }} \

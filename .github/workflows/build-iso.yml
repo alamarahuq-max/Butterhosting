@@ -1,0 +1,50 @@
+name: Build ButterOS ISO
+on:
+  workflow_dispatch:
+    inputs:
+      alpine:
+        description: "Alpine release (e.g. 3.22)"
+        default: "3.22"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ISO inside an Alpine container
+        run: |
+          mkdir -p out
+          docker run --rm --privileged \
+            -e ALPINE_BRANCH=${{ github.event.inputs.alpine || '3.22' }} \
+            -e SRC=/src -e OUT=/work/out \
+            -v "$PWD":/src:ro -v "$PWD/out":/work/out \
+            alpine:${{ github.event.inputs.alpine || '3.22' }} sh /src/os/build/in-container.sh 2>&1 | tee build.log
+      - name: Test boot in QEMU (BIOS and UEFI) and take screenshots
+        if: always()
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq qemu-system-x86 ovmf imagemagick >/dev/null
+          mkdir -p shots
+          [ -f out/ButterOS.iso ] || { echo "no ISO to test"; exit 0; }
+          boot() { # name, extra qemu args
+            name=$1; shift
+            rm -f mon-$name
+            qemu-system-x86_64 -m 2048 -cdrom out/ButterOS.iso -boot d -vga std -display none -monitor unix:mon-$name,server,nowait -netdev user,id=n -device e1000,netdev=n "$@" &
+            pid=$!
+            sleep 25; echo "screendump shots/$name-menu.ppm" | nc -U -q1 mon-$name >/dev/null
+            echo "sendkey ret" | nc -U -q1 mon-$name >/dev/null
+            sleep 60; echo "screendump shots/$name-booted.ppm" | nc -U -q1 mon-$name >/dev/null
+            kill $pid 2>/dev/null || true
+          }
+          boot bios || true
+          boot uefi -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd || true
+          for f in shots/*.ppm; do [ -f "$f" ] && convert "$f" "${f%.ppm}.png" && rm "$f"; done
+          ls -la shots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ButterOS
+          path: |
+            out/ButterOS.iso
+            out/ButterOS.iso.sha256
+            build.log
+            shots/

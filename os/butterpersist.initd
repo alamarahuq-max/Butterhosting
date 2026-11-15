@@ -1,0 +1,20 @@
+#!/sbin/openrc-run
+description="ButterOS: find the BUTTER volume (ext4 labelled BUTTER) for Docker images and backups"
+depend() { need localmount; before docker butterramsync butterhosting; }
+start() {
+  ebegin "Looking for the BUTTER volume"
+  mkdir -p /media/butter /etc/docker
+  mdev -s 2>/dev/null || true
+  sleep 2
+  dev="$(blkid -L BUTTER 2>/dev/null || true)"
+  if [ -n "$dev" ] && mount "$dev" /media/butter 2>/dev/null; then
+    mkdir -p /media/butter/docker /media/butter/butter-backup
+    printf '{"data-root":"/media/butter/docker"}\n' > /etc/docker/daemon.json
+    echo "$dev" > /run/butter-persist
+  else
+    rm -f /run/butter-persist
+    mkdir -p /media/butter/butter-backup    # lands in RAM; the menu warns that nothing is saved
+  fi
+  eend 0
+}
+stop() { ebegin "Releasing the BUTTER volume"; umount /media/butter 2>/dev/null; eend 0; }

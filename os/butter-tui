@@ -14,6 +14,11 @@ setvar() { # name prompt
   dialog --msgbox "Saved. Restart the API for it to take effect." 6 50
 }
 
+if grep -q 'butter=install' /proc/cmdline 2>/dev/null; then
+  dialog --title "Download OS" --msgbox "To install ButterOS on this computer's disk: open the Shell (menu), run  setup-alpine  then  sh /opt/butterhosting/install.sh  (see os/README.md). The Live USB mode needs nothing installed." 12 66
+fi
+[ -f /run/butter-persist ] || dialog --title "No BUTTER volume" --msgbox "No disk labelled BUTTER was found. Everything is in RAM only and will be lost at power off. Make an ext4 partition on your USB stick, label it BUTTER (mkfs.ext4 -L BUTTER /dev/sdX3) and reboot to keep Docker images and backups." 11 66
+
 while :; do
   c=$(dialog --stdout --no-cancel --title "ButterOS" \
     --menu "IP $(ip4)   |   API $(api)   |   $(count) game servers\nRAM $(mem)" 20 70 9 \

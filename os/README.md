@@ -45,3 +45,14 @@ Install with `sh install.sh <repo> --ram /media/usb`. Worlds and the API databas
 
 ## Design files
 `os/design/` has the boot-menu, console and web-UI mockups (PNG), the logo (`logo.svg`), the display font, and the prompt used to have an AI build the OS. The numbers in the mockups are placeholders.
+
+## Building the bootable ISO (ButterOS Live)
+
+The ISO is Alpine Linux (diskless = runs entirely from RAM) plus our files. It is built by GitHub, not on your PC:
+
+1. GitHub -> Actions -> **Build ButterOS ISO** -> Run workflow (leave Alpine at 3.22).
+2. When it finishes, download the **ButterOS** artifact: `ButterOS.iso`, its sha256, `build.log` and `shots/` (screenshots of a test boot in BIOS and UEFI mode).
+3. Flash `ButterOS.iso` to the USB with balenaEtcher or Rufus (DD mode). On the same USB make a 3rd ext4 partition labelled `BUTTER` for Docker images + backups (optional, without it everything stays in RAM).
+
+**Status: untested.** The build scripts were written without being able to run Alpine's tooling, so expect the first run to need a fix. If it fails, send `build.log`; if it builds, send the `shots/` pictures. The boot menu (big title, 3 entries, dark/light) lives in `os/build/brand-iso.sh` and falls back to Alpine's stock menu if branding fails, so the ISO should still boot.
+The Minecraft server jar is downloaded on first start (Mojang EULA), not bundled.

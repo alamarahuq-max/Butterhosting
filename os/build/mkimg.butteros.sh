@@ -8,5 +8,5 @@ profile_butteros() {
 	output_format="iso"
 	image_ext="iso"
 	apks="$apks $(cat "${BUTTER_APKS_FILE:-/dev/null}" 2>/dev/null)"
-	apkovl="/home/build/aports/scripts/genapkovl-butteros.sh"
+	apkovl="genapkovl-butteros.sh"
 }

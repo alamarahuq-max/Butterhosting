@@ -76,13 +76,9 @@ function dk(args, { timeout = 60000 } = {}) {
   });
 }
 
-const HELLO_NODE = "require('http').createServer((q,r)=>{r.setHeader('content-type','text/html');r.end('<h1>Hello from ButterHosting</h1>')}).listen(process.env.PORT||3000)";
 const TEMPLATES = {
   minecraft: { label: "Minecraft", kind: "game", image: "itzg/minecraft-server:latest", cport: 25565, mem: "2048m", cpus: 2, vol: "/data", env: [], cmd: [] },
   bedrock: { label: "Bedrock", kind: "game", proto: "udp", image: "itzg/minecraft-bedrock-server:latest", cport: 19132, mem: "768m", cpus: 1, vol: "/data", env: ["EULA=TRUE", "VERSION=LATEST", "SERVER_NAME=A ButterHosting server", "GAMEMODE=survival", "DIFFICULTY=normal", "MAX_PLAYERS=10", "ONLINE_MODE=true"], cmd: [] },
-  node: { label: "Node.js", kind: "web", image: "node:22-alpine", cport: 3000, mem: "256m", cpus: 0.5, vol: "/app", env: ["PORT=3000", "BH_DEFAULT=" + HELLO_NODE], cmd: ["sh", "-c", 'cd /app && [ -f server.js ] || printf "%s" "$BH_DEFAULT" > server.js; exec node server.js'] },
-  python: { label: "Python", kind: "web", image: "python:3.12-alpine", cport: 8000, mem: "256m", cpus: 0.5, vol: "/srv/www", env: [], cmd: ["sh", "-c", 'cd /srv/www && [ -f index.html ] || echo "<h1>Hello from ButterHosting</h1>" > index.html; exec python -m http.server 8000'] },
-  static: { label: "Static site", kind: "web", image: "nginx:alpine", cport: 80, mem: "128m", cpus: 0.25, vol: "/usr/share/nginx/html", env: [], cmd: [] },
 };
 const cname = (id) => `bh-${id}`;
 const vname = (id) => `bh-${id}-data`;
@@ -332,7 +328,7 @@ async function handle(req, res) {
   if (parts[0] === "me" && m === "GET") return json(req, res, 200, publicUser(user));
 
   if (parts[0] !== "servers") return json(req, res, 404, { error: "not found" });
-  const mine = Object.values(db.servers).filter((s) => s.owner === user.id);
+  const mine = Object.values(db.servers).filter((s) => s.owner === user.id && TEMPLATES[s.tpl]);
 
   if (parts.length === 1 && m === "GET") {
     const snap = await snapshot();

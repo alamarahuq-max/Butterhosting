@@ -1,0 +1,40 @@
+#!/bin/sh
+# ButterOS "Download OS": download the latest image, verify it, and write it to a disk of this computer.
+#   butter-install                      (interactive, uses dialog)
+#   butter-install --disk /dev/sdX --yes   (no questions; for scripts and tests)
+URL="${BUTTER_ISO_URL:-https://github.com/alamarahuq-max/Butterhosting/releases/download/latest-iso/ButterOS.iso}"
+TMP=/tmp/butter-dl; DISK=""; YES=0
+while [ $# -gt 0 ]; do case "$1" in --disk) DISK="$2"; shift;; --yes) YES=1;; esac; shift; done
+say() { echo "$*"; }
+list_disks() { # disks that are not in use (nothing mounted from them), name size model
+  for d in /sys/block/*; do n=${d##*/}
+    case $n in loop*|ram*|sr*|fd*|zram*|nbd*) continue;; esac
+    grep -q "^/dev/$n" /proc/mounts && continue
+    [ "$(cat $d/size 2>/dev/null)" -gt 2000000 ] 2>/dev/null || continue
+    printf '/dev/%s %s %s\n' "$n" "$(( $(cat $d/size) / 2048 / 1024 )) GB" "$(tr ' ' '_' < $d/device/model 2>/dev/null)"
+  done; }
+mkdir -p "$TMP"
+if [ -z "$DISK" ]; then
+  L=$(list_disks); [ -n "$L" ] || { say "No unused internal disk found."; exit 1; }
+  if command -v dialog >/dev/null; then
+    set -- $(echo "$L" | awk '{print $1, $2"_"$3}' | tr '\n' ' ')
+    DISK=$(dialog --stdout --title "Download OS" --menu "Choose the disk to install ButterOS on. EVERYTHING ON IT WILL BE ERASED." 16 70 6 "$@") || exit 1
+    dialog --title "Erase $DISK?" --yesno "All data on $DISK will be destroyed.\n\nContinue?" 9 55 || exit 1
+  else echo "$L"; printf "Disk to ERASE: "; read DISK; printf "Type ERASE to confirm: "; read c; [ "$c" = ERASE ] || exit 1; fi
+fi
+[ -b "$DISK" ] || { say "$DISK is not a disk"; exit 1; }
+grep -q "^$DISK" /proc/mounts && { say "$DISK is in use"; exit 1; }
+list_disks | grep -q "^$DISK " || { say "$DISK is not an allowed target (it is in use by this system)"; exit 1; }
+say "Downloading $URL"
+SUMURL="${URL}.sha256"
+wget -q -O "$TMP/sum" "$SUMURL" || { say "Could not download the checksum"; exit 1; }
+if command -v curl >/dev/null; then curl -fL --retry 3 -o "$TMP/image.iso" "$URL" || { say "Download failed"; exit 1; }
+else wget -O "$TMP/image.iso" "$URL" || { say "Download failed"; exit 1; }; fi
+WANT=$(cut -d' ' -f1 "$TMP/sum"); GOT=$(sha256sum "$TMP/image.iso" | cut -d' ' -f1)
+[ "$WANT" = "$GOT" ] || { say "CHECKSUM MISMATCH. Nothing was written."; rm -f "$TMP/image.iso"; exit 1; }
+say "Checksum OK. Writing to $DISK ..."
+SIZE=$(wc -c < "$TMP/image.iso")
+dd if="$TMP/image.iso" of="$DISK" bs=4M conv=fsync 2>&1 | tail -1
+sync
+cmp -n "$SIZE" "$TMP/image.iso" "$DISK" && say "Verified. ButterOS is installed on $DISK. Remove the USB stick and reboot." || { say "Verification FAILED"; exit 1; }
+rm -f "$TMP/image.iso"

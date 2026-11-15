@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 242 142" role="img" aria-label="Butter">
+  <defs>
+    <linearGradient id="bf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE27A"/><stop offset=".55" stop-color="#FFD23F"/><stop offset="1" stop-color="#FFC21A"/></linearGradient>
+    <linearGradient id="bt" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFF6C4"/><stop offset="1" stop-color="#FFEB8F"/></linearGradient>
+    <linearGradient id="bs" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F7B90A"/><stop offset="1" stop-color="#E59A00"/></linearGradient>
+  </defs>
+  <g stroke="#1D1A3A" stroke-width="3.5" stroke-linejoin="round">
+    <path d="M4 42 48 4H238L192 42Z" fill="url(#bt)"/>
+    <path d="M192 42 238 4V96L192 138Z" fill="url(#bs)"/>
+    <rect x="4" y="42" width="188" height="96" rx="9" fill="url(#bf)"/>
+  </g>
+  <path d="M26 62h58" stroke="#FFF9DC" stroke-width="8" stroke-linecap="round" fill="none"/>
+  <path d="M82 22h92" stroke="#FFFDF0" stroke-width="5" stroke-linecap="round" fill="none" opacity=".85"/>
+</svg>

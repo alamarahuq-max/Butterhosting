@@ -1,0 +1,91 @@
+#!/bin/sh
+# ButterOS local web agent (busybox httpd CGI). Minecraft only. LAN only (see httpd.conf).
+# GET /cgi-bin/api?a=status|logs|start|stop|restart|delete|create  &n=<name> &type=java|bedrock &mem=<MB>
+WORLDS=/ram/butter/worlds
+JAVA_NEED=1536; BED_NEED=700; KEEP=300       # MB, estimates (label them as estimates in the UI)
+echo "Content-Type: application/json"; echo "Cache-Control: no-store"; echo
+
+q() { printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n "s/^$1=//p" | head -1 | tr -cd 'A-Za-z0-9._-'; }
+out() { jq -nc "$@"; }
+fail() { out --arg e "$1" '{ok:false,error:$e}'; exit 0; }
+mb() { awk -v k="$1" '$1==k":"{printf "%d",$2/1024}' /proc/meminfo; }
+ENG() { command -v docker >/dev/null && docker info >/dev/null 2>&1; }
+persist() { [ -f /run/butter-persist ] && echo true || echo false; }
+maxsrv() { [ -f /run/butter-persist ] && echo 6 || echo 2; }
+cname() { echo "bw-$1"; }
+valid() { printf '%s' "$1" | grep -Eq '^[a-z0-9][a-z0-9-]{1,23}$'; }
+exists() { docker inspect "$(cname "$1")" >/dev/null 2>&1; }
+count() { docker ps -a -q --filter label=butterhosting=1 2>/dev/null | wc -l; }
+nextport() { # $1 = tcp|udp, $2 = base
+  p=$2; used=$(docker ps -a --format '{{.Ports}}' 2>/dev/null)
+  while echo "$used" | grep -q ":$p->"; do p=$((p+1)); done; echo $p; }
+
+A=$(q a); N=$(q n)
+case "$A" in
+status|"")
+  TOTAL=$(mb MemTotal); AVAIL=$(mb MemAvailable)
+  STATS=$(docker stats --no-stream --format '{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}' 2>/dev/null | awk -F'|' '{split($3,a," / "); v=a[1]; n=v+0; if(v~/GiB/)n=n*1024; else if(v~/KiB/)n=n/1024; else if(v~/MiB/)n=n; else if(v~/B/)n=n/1048576; printf "%s|%s|%d\n",$1,$2,n}')
+  SRV=$(docker ps -a --filter label=butterhosting=1 --format '{{.Names}}|{{.State}}|{{.Image}}|{{.Ports}}' 2>/dev/null | while IFS='|' read -r nm st im po; do
+      ty=java; echo "$im" | grep -q bedrock && ty=bedrock
+      ram=0; cpu=0; r=$(echo "$STATS" | grep "^$nm|"); [ -n "$r" ] && { ram=$(echo "$r" | cut -d'|' -f3); cpu=$(echo "$r" | cut -d'|' -f2 | tr -d '%'); }
+      pl=null
+      if [ "$st" = running ] && [ $ty = java ]; then x=$(timeout 3 docker exec "$nm" rcon-cli list 2>/dev/null | sed -n 's/.*There are \([0-9]*\) of a max.*/\1/p'); [ -n "$x" ] && pl=$x; fi
+      port=$(echo "$po" | sed -n 's/.*:\([0-9]*\)->.*/\1/p' | head -1)
+      jq -nc --arg n "${nm#bw-}" --arg c "$nm" --arg s "$st" --arg t "$ty" --argjson r "${ram:-0}" --arg cpu "${cpu:-0}" --argjson p "$pl" --arg port "$port" \
+        '{name:$n,container:$c,state:$s,type:$t,ram:$r,cpu:($cpu|tonumber? // 0),players:$p,port:($port|tonumber? // null)}'
+    done | jq -sc .)
+  [ -n "$SRV" ] || SRV='[]'
+  SUM=$(echo "$SRV" | jq '[.[].ram]|add // 0')
+  WORLDS_MB=$(du -sm /ram/butter/worlds 2>/dev/null | cut -f1); WORLDS_MB=${WORLDS_MB:-0}
+  OS=$((TOTAL-AVAIL-SUM)); [ $OS -lt 0 ] && OS=0
+  WPID=$(cat /run/butterweb.pid 2>/dev/null); WRSS=0
+  [ -n "$WPID" ] && WRSS=$(awk '/VmRSS/{printf "%d",$2/1024}' /proc/$WPID/status 2>/dev/null); WRSS=${WRSS:-0}
+  TEMP=$(cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | head -1); [ -n "$TEMP" ] && TEMP=$((TEMP/1000)) || TEMP=null
+  IP=$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)
+  BK=$(ls -d /media/butter/butter-backup 2>/dev/null); LAST=null
+  [ -f /media/butter/butter-backup/.last ] && LAST=$(cat /media/butter/butter-backup/.last)
+  out --argjson total "$TOTAL" --argjson avail "$AVAIL" --argjson os "$OS" --argjson srvmb "$SUM" --argjson worlds "$WORLDS_MB" --argjson web "$WRSS" \
+      --argjson servers "$SRV" --arg ip "$IP" --argjson temp "$TEMP" --arg up "$(cut -d' ' -f1 /proc/uptime)" --arg load "$(cut -d' ' -f1-3 /proc/loadavg)" \
+      --arg kernel "$(uname -r)" --argjson cores "$(nproc)" --argjson persist "$(persist)" --argjson max "$(maxsrv)" \
+      --argjson jn "$JAVA_NEED" --argjson bn "$BED_NEED" --argjson keep "$KEEP" --arg last "$LAST" --arg engine "$(ENG && echo ok || echo down)" \
+      '{ok:true,mem:{total:$total,avail:$avail,os:$os,servers:$srvmb,worlds:$worlds},web_rss_mb:$web,limit_web_mb:30,servers:$servers,ip:$ip,temp:$temp,uptime:($up|tonumber),load:$load,
+        kernel:$kernel,cores:$cores,persist:$persist,max_servers:$max,engine:$engine,
+        capacity:{java_need:$jn,bedrock_need:$bn,keep_free:$keep,java_fits:(($avail-$jn)>=$keep),bedrock_fits:(($avail-$bn)>=$keep),estimate:true},
+        backup:{usb:$persist,last:(if $last=="null" then null else $last end)}}'
+  ;;
+logs)
+  valid "$N" || fail "bad name"; exists "$N" || fail "no such server"
+  docker logs --tail 80 "$(cname "$N")" 2>&1 | tr -d '\033' | sed 's/\[[0-9;]*m//g' | jq -Rsc '{ok:true,logs:.}' ;;
+start|stop|restart)
+  valid "$N" || fail "bad name"; exists "$N" || fail "no such server"
+  if [ "$A" != stop ]; then
+    im=$(docker inspect -f '{{.Config.Image}}' "$(cname "$N")"); need=$JAVA_NEED; echo "$im" | grep -q bedrock && need=$BED_NEED
+    run=$(docker inspect -f '{{.State.Running}}' "$(cname "$N")")
+    [ "$A" = start ] && [ "$run" != true ] && [ $(( $(mb MemAvailable) - need )) -lt $KEEP ] && fail "Not enough free memory to start this server safely"
+  fi
+  docker "$A" "$(cname "$N")" >/dev/null 2>&1 && out '{ok:true}' || fail "$A failed" ;;
+delete)
+  valid "$N" || fail "bad name"; exists "$N" || fail "no such server"
+  docker rm -f "$(cname "$N")" >/dev/null 2>&1; rm -rf "$WORLDS/$N"; out '{ok:true}' ;;
+create)
+  T=$(q type); M=$(q mem)
+  valid "$N" || fail "Name: 2-24 letters, numbers or dashes"
+  ENG || fail "The container engine is not running"
+  exists "$N" && fail "A server with that name already exists"
+  [ "$(count)" -ge "$(maxsrv)" ] && fail "Limit reached: $(maxsrv) servers in this mode"
+  case "$T" in java) need=$JAVA_NEED;; bedrock) need=$BED_NEED;; *) fail "type must be java or bedrock";; esac
+  [ $(( $(mb MemAvailable) - need )) -lt $KEEP ] && fail "Not enough free memory: this server needs about $need MB (estimate) and $KEEP MB must stay free"
+  mkdir -p "$WORLDS/$N"
+  if [ $T = java ]; then
+    case "$M" in ''|*[!0-9]*) M=1024;; esac; [ "$M" -lt 512 ] && M=512; [ "$M" -gt 2048 ] && M=2048
+    P=$(nextport tcp 25565)
+    docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --restart unless-stopped \
+      -e EULA=TRUE -e TYPE=PAPER -e VERSION="${VERSION:-LATEST}" -e MEMORY="${M}M" -p "$P:25565" -v "$WORLDS/$N:/data" itzg/minecraft-server:latest >/dev/null 2>&1 || fail "docker run failed"
+  else
+    P=$(nextport udp 19132)
+    docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --restart unless-stopped \
+      -e EULA=TRUE -e SERVER_NAME="$N" -p "$P:19132/udp" -v "$WORLDS/$N:/data" itzg/minecraft-bedrock-server:latest >/dev/null 2>&1 || fail "docker run failed"
+  fi
+  out --argjson p "$P" '{ok:true,port:$p}' ;;
+*) fail "unknown action" ;;
+esac

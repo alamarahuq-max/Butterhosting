@@ -3,7 +3,7 @@
 Real hosting, all inside this repo. The API runs in a **GitHub Codespace** (the cloud server) and starts every server
 as a Docker container. People sign in with **Discord**, and each person only sees their own servers.
 
-Templates: **Minecraft** (Paper), **Node.js**, **Python**, **Static site**.
+Templates: **Minecraft Java** (Paper) and **Minecraft Bedrock**. Nothing else.
 
 ## Set it up (about 10 minutes)
 
@@ -55,7 +55,6 @@ All routes except `/health` and `/auth/*` need `Authorization: Bearer <token>`.
   it's a third-party service (if Minekube is down, the link is down); Java Edition only; it turns off
   `enforce-secure-profile` (affects signed chat only); names are first come, first served and are not reserved by an account.
   Linking needs Codespace internet access to modrinth.com and minekube.net (default Codespaces allow it).
-  Web templates (Node, Python, Static) are reachable at `https://<codespace>-<port>.app.github.dev` once that port is set to Public.
 - Data lives in `hosting-api/data` (git-ignored). Each server has its own Docker volume.
 - Limits: 3 servers per person by default (`MAX_SERVERS_PER_USER`), 1.5 GB for Minecraft, 256 MB for the rest.
 

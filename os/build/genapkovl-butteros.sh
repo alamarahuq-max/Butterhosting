@@ -21,6 +21,11 @@ install -m 755 "$SRC/os/ramsync"               "$tmp/usr/local/bin/ramsync"
 install -m 755 "$SRC/os/butterhosting.initd"   "$tmp/etc/init.d/butterhosting"
 install -m 755 "$SRC/os/butterramsync.initd"   "$tmp/etc/init.d/butterramsync"
 install -m 755 "$SRC/os/butterpersist.initd"   "$tmp/etc/init.d/butterpersist"
+install -m 755 "$SRC/os/butterweb.initd"       "$tmp/etc/init.d/butterweb"
+install -m 755 "$SRC/os/butter-install"        "$tmp/usr/local/bin/butter-install"
+install -m 755 "$SRC/os/serial-getty"          "$tmp/usr/local/bin/serial-getty"
+mkdir -p "$tmp/opt/butterweb"; cp -r "$SRC/os/web"/. "$tmp/opt/butterweb/"; chmod +x "$tmp/opt/butterweb/cgi-bin/api"
+printf 'overlay\nbr_netfilter\nveth\nnf_conntrack\nnf_nat\nxt_MASQUERADE\nxt_conntrack\niptable_nat\niptable_filter\n' > "$tmp/etc/modules"
 mkdir -p "$tmp/opt/butterhosting/hosting-api" && cp -r "$SRC/hosting-api"/. "$tmp/opt/butterhosting/hosting-api/"
 rm -rf "$tmp/opt/butterhosting/hosting-api/data" "$tmp/opt/butterhosting/data" 2>/dev/null || true
 # settings file (empty values; filled in from the console menu)
@@ -33,11 +38,12 @@ cat > "$tmp/etc/inittab" <<'I'
 ::wait:/sbin/openrc default
 tty1::respawn:/sbin/getty -n -l /usr/local/bin/butter-tui 38400 tty1
 tty2::respawn:/sbin/getty 38400 tty2
+ttyS0::respawn:/usr/local/bin/serial-getty
 ::ctrlaltdel:/sbin/reboot
 ::shutdown:/sbin/openrc shutdown
 I
 for s in devfs dmesg mdev hwdrivers modloop; do rc_add $s sysinit; done
 for s in cgroups modules sysctl hostname bootmisc networking syslog chronyd butterpersist butterramsync; do rc_add $s boot; done
-for s in docker butterhosting acpid; do rc_add $s default; done
+for s in docker butterhosting butterweb acpid; do rc_add $s default; done
 for s in mount-ro killprocs savecache; do rc_add $s shutdown; done
 tar -c -C "$tmp" . | gzip -9n > "$HOSTNAME.apkovl.tar.gz"

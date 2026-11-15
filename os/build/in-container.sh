@@ -27,9 +27,12 @@ install -m 755 -o build "$SRC/os/build/genapkovl-butteros.sh" "$S/genapkovl-butt
 apk update >/dev/null 2>&1 || apk update
 OPT=""
 for p in linux-firmware-rtl_nic linux-firmware-i915 linux-firmware-amdgpu linux-firmware-radeon linux-firmware-nvidia linux-firmware-intel \
-         docker docker-openrc nodejs dialog e2fsprogs exfatprogs dosfstools util-linux lsblk chrony ethtool pciutils usbutils parted rsync busybox-extras jq curl iptables ip6tables cloudflared; do
+         docker docker-openrc nodejs dialog e2fsprogs exfatprogs dosfstools util-linux lsblk chrony ethtool pciutils usbutils parted rsync busybox-extras jq curl iptables ip6tables; do
   if [ -n "$(apk search -e "$p" 2>/dev/null)" ]; then OPT="$OPT $p"; else echo "   (skipping $p: not in this release)"; fi
 done
+# cloudflared (free quick tunnel for failover) is not packaged for Alpine 3.22: fetch the official static binary
+apk add --no-cache curl >/dev/null 2>&1
+if curl -fsSL -o /home/build/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && [ -s /home/build/cloudflared ]; then chmod 755 /home/build/cloudflared; chown build /home/build/cloudflared; echo "   cloudflared downloaded"; else rm -f /home/build/cloudflared; echo "   (no cloudflared: failover tunnel will not work in this build)"; fi
 echo "$OPT" > /home/build/butter-apks.txt; chown build /home/build/butter-apks.txt
 
 echo "== mkimage"

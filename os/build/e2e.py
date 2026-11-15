@@ -182,6 +182,25 @@ def main():
         r = subprocess.run(["node", os.path.join(os.path.dirname(os.path.abspath(__file__)), "webshots.js"), OUT], capture_output=True, text=True)
         log(r.stdout, r.stderr); check("Web page screenshots taken", r.returncode == 0, r.stderr[-200:])
         vm.shot("live-after-servers")
+        # failover wiring on the OS (never takes over: FAILOVER_AUTO=0)
+        tok = os.environ.get("E2E_REGISTRY_TOKEN"); repo = os.environ.get("E2E_REGISTRY_REPO")
+        if tok and repo:
+            vm.sh("cd /etc && grep -v -E '^(BUTTER_ROLE|REGISTRY_REPO|REGISTRY_TOKEN|SESSION_SECRET|FAILOVER_AUTO|DEVICE_ID)=' butterhosting.env > bh.tmp; printf 'BUTTER_ROLE=device\\nREGISTRY_REPO=%s\\nREGISTRY_TOKEN=%s\\nSESSION_SECRET=e2e-secret\\nFAILOVER_AUTO=0\\nDEVICE_ID=e2e-box\\nFAILOVER_TICK_MS=3000\\n' '%s' '%s' >> bh.tmp; mv bh.tmp butterhosting.env; chmod 600 butterhosting.env" % (repo, tok), 20)
+            vm.sh("rc-service butterhosting restart >/dev/null 2>&1; rc-service butterfailover restart >/dev/null 2>&1", 90)
+            c, o = vm.sh("cloudflared --version 2>&1 | head -1", 20); check("cloudflared is in the image", c == 0 and "cloudflared" in o, o.strip()[:80])
+            got = False
+            for _ in range(40):
+                c, o = vm.sh("test -s /run/butter-tunnel-url && echo HAVEURL", 15)
+                if "HAVEURL" in o: got = True; break
+                time.sleep(3)
+            check("Tunnel comes up and its address is stored (address not printed)", got)
+            time.sleep(8); c, o = vm.sh("wget -qO- http://127.0.0.1:8080/health", 20)
+            check("API in device role is on standby (does not take over while primary is fine)", '"standby":true' in o and '"failover":"standby"' in o, o.strip()[-120:])
+            try:
+                req = urllib.request.Request("https://api.github.com/repos/%s/contents/_butter/device-e2e-box.json?ref=registry" % repo, headers={"Authorization": "Bearer " + tok, "Accept": "application/vnd.github.raw+json", "User-Agent": "e2e"})
+                j = json.loads(urllib.request.urlopen(req, timeout=20).read()); check("Device registered itself in the private registry (with a tunnel address, not shown)", bool(j.get("url")) and j.get("active") is False)
+            except Exception as e: check("Device registered itself in the private registry", False, e)
+            vm.sh("sed -i '/^BUTTER_ROLE=/d;/^REGISTRY_TOKEN=/d' /etc/butterhosting.env; rc-service butterhosting restart >/dev/null 2>&1; rc-service butterfailover stop >/dev/null 2>&1", 60)
         # installer: serve the ISO from the host
         ip = "10.0.2.2"
         c, o = vm.sh("which butter-install && ls /dev/vda", 20); check("Installer present and target disk visible", c == 0, o.replace("\n", " "))

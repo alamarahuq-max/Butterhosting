@@ -5,7 +5,7 @@ depend() { need net; }
 start() {
   ebegin "Starting the local web page on port 80"
   start-stop-daemon --start --background --make-pidfile --pidfile /run/butterweb.pid \
-    --exec /bin/busybox -- httpd -f -p 80 -h /opt/butterweb -c /opt/butterweb/httpd.conf
+    --exec /bin/busybox-extras -- httpd -f -p 80 -h /opt/butterweb -c /opt/butterweb/httpd.conf
   eend $?
 }
 stop() { ebegin "Stopping the local web page"; start-stop-daemon --stop --pidfile /run/butterweb.pid; eend $?; }

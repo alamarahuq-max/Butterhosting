@@ -136,7 +136,7 @@ def main():
             time.sleep(2)
         check("Local web page answers (status JSON)", st.get("ok"), json.dumps(st)[:200])
         if not st.get("ok"):
-            c, o = vm.sh("rc-status -a 2>&1 | head -40; echo ---; ps w | grep -E 'httpd|node|dockerd' | grep -v grep; echo ---; netstat -ltn; echo ---; ip -4 a | grep inet; echo ---; tail -15 /var/log/messages; echo ---; tail -15 /var/log/butterhosting.log; echo ---; ls -l /opt/butterweb /opt/butterweb/cgi-bin; cat /opt/butterweb/httpd.conf; busybox httpd --help 2>&1 | head -3; rc-service butterweb restart 2>&1; sleep 2; netstat -ltn | grep ':80 '", 60)
+            c, o = vm.sh("rc-status -a 2>&1 | head -40; echo ---; ps w | grep -E 'httpd|node|dockerd' | grep -v grep; echo ---; netstat -ltn; echo ---; ip -4 a | grep inet; echo ---; tail -15 /var/log/messages; echo ---; tail -15 /var/log/butterhosting.log; echo ---; ls -l /opt/butterweb /opt/butterweb/cgi-bin; cat /opt/butterweb/httpd.conf; busybox-extras httpd --help 2>&1 | head -3; which busybox-extras; rc-service butterweb restart 2>&1; sleep 2; netstat -ltn | grep ':80 '", 60)
             extra.append("Diagnostics (web page down):\n```\n" + o + "\n```"); open(os.path.join(OUT, "diag-web.txt"), "w").write(o)
         try:
             html = urllib.request.urlopen("http://127.0.0.1:8081/", timeout=10).read().decode()

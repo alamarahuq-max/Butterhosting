@@ -19,7 +19,7 @@ setvar() { # name prompt
 
 [ -f /run/butter-persist ] || dialog --title "No BUTTER volume" --msgbox "No disk labelled BUTTER was found. Everything is in RAM only and will be lost at power off. Make an ext4 partition on your USB stick, label it BUTTER (mkfs.ext4 -L BUTTER /dev/sdX3) and reboot to keep Docker images and backups." 11 66
 
-if grep -q 'butter=install' /proc/cmdline 2>/dev/null; then butter-install; fi
+if grep -q 'butter=install' /proc/cmdline 2>/dev/null; then /usr/local/bin/butter-install; fi
 while :; do
   c=$(dialog --stdout --no-cancel --title "ButterOS" \
     --menu "Web page  http://$(ip4)   |   API $(api)   |   $(count) Minecraft servers\nRAM $(mem)" 23 74 12 \
@@ -27,7 +27,7 @@ while :; do
     6 "Discord client ID" 7 "Discord client secret" 8 "Frontend URL (your Vercel site)" 9 "Running containers" 10 "Shell" 11 "Power off" 12 "Reboot" 13 "Failover: be the backup machine")
   case $c in
     1) dialog --msgbox "Open this on any phone or computer on your network:\n\n  http://$(ip4)\n\nIt shows memory, your Minecraft servers and lets you start, stop and make servers." 12 60 ;;
-    2) butter-install; printf "\nPress Enter to go back "; read x ;;
+    2) /usr/local/bin/butter-install; printf "\nPress Enter to go back "; read x ;;
     3) rc-service butterhosting restart >/dev/null 2>&1; dialog --msgbox "API: $(api)" 6 30 ;;
     4) rc-service butterhosting stop >/dev/null 2>&1 ;;
     5) dialog --textbox /var/log/butterhosting.log 22 78 ;;

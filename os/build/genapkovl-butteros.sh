@@ -22,6 +22,7 @@ install -m 755 "$SRC/os/butterhosting.initd"   "$tmp/etc/init.d/butterhosting"
 install -m 755 "$SRC/os/butterramsync.initd"   "$tmp/etc/init.d/butterramsync"
 install -m 755 "$SRC/os/butterpersist.initd"   "$tmp/etc/init.d/butterpersist"
 install -m 755 "$SRC/os/butterweb.initd"       "$tmp/etc/init.d/butterweb"
+install -m 755 "$SRC/os/butterfailover.initd"  "$tmp/etc/init.d/butterfailover"
 install -m 755 "$SRC/os/butter-install"        "$tmp/usr/local/bin/butter-install"
 install -m 755 "$SRC/os/serial-getty"          "$tmp/usr/local/bin/serial-getty"
 mkdir -p "$tmp/opt/butterweb"; cp -r "$SRC/os/web"/. "$tmp/opt/butterweb/"; chmod +x "$tmp/opt/butterweb/cgi-bin/api"
@@ -44,6 +45,6 @@ ttyS0::respawn:/usr/local/bin/serial-getty
 I
 for s in devfs dmesg mdev hwdrivers modloop; do rc_add $s sysinit; done
 for s in cgroups modules sysctl hostname bootmisc networking syslog chronyd butterpersist butterramsync; do rc_add $s boot; done
-for s in docker butterhosting butterweb acpid; do rc_add $s default; done
+for s in docker butterhosting butterfailover butterweb acpid; do rc_add $s default; done
 for s in mount-ro killprocs savecache; do rc_add $s shutdown; done
 tar -c -C "$tmp" . | gzip -9n > "$HOSTNAME.apkovl.tar.gz"

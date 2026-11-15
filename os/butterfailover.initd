@@ -1,0 +1,17 @@
+#!/sbin/openrc-run
+name="butterfailover"
+description="ButterOS: free tunnel so the site can reach this machine during failover (address stays private)"
+depend() { need net butterhosting; }
+start() {
+  . /etc/butterhosting.env 2>/dev/null
+  [ "$BUTTER_ROLE" = device ] || { einfo "failover is off (set it up in the ButterOS menu)"; return 0; }
+  command -v cloudflared >/dev/null || { eerror "cloudflared is not installed in this image"; return 0; }
+  ebegin "Starting private tunnel"
+  rm -f /run/butter-tunnel-url
+  start-stop-daemon --start --background --make-pidfile --pidfile /run/butterfailover.pid --stdout /var/log/butter-tunnel.log --stderr /var/log/butter-tunnel.log \
+    --exec /usr/bin/cloudflared -- tunnel --no-autoupdate --url "http://127.0.0.1:${PORT:-8080}"
+  # the public address shows up in cloudflared's log; keep it in a root-only file, never on screen
+  start-stop-daemon --start --background --exec /bin/sh -- -c 'umask 077; for i in $(seq 1 90); do u=$(grep -o "https://[a-z0-9-]*\.trycloudflare\.com" /var/log/butter-tunnel.log | head -1); [ -n "$u" ] && { echo "$u" > /run/butter-tunnel-url; break; }; sleep 2; done'
+  eend 0
+}
+stop() { ebegin "Stopping tunnel"; start-stop-daemon --stop --pidfile /run/butterfailover.pid; rm -f /run/butter-tunnel-url; eend 0; }

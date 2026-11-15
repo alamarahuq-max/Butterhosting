@@ -1,5 +1,5 @@
 (function(){
-  var API=(window.BUTTER_API||"").replace(/\/$/,""),HOT=80,POLL=4000;
+  var PRIMARY=(window.BUTTER_API||"").replace(/\/$/,""),API=PRIMARY,backup=false,HOT=80,POLL=4000;
   var $=function(s){return document.querySelector(s)};
   var state={servers:[],log:[],range:24,metric:"cpu",loadedAt:Date.now(),err:null,loading:true,loaded:false,user:null,limit:null,hist:{cpu:[],ram:[],players:[]}};
   var NAMES={cpu:"CPU",ram:"Memory",players:"Players"},timers=[];
@@ -11,22 +11,34 @@
   function setTok(t){try{if(t)localStorage.setItem('bh-token',t);else localStorage.removeItem('bh-token')}catch(e){}}
 
   /* ---------- API ---------- */
-  function call(path,opt){
+  /* If the main server (Codespace) is down, the site's own /relay forwards to a backup ButterOS machine. Its address is never sent to the browser. */
+  function pick(){
+    if(!PRIMARY)return Promise.resolve();
+    var ctl=window.AbortController?new AbortController():null,tm=setTimeout(function(){if(ctl)ctl.abort()},4000);
+    return fetch(PRIMARY+"/health",{cache:"no-store",signal:ctl?ctl.signal:undefined}).then(function(r){return r.json()}).then(function(j){clearTimeout(tm);return !!(j&&j.ok&&!j.standby)},function(){clearTimeout(tm);return false}).then(function(up){
+      var was=backup;backup=!up;API=up?PRIMARY:"/relay";
+      var b=$('#failover');if(b)b.hidden=up;
+      if(was!==backup&&state&&state.user)load(true);
+    });
+  }
+  function call(path,opt,retried){
     opt=opt||{};var h={Authorization:"Bearer "+getTok()};if(opt.body)h["Content-Type"]="application/json";
+    var again=function(){return retried?null:pick().then(function(){return call(path,opt,true)})};
     return fetch(API+path,{method:opt.method||"GET",headers:h,body:opt.body?JSON.stringify(opt.body):undefined}).then(function(r){
       return r.json().catch(function(){return {}}).then(function(j){
         if(r.status===401){signOut(true);throw new Error("Please sign in again")}
+        if((r.status===503||r.status===502)&&!retried){return again()}
         if(!r.ok)throw new Error(j.error||"Something went wrong");
         return j;
       });
-    },function(){throw new Error("Can't reach the server. If the Codespace just restarted, wait a minute")});
+    },function(){var a=again();if(a)return a;throw new Error("Can't reach the server. If it just restarted, wait a minute")});
   }
 
   /* ---------- sign in ---------- */
   function showGate(msg,nobtn){
     timers.forEach(clearInterval);timers=[];
     document.body.classList.add('gated');$('#gate').hidden=false;$('#user').hidden=true;$('#banner').hidden=true;
-    $('#gate-btn').href=API+"/auth/discord";$('#gate-btn').style.display=nobtn?'none':'';$('#gate-err').textContent=msg||"";
+    $('#gate-btn').href=API+"/auth/discord";$('#gate-btn').style.display=(nobtn||backup)?'none':'';$('#gate-err').textContent=msg||"";
   }
   function signOut(expired){setTok("");state.user=null;state.loaded=false;showGate(expired?"Your session ended. Please sign in again.":"")}
   function userPill(){
@@ -205,6 +217,7 @@
     var s=find(setId),t=$('#drop-t');if(!file||!s)return;
     if(!/\.jar$/i.test(file.name)){toast("Only .jar files");return}
     if(s.status!=="on"){toast("Start the server first");return}
+    if(backup&&file.size>4*1024*1024){toast("Backup mode takes files up to 4 MB. Try again when the main server is back.");return}
     t.textContent="Uploading "+file.name+"…";
     fetch(API+"/servers/"+encodeURIComponent(setId)+"/files?name="+encodeURIComponent(file.name),{method:"POST",headers:{Authorization:"Bearer "+getTok()},body:file})
       .then(function(r){return r.json().catch(function(){return {}}).then(function(j){if(!r.ok)throw new Error(j.error||"Upload failed");return j})})
@@ -282,13 +295,16 @@
     var mode=$('#mode');mode.textContent="Live";mode.setAttribute('data-tip',"Connected to your backend");mode.tabIndex=0;
     $('.seg').style.display='none';
     timers.push(setInterval(ago,10000));
-    if(!API)return showGate("The backend isn't connected yet. The site owner needs to set BUTTER_API in config.js.",true);
-    if(!getTok())return showGate("");
-    call("/me").then(function(u){
+    if(!PRIMARY)return showGate("The backend isn't connected yet. The site owner needs to set BUTTER_API in config.js.",true);
+    pick().then(function(){
+    if(!getTok())return showGate(backup?"Sign-in is unavailable while the backup machine is running. Try again in a few minutes.":"");
+    return call("/me").then(function(u){
       state.user=u;state.limit=u.limit==null?null:u.limit;document.body.classList.remove('gated');$('#gate').hidden=true;userPill();
       load();
       timers.push(setInterval(function(){if(!document.hidden&&state.user)load(true)},POLL));
     }).catch(function(e){if(getTok())showGate(e.message);else showGate("")});
+    });
+    timers.push(setInterval(pick,20000));
   }
   var rt;addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(function(){if(state.loaded)chart()},150)});
   boot();

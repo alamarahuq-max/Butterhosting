@@ -281,7 +281,13 @@ async function handle(req, res) {
   const m = req.method;
 
   if (!parts.length) return json(req, res, 200, { name: "ButterHosting API", discord: Boolean(DISCORD_ID && DISCORD_SECRET) });
-  if (parts[0] === "health") return json(req, res, 200, { ok: true });
+  if (parts[0] === "health") return json(req, res, 200, { ok: true, standby: FO.standby(), failover: FO.state().mode || null });
+  if (parts[0] === "internal" && parts[1] === "handback" && m === "POST") { // only for this machine's own shutdown script: needs the local key and must not arrive through a tunnel
+    const k = (() => { try { return fs.readFileSync(path.join(DATA_DIR, "internal.key"), "utf8").trim(); } catch { return null; } })();
+    if (!k || req.headers["x-butter-internal"] !== k || req.headers["cf-connecting-ip"] || req.headers["x-forwarded-for"]) return json(req, res, 403, { error: "forbidden" });
+    return json(req, res, 200, await FO.handback());
+  }
+  if (FO.standby()) return json(req, res, 503, { error: "This machine is on standby", standby: true });
 
   /* Discord OAuth2 (authorization code flow, scope identify) */
   if (parts[0] === "auth" && parts[1] === "discord" && !parts[2]) {
@@ -463,6 +469,9 @@ async function handle(req, res) {
 for (const s of Object.values(db.servers)) if (s.state === "creating") { s.state = "error"; s.error = "Interrupted, delete and create again"; }
 saveDb();
 
+const FO = require("./failover")({ env, dataDir: DATA_DIR, worldsDir: WORLD_DIR, getDb: () => db, setDb: (d) => { db = d; saveDb(); }, dk, provision });
+try { const kf = path.join(DATA_DIR, "internal.key"); if (!fs.existsSync(kf)) fs.writeFileSync(kf, crypto.randomBytes(24).toString("hex"), { mode: 0o600 }); } catch {}
+
 if (require.main === module) {
   http.createServer((req, res) => handle(req, res).catch((e) => { console.error(e); try { json(req, res, 500, { error: "server error" }); } catch {} }))
     .listen(PORT, () => {
@@ -470,7 +479,8 @@ if (require.main === module) {
       console.log(`  frontend : ${FRONTENDS.join(", ")}`);
       console.log(`  backend  : ${BACKEND_URL}`);
       console.log(`  discord  : ${DISCORD_ID && DISCORD_SECRET ? "configured" : "NOT configured (set DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET)"}`);
+      FO.start();
       console.log(`  redirect : ${BACKEND_URL}/auth/discord/callback  <- add this in the Discord developer portal`);
     });
 }
-module.exports = { handle };
+module.exports = { handle, FO };

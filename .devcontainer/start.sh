@@ -6,6 +6,8 @@ if [ -n "${PLAYIT_SECRET:-}" ]; then
   docker rm -f bh-playit >/dev/null 2>&1 || true
   docker run -d --name bh-playit --restart unless-stopped --net=host -e SECRET_KEY="$PLAYIT_SECRET" playitcloud/playit:0.15.19 >/dev/null 2>&1 || echo "playit agent failed to start"
 fi
+# Failover: if REGISTRY_REPO + REGISTRY_TOKEN secrets exist this Codespace is the "primary" and publishes its state for backup machines.
+if [ -n "${REGISTRY_REPO:-}" ] && [ -n "${REGISTRY_TOKEN:-}" ]; then export BUTTER_ROLE=primary; export WORLD_DIR="${WORLD_DIR:-$HOME/butter-worlds}"; mkdir -p "$WORLD_DIR"; fi
 pkill -f "node server.js" 2>/dev/null || true
 nohup node server.js >/tmp/butterhosting.log 2>&1 &
 sleep 2

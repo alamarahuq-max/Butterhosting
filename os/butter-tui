@@ -22,9 +22,9 @@ setvar() { # name prompt
 if grep -q 'butter=install' /proc/cmdline 2>/dev/null; then butter-install; fi
 while :; do
   c=$(dialog --stdout --no-cancel --title "ButterOS" \
-    --menu "Web page  http://$(ip4)   |   API $(api)   |   $(count) Minecraft servers\nRAM $(mem)" 22 74 11 \
+    --menu "Web page  http://$(ip4)   |   API $(api)   |   $(count) Minecraft servers\nRAM $(mem)" 23 74 12 \
     1 "Show web page address" 2 "Download OS to a disk (install)" 3 "Start / restart API" 4 "Stop API" 5 "API log" \
-    6 "Discord client ID" 7 "Discord client secret" 8 "Frontend URL (your Vercel site)" 9 "Running containers" 10 "Shell" 11 "Power off" 12 "Reboot")
+    6 "Discord client ID" 7 "Discord client secret" 8 "Frontend URL (your Vercel site)" 9 "Running containers" 10 "Shell" 11 "Power off" 12 "Reboot" 13 "Failover: be the backup machine")
   case $c in
     1) dialog --msgbox "Open this on any phone or computer on your network:\n\n  http://$(ip4)\n\nIt shows memory, your Minecraft servers and lets you start, stop and make servers." 12 60 ;;
     2) butter-install; printf "\nPress Enter to go back "; read x ;;
@@ -38,5 +38,9 @@ while :; do
     10) clear; echo "Type exit to come back."; /bin/sh ;;
     11) poweroff ;;
     12) reboot ;;
+    13) dialog --yesno "Failover lets this machine run the site's servers when the main server (Codespace) is asleep, then hand everything back. You need: the private GitHub repo name, a GitHub token for it (contents: read+write) and the SAME session secret the main server uses. Continue?" 12 66 && {
+          setvar REGISTRY_REPO "owner/repo (private)"; setvar REGISTRY_TOKEN "GitHub token (contents read+write)"; setvar SESSION_SECRET "Same SESSION_SECRET as the Codespace"
+          grep -v "^BUTTER_ROLE=" "$ENVF" > "$ENVF.tmp"; echo BUTTER_ROLE=device >> "$ENVF.tmp"; mv "$ENVF.tmp" "$ENVF"; rc-service butterhosting restart >/dev/null 2>&1; rc-service butterfailover restart >/dev/null 2>&1
+          dialog --msgbox "Failover is on. This machine will wait quietly and take over only if the main server stops answering. The tunnel address stays hidden." 8 60; } ;;
   esac
 done

@@ -30,6 +30,7 @@
     <button class="btn sm" id="new" type="button">+ New server</button>
   </div>
 </header>
+<div id="failover" role="status" hidden>The main server is asleep, so your servers are running on a backup machine. They keep working. New sign-ins and files over 4 MB wait until the main server is back.</div>
 <div id="banner" role="alert" hidden></div>
 <section id="gate" class="gate" hidden aria-labelledby="gate-h">
   <div class="gate-card"><img class="gate-logo" src="logo.svg" alt=""><h2 id="gate-h">Welcome back</h2><p>Sign in with Discord to manage your servers.</p><a class="btn discord" id="gate-btn" href="#">Continue with Discord</a><span class="muted" id="gate-err" role="alert"></span></div>

@@ -9,3 +9,12 @@ output_log="/var/log/butterhosting.log"
 error_log="/var/log/butterhosting.log"
 depend() { need docker net; }
 start_pre() { set -a; [ -f /etc/butterhosting.env ] && . /etc/butterhosting.env; set +a; export DATA_DIR="${DATA_DIR:-/var/lib/butterhosting}"; mkdir -p "$DATA_DIR"; }
+stop_pre() {
+  # failover: if this machine is running the site's work, upload everything back before the server stops
+  [ -f /etc/butterhosting.env ] && . /etc/butterhosting.env
+  if [ "$BUTTER_ROLE" = device ] && [ -f "${DATA_DIR:-/var/lib/butterhosting}/internal.key" ]; then
+    ebegin "Handing work back to the main server"
+    curl -s -m 600 -X POST -H "x-butter-internal: $(cat "${DATA_DIR:-/var/lib/butterhosting}/internal.key")" "http://127.0.0.1:${PORT:-8080}/internal/handback" >/dev/null 2>&1
+    eend 0
+  fi
+}

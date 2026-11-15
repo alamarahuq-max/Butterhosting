@@ -49,6 +49,8 @@ cat > "$W/grub.cfg" <<G
 set timeout=-1
 set default=0
 insmod all_video
+search --no-floppy --file --set=isoroot /boot/grub/butter/bg-dark.png
+if [ -n "\$isoroot" ]; then set root=\$isoroot; set prefix=(\$isoroot)/boot/grub; fi
 for m in gfxterm gfxmenu png font all_video; do insmod \$m || { echo "butter: grub module \$m failed"; sleep 4; }; done
 if loadfont /boot/grub/butter/unicode.pf2 ; then true; elif loadfont unicode ; then true; fi
 set gfxmode=1920x1080,1280x720,auto

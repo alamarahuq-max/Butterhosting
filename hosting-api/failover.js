@@ -119,7 +119,7 @@ module.exports = function failover(ctx) {
   if (env.BUTTER_GEO) { const [a, b] = env.BUTTER_GEO.split(","); if (isFinite(a) && isFinite(b)) geo = { lat: rnd(a), lon: rnd(b) }; }
   async function findGeo() { if (geo || env.BUTTER_NO_GEO) return; try { const j = JSON.parse(await sh("curl", ["-sS", "-m", "8", "https://ipwho.is/?fields=latitude,longitude,success"])); if (j.success && isFinite(j.latitude)) geo = { lat: rnd(j.latitude), lon: rnd(j.longitude) }; } catch (e) { /* no location: it is still used, just never preferred as nearest */ } }
   const beat = () => role === "primary" ? store.put("primary.json", JSON.stringify({ ts: Date.now(), mode })) :
-    store.put("device-" + ID + ".json", JSON.stringify({ ts: Date.now(), id: ID, active: mode === "active", url: url(), geo, servers: Object.keys(ctx.getDb().servers || {}).length }));
+    store.put("device-" + ID + ".json", JSON.stringify({ ts: Date.now(), id: ID, active: mode === "active", url: url(), geo, wallet: env.BUTTER_WALLET || null, servers: Object.keys(ctx.getDb().servers || {}).length }));
 
   async function takeover() {
     log("primary is silent, taking over"); mode = "active"; // set first so we stop re-entering
@@ -158,6 +158,10 @@ module.exports = function failover(ctx) {
       if (role === "primary") {
         if (mode !== "primary") return;
         await beat();
+        if (env.PAYOUT_LEDGER === "1") { // proof of concept: credit hosted time to each machine from its heartbeat
+          const lg = require("./payouts")(store);
+          for (const f of await store.list("device-")) { const g = await store.get(f); if (g) { const j = JSON.parse(g); if (Date.now() - j.ts < ALIVE) await lg.observe(j).catch((e) => log("ledger:", e.message)); } }
+        }
         const h = crypto.createHash("sha1").update(JSON.stringify(ctx.getDb())).digest("hex");
         if (h !== lastStateHash) await pushState("primary");
         if (Date.now() - lastWorlds > WORLD_EVERY) { lastWorlds = Date.now(); for (const id of await worldIds()) { await flush(id); await pushWorld(id).catch((e) => log("push world", e.message)); await ctx.dk(["exec", "bh-" + id, "rcon-cli", "save-on"]).catch(() => {}); } }

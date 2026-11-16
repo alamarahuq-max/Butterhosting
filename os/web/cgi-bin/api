@@ -118,7 +118,7 @@ create)
   else
     P=$(nextport udp 19132)
     docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --restart unless-stopped \
-      -e EULA=TRUE -e SERVER_NAME="$N" -p "$P:19132/udp" -v "$WORLDS/$N:/data" itzg/minecraft-bedrock-server:latest >/dev/null 2>&1 || fail "docker run failed"
+      -e EULA=TRUE -e ALLOW_LIST=false -e SERVER_NAME="$N" -p "$P:19132/udp" -v "$WORLDS/$N:/data" itzg/minecraft-bedrock-server:latest >/dev/null 2>&1 || fail "docker run failed"
   fi
   J=""; [ "$(q share)" = internet ] && [ $T = java ] && { sleep 1; J=$(share "$N" "$P"); }
   out --argjson p "$P" --arg j "$J" '{ok:true,port:$p,join:(if $j=="" then null else $j end)}' ;;

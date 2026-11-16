@@ -180,6 +180,7 @@ def main():
                 if "Server started" in lg: up = True; break
                 time.sleep(10)
             check("Bedrock %s finished starting (log says Server started)" % nm, up, lg[-200:])
+        c, o = vm.sh("grep -E '^(allow-list|server-name)' /ram/butter/worlds/test-bed/server.properties"); check("Bedrock allow-list is off (friends can join)", "allow-list=false" in o, o.strip()[-120:])
         pong = raknet_ping(19132); check("Bedrock answers a RakNet ping on UDP (from the host, through the forwarded port)", pong is not None, pong)
         js = 'const d=require("dgram").createSocket("udp4");const m=Buffer.from("00ffff00fefefefefdfdfdfd12345678","hex");const p=Buffer.concat([Buffer.from([1]),Buffer.alloc(8),m,Buffer.alloc(8)]);d.on("message",b=>{console.log("PONG"+b[0]);process.exit(0)});setInterval(()=>d.send(p,19132,"127.0.0.1"),500);setTimeout(()=>{console.log("NOPONG");process.exit(1)},10000)'
         c, o = vm.sh("node -e '" + js + "'", 30); check("Bedrock answers a RakNet ping (inside the machine)", "PONG28" in o, o.strip()[-60:])

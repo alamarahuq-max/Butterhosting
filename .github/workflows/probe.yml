@@ -1,0 +1,20 @@
+name: Probe Alpine init
+on: workflow_dispatch
+permissions: { contents: write }
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    container: alpine:3.22
+    steps:
+      - name: Collect
+        run: |
+          apk add --no-cache mkinitfs linux-lts git github-cli squashfs-tools xorriso grub grub-efi >/dev/null 2>&1 || apk add --no-cache mkinitfs linux-lts git
+          mkdir -p /o; cp /usr/share/mkinitfs/initramfs-init /o/ 2>/dev/null; ls /usr/share/mkinitfs /etc/mkinitfs /etc/mkinitfs/features.d > /o/ls.txt 2>&1
+          cat /etc/mkinitfs/mkinitfs.conf >> /o/ls.txt; apk info -v mkinitfs >> /o/ls.txt
+          K=$(ls /lib/modules | head -1); echo "kernel $K" >> /o/ls.txt
+          find /lib/modules/$K -name 'ntfs3*' -o -name 'exfat*' -o -name 'loop.ko*' -o -name 'isofs*' -o -name 'squashfs*' -o -name 'overlay*' -o -name 'vfat*' -o -name 'ext4*' -o -name 'xfs*' -o -name 'btrfs*' >> /o/ls.txt
+          ls /boot >> /o/ls.txt; which nlplug-findfs >> /o/ls.txt
+      - name: Push
+        env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+        run: |
+          cd /o; git config --global user.name ci; git config --global user.email ci@x; git init -q -b ci-probe; git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"; git add -A; git commit -qm probe; git push -f origin ci-probe

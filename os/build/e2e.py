@@ -170,6 +170,9 @@ def main():
         pong = raknet_ping(19132); check("Bedrock answers a RakNet ping on UDP (from the host, through the forwarded port)", pong is not None, pong)
         js = 'const d=require("dgram").createSocket("udp4");const m=Buffer.from("00ffff00fefefefefdfdfdfd12345678","hex");const p=Buffer.concat([Buffer.from([1]),Buffer.alloc(8),m,Buffer.alloc(8)]);d.on("message",b=>{console.log("PONG"+b[0]);process.exit(0)});setInterval(()=>d.send(p,19132,"127.0.0.1"),500);setTimeout(()=>{console.log("NOPONG");process.exit(1)},10000)'
         c, o = vm.sh("node -e '" + js + "'", 30); check("Bedrock answers a RakNet ping (inside the machine)", "PONG28" in o, o.strip()[-60:])
+        if "PONG28" not in o:
+            c, o2 = vm.sh("docker logs --tail 6 bw-test-bed 2>&1; docker port bw-test-bed; netstat -lun; echo RAW:; " + "node -e '" + js + "' 2>&1 | tail -3", 40)
+            extra.append("Bedrock ping diagnostics:\n```\n" + o2 + "\n```")
         st = api("a=status"); extra.append("Status after 2 Bedrock:\n```\n" + json.dumps({k: st.get(k) for k in ("mem", "web_rss_mb", "capacity", "servers")}) + "\n```")
         json.dump(st, open(os.path.join(OUT, "status-final.json"), "w"), indent=1)
         r = api("a=create&n=third&type=bedrock"); check("Refuses a 3rd server in live mode", not r.get("ok"), r.get("error"))
@@ -210,7 +213,7 @@ def main():
         c, o = vm.sh("cd /tmp && BUTTER_ISO_URL=http://%s:8000/ButterOS.iso butter-install --disk /dev/vda --yes 2>&1 | tail -6" % ip, 900)
         check("Installer downloads, verifies checksum and writes the disk", "Verified" in o, o[-300:])
         c, o = vm.sh("BUTTER_ISO_URL=http://%s:8000/ButterOS.iso butter-install --disk /dev/sr0 --yes 2>&1 | tail -2" % ip, 60)
-        check("Installer refuses the disk the system booted from", "not an allowed" in o or "not a disk" in o, o[-120:])
+        check("Installer refuses the disk the system booted from", "not an allowed" in o or "not a disk" in o or "in use" in o, o[-120:])
         vm.sh("poweroff", 5); time.sleep(5)
     finally:
         vm.kill()

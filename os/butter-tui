@@ -27,7 +27,7 @@ home() {
   center "${W}$(count)${R0} ${D}servers${R0}     ${W}$(memline)${R0} ${D}memory${R0}     ${D}web page${R0} ${G}http://$(ip4)${R0}" 62
   [ -f /run/butter-persist ] && s="${G}storage ready${R0}" || s="${D}no BUTTER volume: everything is in RAM${R0}"
   center "$s" 36; printf '\n'
-  for l in "1  Play with friends" "2  Open the web page" "3  Install ButterOS on this PC" "4  Connect to my site" "5  Be a backup node" "6  Power off" "7  Restart"; do
+  for l in "1  Play with friends" "2  Open the web page" "3  Install ButterOS on this PC" "4  Be a backup node" "5  Power off" "6  Restart"; do
     k=${l%%  *}; t=${l#*  }; printf '%*s%s\n' $(( (cols - 32) / 2 )) '' "${Y}${k}${R0}   ${W}${t}${R0}"; done
   printf '\n'; center "${D}press a number${R0}" 14
 }
@@ -47,13 +47,12 @@ while :; do
     1) play ;;
     2) dialog --msgbox "Open this on any phone or computer on your network:\n\n  http://$(ip4)\n\nIt shows memory and your servers, and lets you start, stop and make servers." 12 60 ;;
     3) clear; /usr/local/bin/butter-install; printf "\nPress Enter to go back "; read x ;;
-    4) ask DISCORD_CLIENT_ID "Discord application client ID" && ask DISCORD_CLIENT_SECRET "Discord client secret" && ask FRONTEND_URL "Your site, e.g. https://your-site.vercel.app" && { rc-service butterhosting restart >/dev/null 2>&1; dialog --msgbox "Saved." 6 30; } ;;
-    5) dialog --yesno "This machine can run the site's servers when the main server (Codespace) is asleep, then hand everything back. You need: the private GitHub repo name, a GitHub token for it (contents: read+write) and the SAME session secret the main server uses. Continue?" 12 66 && \
+    4) dialog --yesno "This machine can run the site's servers when the main server (Codespace) is asleep, then hand everything back. You need: the private GitHub repo name, a GitHub token for it (contents: read+write) and the SAME session secret the main server uses. Continue?" 12 66 && \
        ask REGISTRY_REPO "owner/repo (private)" && ask REGISTRY_TOKEN "GitHub token (contents read+write)" && ask SESSION_SECRET "Same SESSION_SECRET as the Codespace" && {
          grep -v "^BUTTER_ROLE=" "$ENVF" > "$ENVF.tmp"; echo BUTTER_ROLE=device >> "$ENVF.tmp"; mv "$ENVF.tmp" "$ENVF"
          rc-service butterhosting restart >/dev/null 2>&1; rc-service butterfailover restart >/dev/null 2>&1
          dialog --msgbox "Backup mode is on. This machine waits quietly and takes over only if the main server stops answering." 8 60; } ;;
-    6) poweroff ;;
-    7) reboot ;;
+    5) poweroff ;;
+    6) reboot ;;
   esac
 done

@@ -27,4 +27,4 @@ if [ "$RAMMODE" = "--ram" ]; then
   rc-update add butterramsync boot
   echo "RAM mode on. Mount your USB at $USB (add it to /etc/fstab), and keep RAM_SIZE in mind: worlds live in RAM."
 fi
-echo "ButterOS installed. Reboot. Then set the Discord values in the menu and start the API."
+echo "ButterOS installed. Reboot."

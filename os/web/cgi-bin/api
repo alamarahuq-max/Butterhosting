@@ -49,7 +49,7 @@ status|"")
   WORLDS_MB=$(du -sm /ram/butter/worlds 2>/dev/null | cut -f1); WORLDS_MB=${WORLDS_MB:-0}
   OS=$((TOTAL-AVAIL-SUM)); [ $OS -lt 0 ] && OS=0
   WPID=""; for pd in /proc/[0-9]*; do case "$(tr '\0' ' ' < $pd/cmdline 2>/dev/null)" in *httpd\ -f*) WPID=${pd#/proc/}; break;; esac; done; WRSS=0
-  [ -n "$WPID" ] && WRSS=$(awk '/VmRSS/{printf "%d",$2/1024}' /proc/$WPID/status 2>/dev/null); WRSS=${WRSS:-0}
+  [ -n "$WPID" ] && WRSS=$(awk '/VmRSS/{printf "%.1f",$2/1024}' /proc/$WPID/status 2>/dev/null); WRSS=${WRSS:-0}
   TEMP=$(cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | head -1); [ -n "$TEMP" ] && TEMP=$((TEMP/1000)) || TEMP=null
   IP=$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)
   BK=$(ls -d /media/butter/butter-backup 2>/dev/null); LAST=null

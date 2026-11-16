@@ -10,7 +10,9 @@ def log(*a):
     print(*a, flush=True)
 def check(name, ok, detail=""):
     RES.append((name, bool(ok), str(detail)[:400])); log(("PASS " if ok else "FAIL ") + name, detail)
+_X = []
 def flush_results(extra=""):
+    extra = extra or "\n".join(_X)
     with open(os.path.join(OUT, "results.md"), "w") as f:
         f.write("# ButterOS end-to-end test\n\nKVM acceleration: %s\n\n" % KVM)
         for n, ok, d in RES: f.write("- %s **%s** %s\n" % ("PASS" if ok else "FAIL", n, ("— " + d) if d else ""))
@@ -114,7 +116,7 @@ def raknet_ping(port=19132):
     return None
 
 def main():
-    extra = []
+    extra = _X
     vm = VM("live", ["-cdrom", ISO, "-boot", "d", "-drive", "file=/tmp/target.img,if=virtio,format=raw"])
     try:
         ok = vm.boot_to_shell()
@@ -221,7 +223,13 @@ def main():
             check("API in device role is on standby (does not take over while primary is fine)", '"standby":true' in o and '"failover":"standby"' in o, o.strip()[-120:])
             try:
                 req = urllib.request.Request("https://api.github.com/repos/%s/contents/_butter/device-e2e-box.json?ref=registry" % repo, headers={"Authorization": "Bearer " + tok, "Accept": "application/vnd.github.raw+json", "User-Agent": "e2e"})
-                j = json.loads(urllib.request.urlopen(req, timeout=20).read()); check("Device registered itself in the private registry (with a tunnel address, not shown)", bool(j.get("url")) and j.get("active") is False)
+                j = {}
+                for _ in range(20):
+                    try: j = json.loads(urllib.request.urlopen(req, timeout=20).read())
+                    except Exception: j = {}
+                    if j.get("url"): break
+                    time.sleep(5)
+                check("Device registered itself in the private registry (with a tunnel address, not shown)", bool(j.get("url")) and j.get("active") is False, "fields: %s" % sorted(j.keys()))
             except Exception as e: check("Device registered itself in the private registry", False, e)
             vm.sh("sed -i '/^BUTTER_ROLE=/d;/^REGISTRY_TOKEN=/d' /etc/butterhosting.env; rc-service butterhosting restart >/dev/null 2>&1; rc-service butterfailover stop >/dev/null 2>&1", 60)
         # installer: serve the ISO from the host

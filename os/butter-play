@@ -1,0 +1,20 @@
+#!/bin/sh
+# butter play [name] [--bedrock] [--mem MB] : start a Minecraft server on this machine and print an address friends can join from anywhere.
+# Java uses a free bore.pub relay (TCP). Bedrock is local network only (the relay cannot carry UDP).
+API=http://127.0.0.1/cgi-bin/api
+NAME=""; TYPE=java; MEM=1024
+while [ $# -gt 0 ]; do case "$1" in --bedrock) TYPE=bedrock;; --mem) shift; MEM=$1;; --stop) STOP=1;; -h|--help) echo "usage: butter play [name] [--bedrock] [--mem MB] | butter play name --stop"; exit 0;; *) NAME=$1;; esac; shift; done
+[ -n "$NAME" ] || NAME=play-$(date +%H%M)
+get() { wget -qO- "$API?$1" 2>/dev/null; }
+if [ -n "$STOP" ]; then get "a=stop&n=$NAME" >/dev/null; pkill -f "bore local.*$NAME" 2>/dev/null; echo "Stopped $NAME"; exit 0; fi
+r=$(get "a=create&n=$NAME&type=$TYPE&mem=$MEM")
+echo "$r" | jq -e .ok >/dev/null 2>&1 || { echo "Could not start: $(echo "$r" | jq -r '.error // "web agent not running"' 2>/dev/null)"; exit 1; }
+PORT=$(echo "$r" | jq -r .port); IP=$(ip -4 -o addr show scope global | awk '{print $4}' | cut -d/ -f1 | head -1)
+echo "Server '$NAME' is starting (first start downloads the game, a few minutes)."
+echo "Same Wi-Fi:  $IP:$PORT"
+if [ $TYPE = bedrock ]; then echo "Bedrock friends join on the same network only."; exit 0; fi
+command -v bore >/dev/null 2>&1 || { echo "(no internet relay in this build)"; exit 0; }
+LOG=/run/butter-bore-$NAME.log; : > $LOG
+nohup bore local "$PORT" --to bore.pub > $LOG 2>&1 &
+for i in $(seq 1 20); do sleep 1; a=$(grep -o 'bore.pub:[0-9]*' $LOG | head -1); [ -n "$a" ] && break; done
+[ -n "$a" ] && { echo "Anywhere:    $a   (give friends this; it changes if you restart)"; echo "$a" > /run/butter-join-$NAME; } || echo "Could not open the internet link: $(tail -1 $LOG)"

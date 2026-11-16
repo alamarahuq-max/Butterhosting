@@ -33,6 +33,9 @@ done
 # cloudflared (free quick tunnel for failover) is not packaged for Alpine 3.22: fetch the official static binary
 apk add --no-cache curl >/dev/null 2>&1
 if curl -fsSL -o /home/build/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && [ -s /home/build/cloudflared ]; then chmod 755 /home/build/cloudflared; chown build /home/build/cloudflared; echo "   cloudflared downloaded"; else rm -f /home/build/cloudflared; echo "   (no cloudflared: failover tunnel will not work in this build)"; fi
+# bore (free TCP relay client for "butter play" join links)
+BU=$(curl -fsSL https://api.github.com/repos/ekzhang/bore/releases/latest | grep -o 'https://[^"]*x86_64-unknown-linux-musl.tar.gz' | head -1)
+if [ -n "$BU" ] && curl -fsSL -o /tmp/bore.tgz "$BU" && tar -xzf /tmp/bore.tgz -C /home/build bore 2>/dev/null && [ -s /home/build/bore ]; then chmod 755 /home/build/bore; chown build /home/build/bore; echo "   bore downloaded"; else echo "   (no bore: butter play will be local network only)"; fi
 echo "$OPT" > /home/build/butter-apks.txt; chown build /home/build/butter-apks.txt
 
 echo "== mkimage"

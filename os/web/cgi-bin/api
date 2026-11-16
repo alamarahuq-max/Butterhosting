@@ -20,7 +20,16 @@ nextport() { # $1 = tcp|udp, $2 = base
   p=$2; used=$(docker ps -a --format '{{.Ports}}' 2>/dev/null)
   while echo "$used" | grep -q ":$p->"; do p=$((p+1)); done; echo $p; }
 
+urlq() { printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n "s/^$1=//p" | head -1 | sed 's/+/ /g; s/%\([0-9A-Fa-f][0-9A-Fa-f]\)/\\x\1/g' | { read -r v; printf '%b' "$v"; }; }
+share() { # $1 name, $2 port (TCP): free internet join link through bore.pub
+  command -v bore >/dev/null 2>&1 || return 1
+  pkill -f "bore local $2 " 2>/dev/null; rm -f "/run/butter-join-$1"
+  nohup bore local "$2" --to bore.pub >"/run/butter-bore-$1.log" 2>&1 </dev/null &
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12; do sleep 1; a=$(grep -o 'bore.pub:[0-9]*' "/run/butter-bore-$1.log" | head -1); [ -n "$a" ] && { echo "$a" > "/run/butter-join-$1"; echo "$a"; return 0; }; done; return 1; }
+sport() { docker inspect -f '{{range $p,$c := .NetworkSettings.Ports}}{{range $c}}{{.HostPort}}{{end}}{{end}}' "$(cname "$1")" 2>/dev/null; }
+isjava() { docker inspect -f '{{.Config.Image}}' "$(cname "$1")" 2>/dev/null | grep -q minecraft-server; }
 A=$(q a); N=$(q n)
+[ "$A" = ping ] && { out '{ok:true}'; exit 0; }
 case "$A" in
 status|"")
   TOTAL=$(mb MemTotal); AVAIL=$(mb MemAvailable)
@@ -31,14 +40,15 @@ status|"")
       pl=null
       if [ "$st" = running ] && [ $ty = java ]; then x=$(timeout 3 docker exec "$nm" rcon-cli list 2>/dev/null | sed -n 's/.*There are \([0-9]*\) of a max.*/\1/p'); [ -n "$x" ] && pl=$x; fi
       port=$(echo "$po" | sed -n 's/.*:\([0-9]*\)->.*/\1/p' | head -1)
-      jq -nc --arg n "${nm#bw-}" --arg c "$nm" --arg s "$st" --arg t "$ty" --argjson r "${ram:-0}" --arg cpu "${cpu:-0}" --argjson p "$pl" --arg port "$port" \
-        '{name:$n,container:$c,state:$s,type:$t,ram:$r,cpu:($cpu|tonumber? // 0),players:$p,port:($port|tonumber? // null)}'
+      jn=""; [ -f "/run/butter-join-${nm#bw-}" ] && jn=$(cat "/run/butter-join-${nm#bw-}")
+      jq -nc --arg n "${nm#bw-}" --arg c "$nm" --arg s "$st" --arg t "$ty" --argjson r "${ram:-0}" --arg cpu "${cpu:-0}" --argjson p "$pl" --arg port "$port" --arg join "$jn" \
+        '{join:(if $join=="" then null else $join end),name:$n,container:$c,state:$s,type:$t,ram:$r,cpu:($cpu|tonumber? // 0),players:$p,port:($port|tonumber? // null)}'
     done | jq -sc .)
   [ -n "$SRV" ] || SRV='[]'
   SUM=$(echo "$SRV" | jq '[.[].ram]|add // 0')
   WORLDS_MB=$(du -sm /ram/butter/worlds 2>/dev/null | cut -f1); WORLDS_MB=${WORLDS_MB:-0}
   OS=$((TOTAL-AVAIL-SUM)); [ $OS -lt 0 ] && OS=0
-  WPID=$(grep -la 'ht[t]pd' /proc/[0-9]*/cmdline 2>/dev/null | head -1 | cut -d/ -f3); WRSS=0
+  WPID=""; for pd in /proc/[0-9]*; do case "$(tr '\0' ' ' < $pd/cmdline 2>/dev/null)" in *httpd\ -f*) WPID=${pd#/proc/}; break;; esac; done; WRSS=0
   [ -n "$WPID" ] && WRSS=$(awk '/VmRSS/{printf "%d",$2/1024}' /proc/$WPID/status 2>/dev/null); WRSS=${WRSS:-0}
   TEMP=$(cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | head -1); [ -n "$TEMP" ] && TEMP=$((TEMP/1000)) || TEMP=null
   IP=$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)
@@ -66,7 +76,31 @@ start|stop|restart)
   docker "$A" "$(cname "$N")" >/dev/null 2>&1 && out '{ok:true}' || fail "$A failed" ;;
 delete)
   valid "$N" || fail "bad name"; exists "$N" || fail "no such server"
-  docker rm -f "$(cname "$N")" >/dev/null 2>&1; rm -rf "$WORLDS/$N"; out '{ok:true}' ;;
+  pkill -f "bore local $(sport "$N") " 2>/dev/null; rm -f "/run/butter-join-$N"; docker rm -f "$(cname "$N")" >/dev/null 2>&1; rm -rf "$WORLDS/$N"; out '{ok:true}' ;;
+players)
+  valid "$N" || fail "bad name"; exists "$N" || fail "no such server"; isjava "$N" || fail "Player list works on Java servers"
+  l=$(timeout 5 docker exec "$(cname "$N")" rcon-cli list 2>/dev/null | tr -d '\033' | sed 's/\[[0-9;]*m//g')
+  echo "$l" | sed -n 's/^[^:]*: *//p' | tr ',' '\n' | sed 's/^ *//;s/ *$//' | sed '/^$/d' | jq -Rsc 'split("\n")|map(select(length>0))|{ok:true,players:.}' ;;
+kick|op|ban)
+  valid "$N" || fail "bad name"; exists "$N" || fail "no such server"; isjava "$N" || fail "Works on Java servers"
+  P=$(q p); [ -n "$P" ] && [ ${#P} -le 16 ] || fail "bad player name"
+  timeout 8 docker exec "$(cname "$N")" rcon-cli "$A" "$P" >/dev/null 2>&1 && out '{ok:true}' || fail "$A failed (is the server running?)" ;;
+plugin)
+  valid "$N" || fail "bad name"; exists "$N" || fail "no such server"; isjava "$N" || fail "Plugins work on Java (Paper) servers"
+  U=$(urlq url)
+  case "$U" in https://cdn.modrinth.com/*.jar|https://hangarcdn.papermc.io/*.jar|https://github.com/*.jar|https://objects.githubusercontent.com/*) ;; *) fail "Use a direct .jar link from Modrinth, Hangar or GitHub";; esac
+  F=$(basename "${U%%\?*}" | tr -cd 'A-Za-z0-9._-'); [ -n "$F" ] || fail "bad file name"
+  mkdir -p "$WORLDS/$N/plugins" && wget -q -O "$WORLDS/$N/plugins/$F" "$U" && [ -s "$WORLDS/$N/plugins/$F" ] || { rm -f "$WORLDS/$N/plugins/$F"; fail "download failed"; }
+  docker restart "$(cname "$N")" >/dev/null 2>&1; out --arg f "$F" '{ok:true,file:$f}' ;;
+plugins)
+  valid "$N" || fail "bad name"; ls "$WORLDS/$N/plugins" 2>/dev/null | grep '\.jar$' | jq -Rsc 'split("\n")|map(select(length>0))|{ok:true,plugins:.}' ;;
+rmplugin)
+  valid "$N" || fail "bad name"; F=$(q f); [ -n "$F" ] && rm -f "$WORLDS/$N/plugins/$F" && out '{ok:true}' || fail "not found" ;;
+share)
+  valid "$N" || fail "bad name"; exists "$N" || fail "no such server"; isjava "$N" || fail "The free link carries Java servers (Bedrock is local network only)"
+  r=$(share "$N" "$(sport "$N")") && out --arg a "$r" '{ok:true,join:$a}' || fail "Could not open the internet link (is this machine online?)" ;;
+unshare)
+  valid "$N" || fail "bad name"; pkill -f "bore local $(sport "$N") " 2>/dev/null; rm -f "/run/butter-join-$N"; out '{ok:true}' ;;
 create)
   T=$(q type); M=$(q mem)
   valid "$N" || fail "Name: 2-24 letters, numbers or dashes"
@@ -86,6 +120,7 @@ create)
     docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --restart unless-stopped \
       -e EULA=TRUE -e SERVER_NAME="$N" -p "$P:19132/udp" -v "$WORLDS/$N:/data" itzg/minecraft-bedrock-server:latest >/dev/null 2>&1 || fail "docker run failed"
   fi
-  out --argjson p "$P" '{ok:true,port:$p}' ;;
+  J=""; [ "$(q share)" = internet ] && [ $T = java ] && { sleep 1; J=$(share "$N" "$P"); }
+  out --argjson p "$P" --arg j "$J" '{ok:true,port:$p,join:(if $j=="" then null else $j end)}' ;;
 *) fail "unknown action" ;;
 esac

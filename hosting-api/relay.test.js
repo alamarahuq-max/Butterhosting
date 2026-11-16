@@ -29,5 +29,10 @@ const call = (path, method = "GET", extra = {}) => new Promise((resolve) => {
   r = await call("servers", "POST", { body: Buffer.alloc(4.5 * 1024 * 1024).toString(), headers: { "content-type": "application/json" } }); t("oversize body rejected in backup mode", r.code === 413, r.code);
   reg.device = null; await new Promise((x) => setTimeout(x, 8100));
   r = await call("servers"); t("primary silent and no device -> falls back to primary url", JSON.parse(r.body).from === "primary", r.body);
+  const N = relay.nearest; const mum = { url: "m", geo: { lat: 19, lon: 72.5 } }, nyc = { url: "n", geo: { lat: 40.5, lon: -74 } }, nog = { url: "x", geo: null };
+  t("nearest: visitor in Delhi gets Mumbai node", N([nyc, mum], { lat: 28.6, lon: 77.2 }).url === "m");
+  t("nearest: visitor in Boston gets New York node", N([mum, nyc], { lat: 42.4, lon: -71 }).url === "n");
+  t("nearest: node without a location is last choice", N([nog, nyc], { lat: 28.6, lon: 77.2 }).url === "n");
+  t("nearest: no visitor location still returns a node", N([nyc], null).url === "n" && N([], null) === null);
   A.close(); B.close(); console.log(ok + " passed, " + bad + " failed"); process.exit(bad ? 1 : 0);
 })();

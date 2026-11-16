@@ -24,6 +24,9 @@ install -m 755 "$SRC/os/butterpersist.initd"   "$tmp/etc/init.d/butterpersist"
 install -m 755 "$SRC/os/butterweb.initd"       "$tmp/etc/init.d/butterweb"
 install -m 755 "$SRC/os/butterfailover.initd"  "$tmp/etc/init.d/butterfailover"
 [ -x /home/build/cloudflared ] && { mkdir -p "$tmp/usr/bin"; install -m 755 /home/build/cloudflared "$tmp/usr/bin/cloudflared"; }
+install -m 755 "$SRC/os/butter-play"           "$tmp/usr/local/bin/butter-play"
+[ -x /home/build/bore ] && { mkdir -p "$tmp/usr/bin"; install -m 755 /home/build/bore "$tmp/usr/bin/bore"; }
+printf '#!/bin/sh\ncase "$1" in play) shift; exec /usr/local/bin/butter-play "$@";; install) shift; exec /usr/local/bin/butter-install "$@";; *) echo "usage: butter play [name] | butter install"; exit 1;; esac\n' > "$tmp/usr/local/bin/butter"; chmod 755 "$tmp/usr/local/bin/butter"
 install -m 755 "$SRC/os/butter-install"        "$tmp/usr/local/bin/butter-install"
 install -m 644 "$SRC/os/butter.dialogrc" "$tmp/etc/butter.dialogrc"
 install -m 755 "$SRC/os/serial-getty"          "$tmp/usr/local/bin/serial-getty"

@@ -83,8 +83,8 @@ def api(q, port=8081, timeout=60):
     try: return http("/cgi-bin/api?" + q, port, timeout)
     except Exception as e: return {"ok": False, "error": "http: %s" % e}
 
-def mc_ping(port=25565):
-    s = socket.create_connection(("127.0.0.1", port), timeout=10)
+def mc_ping(port=25565, host="127.0.0.1"):
+    s = socket.create_connection((host, port), timeout=15)
     def vi(n):
         o = b""
         while True:
@@ -142,10 +142,10 @@ def main():
             html = urllib.request.urlopen("http://127.0.0.1:8081/", timeout=10).read().decode()
             check("Local web page serves the UI", "Butter" in html and "Overview" in html)
         except Exception as e: check("Local web page serves the UI", False, e)
-        rss = st.get("web_rss_mb", 99); check("Web agent RSS under 30 MB", rss is not None and rss < 30, "%s MB" % rss)
+        rss = st.get("web_rss_mb", 99); check("Web agent RSS under 30 MB", rss is not None and 0 < rss < 30, "%s MB" % rss)
         check("Status reports engine ok and capacity advice", st.get("engine") == "ok" and "capacity" in st, st.get("engine"))
         # Java server
-        r = api("a=create&n=test-java&type=java&mem=1024", timeout=900) if st.get("ok") else {"ok": False, "error": "skipped, web page is down"}; check("Create Java server via web API", r.get("ok"), r)
+        r = api("a=create&n=test-java&type=java&mem=1024&share=internet", timeout=900) if st.get("ok") else {"ok": False, "error": "skipped, web page is down"}; check("Create Java server via web API", r.get("ok"), r)
         lg = ""
         up = False
         for i in range(90 if st.get('ok') else 0):
@@ -156,6 +156,17 @@ def main():
         if up:
             try: p = mc_ping(); check("Java server answers a real Minecraft status ping", p and "players" in p, json.dumps(p)[:200])
             except Exception as e: check("Java server answers a real Minecraft status ping", False, e)
+        if up:
+            r = api("a=players&n=test-java"); check("Local tab: player list works (nobody online)", r.get("ok") and r.get("players") == [], r)
+            r = api("a=kick&n=test-java&p=Nobody"); check("Local tab: kick command reaches the server", r.get("ok"), r)
+            r = api("a=plugin&n=test-java&url=https%3A%2F%2Fevil.example%2Fx.jar"); check("Plugin install refuses links outside the allowed sites", not r.get("ok"), r)
+            r = api("a=plugins&n=test-java"); check("Plugin list works", r.get("ok"), r)
+            sj = [x for x in api("a=status").get("servers", []) if x["name"] == "test-java"]; jn = sj[0].get("join") if sj else None
+            check("Create with 'free internet link' produced a join address", bool(jn), jn)
+            if jn:
+                try: h, pt = jn.split(":"); p = mc_ping(int(pt), h); check("Friend on the internet can reach the server through the join link", p and "players" in p, json.dumps(p)[:160])
+                except Exception as e: check("Friend on the internet can reach the server through the join link", False, e)
+        if up: subprocess.run(["node", os.path.join(os.path.dirname(os.path.abspath(__file__)), "webshots.js"), OUT, "live"], capture_output=True, text=True)
         st = api("a=status"); extra.append("Status after Java:\n```\n" + json.dumps({k: st.get(k) for k in ("mem", "web_rss_mb", "capacity")}) + "\n```")
         check("Delete the Java server (frees RAM)", api("a=delete&n=test-java").get("ok")); time.sleep(8)
         # Bedrock x2 (what a 4 GB machine is meant to hold)

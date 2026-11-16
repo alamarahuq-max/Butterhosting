@@ -114,8 +114,12 @@ module.exports = function failover(ctx) {
     await pushState(from);
   }
   const url = () => { try { return env.PUBLIC_URL || fs.readFileSync(env.TUNNEL_URL_FILE || "/run/butter-tunnel-url", "utf8").trim(); } catch { return null; } };
+  // coarse location (rounded to 0.5 degrees, about 50 km) so the site can pick the nearest machine; never the exact place
+  let geo = null; const rnd = (x) => Math.round(Number(x) * 2) / 2;
+  if (env.BUTTER_GEO) { const [a, b] = env.BUTTER_GEO.split(","); if (isFinite(a) && isFinite(b)) geo = { lat: rnd(a), lon: rnd(b) }; }
+  async function findGeo() { if (geo || env.BUTTER_NO_GEO) return; try { const j = JSON.parse(await sh("curl", ["-sS", "-m", "8", "https://ipwho.is/?fields=latitude,longitude,success"])); if (j.success && isFinite(j.latitude)) geo = { lat: rnd(j.latitude), lon: rnd(j.longitude) }; } catch (e) { /* no location: it is still used, just never preferred as nearest */ } }
   const beat = () => role === "primary" ? store.put("primary.json", JSON.stringify({ ts: Date.now(), mode })) :
-    store.put("device-" + ID + ".json", JSON.stringify({ ts: Date.now(), id: ID, active: mode === "active", url: url(), servers: Object.keys(ctx.getDb().servers || {}).length }));
+    store.put("device-" + ID + ".json", JSON.stringify({ ts: Date.now(), id: ID, active: mode === "active", url: url(), geo, servers: Object.keys(ctx.getDb().servers || {}).length }));
 
   async function takeover() {
     log("primary is silent, taking over"); mode = "active"; // set first so we stop re-entering
@@ -177,7 +181,7 @@ module.exports = function failover(ctx) {
     standby: () => mode === "booting" || mode === "standby" || mode === "handing-back",
     state: () => ({ enabled: true, role, mode }),
     handback: () => handback("device shutting down"),
-    start() { if (role === "primary") primaryBoot().catch((e) => { log("boot:", e.message); mode = "primary"; }); setInterval(tick, TICK); tick(); },
+    start() { findGeo(); if (role === "primary") primaryBoot().catch((e) => { log("boot:", e.message); mode = "primary"; }); setInterval(tick, TICK); tick(); },
     _tick: tick, _mode: () => mode,
   };
 };

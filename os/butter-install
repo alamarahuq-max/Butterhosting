@@ -3,7 +3,7 @@
 #   butter-install                      (interactive, uses dialog)
 #   butter-install --disk /dev/sdX --yes   (no questions; for scripts and tests)
 URL="${BUTTER_ISO_URL:-https://github.com/alamarahuq-max/Butterhosting/releases/download/latest-iso/ButterOS.iso}"
-TMP=/tmp/butter-dl; DISK=""; YES=0
+TMP=/dev/shm/butter-dl   # RAM disk: the live system has no other free space; DISK=""; YES=0
 while [ $# -gt 0 ]; do case "$1" in --disk) DISK="$2"; shift;; --yes) YES=1;; esac; shift; done
 say() { echo "$*"; }
 list_disks() { # disks that are not in use (nothing mounted from them), name size model

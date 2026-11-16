@@ -157,27 +157,27 @@ def main():
             try: p = mc_ping(); check("Java server answers a real Minecraft status ping", p and "players" in p, json.dumps(p)[:200])
             except Exception as e: check("Java server answers a real Minecraft status ping", False, e)
         st = api("a=status"); extra.append("Status after Java:\n```\n" + json.dumps({k: st.get(k) for k in ("mem", "web_rss_mb", "capacity")}) + "\n```")
-        # Bedrock
-        r = api("a=create&n=test-bed&type=bedrock", timeout=900) if st.get("ok") else {"ok": False, "error": "skipped"}; check("Create Bedrock server via web API", r.get("ok"), r)
-        up = False
-        for i in range(60 if st.get('ok') else 0):
-            lg = api("a=logs&n=test-bed").get("logs", "")
-            if "Server started" in lg: up = True; break
-            time.sleep(10)
-        check("Bedrock server finished starting (log says Server started)", up, lg[-300:])
-        if up:
-            pong = raknet_ping(); check("Bedrock answers a RakNet ping on UDP", pong is not None, pong)
-        st = api("a=status"); extra.append("Status after Bedrock:\n```\n" + json.dumps({k: st.get(k) for k in ("mem", "web_rss_mb", "capacity", "servers")}) + "\n```")
+        check("Delete the Java server (frees RAM)", api("a=delete&n=test-java").get("ok")); time.sleep(8)
+        # Bedrock x2 (what a 4 GB machine is meant to hold)
+        for nm in ("test-bed", "test-bed2"):
+            r = api("a=create&n=%s&type=bedrock" % nm, timeout=900); check("Create Bedrock server %s via web API" % nm, r.get("ok"), r)
+            up = False; lg = ""
+            for i in range(60):
+                lg = api("a=logs&n=%s" % nm).get("logs", "")
+                if "Server started" in lg: up = True; break
+                time.sleep(10)
+            check("Bedrock %s finished starting (log says Server started)" % nm, up, lg[-200:])
+        pong = raknet_ping(19132); check("Bedrock answers a RakNet ping on UDP", pong is not None, pong)
+        st = api("a=status"); extra.append("Status after 2 Bedrock:\n```\n" + json.dumps({k: st.get(k) for k in ("mem", "web_rss_mb", "capacity", "servers")}) + "\n```")
         json.dump(st, open(os.path.join(OUT, "status-final.json"), "w"), indent=1)
-        # limits / safety
         r = api("a=create&n=third&type=bedrock"); check("Refuses a 3rd server in live mode", not r.get("ok"), r.get("error"))
-        r = api("a=create&n=bad%20name&type=java"); check("Rejects an invalid name", not r.get("ok"), r.get("error"))
+        r = api("a=create&n=x&type=java"); check("Rejects an invalid name", not r.get("ok"), r.get("error"))
         # control
         check("Stop works", api("a=stop&n=test-bed").get("ok"))
         time.sleep(3); sv = {s["name"]: s for s in api("a=status").get("servers", [])}
         check("Stopped server shows as not running", sv.get("test-bed", {}).get("state") != "running", sv.get("test-bed", {}).get("state"))
         check("Start works", api("a=start&n=test-bed").get("ok"))
-        check("Delete works", api("a=delete&n=test-bed").get("ok"))
+        check("Delete works", api("a=delete&n=test-bed").get("ok") and api("a=delete&n=test-bed2").get("ok"))
         # screenshots of the web page (done by the workflow with playwright)
         r = subprocess.run(["node", os.path.join(os.path.dirname(os.path.abspath(__file__)), "webshots.js"), OUT], capture_output=True, text=True)
         log(r.stdout, r.stderr); check("Web page screenshots taken", r.returncode == 0, r.stderr[-200:])

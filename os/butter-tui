@@ -4,43 +4,37 @@ ENVF=/etc/butterhosting.env
 if ! command -v dialog >/dev/null 2>&1; then
   echo 'ButterOS: console menu package (dialog) missing from this build.'; echo 'Dropping to a shell.'; exec /bin/sh
 fi
+# Bigger, sharper console font and the butter colours (the Linux text console can only use bitmap fonts, so no serif here)
+for f in /usr/share/consolefonts/ter-v24n.psf.gz /usr/share/consolefonts/ter-v20n.psf.gz /usr/share/consolefonts/ter-v16n.psf.gz; do [ -f "$f" ] && { setfont "$f" 2>/dev/null && break; }; done
+export DIALOGRC=/etc/butter.dialogrc; export TERM=${TERM:-linux}
 ip4() { ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1; }
 mem() { free -m | awk '/Mem:/ {printf "%d MB used of %d MB", $3, $2}'; }
-api() { rc-service butterhosting status >/dev/null 2>&1 && echo running || echo stopped; }
 count() { docker ps -q --filter label=butterhosting=1 2>/dev/null | wc -l; }
 
-setvar() { # name prompt
+ask() { # name prompt -> saves quietly
   cur=$(grep "^$1=" "$ENVF" 2>/dev/null | cut -d= -f2-)
-  val=$(dialog --stdout --inputbox "$2" 9 66 "$cur") || return
+  val=$(dialog --stdout --inputbox "$2" 9 66 "$cur") || return 1
   touch "$ENVF"; chmod 600 "$ENVF"
   grep -v "^$1=" "$ENVF" > "$ENVF.tmp"; echo "$1=$val" >> "$ENVF.tmp"; mv "$ENVF.tmp" "$ENVF"
-  dialog --msgbox "Saved. Restart the API for it to take effect." 6 50
 }
 
 [ -f /run/butter-persist ] || dialog --title "No BUTTER volume" --msgbox "No disk labelled BUTTER was found. Everything is in RAM only and will be lost at power off. Make an ext4 partition on your USB stick, label it BUTTER (mkfs.ext4 -L BUTTER /dev/sdX3) and reboot to keep Docker images and backups." 11 66
 
 if grep -q 'butter=install' /proc/cmdline 2>/dev/null; then /usr/local/bin/butter-install; fi
 while :; do
-  c=$(dialog --stdout --no-cancel --title "ButterOS" \
-    --menu "Web page  http://$(ip4)   |   API $(api)   |   $(count) Minecraft servers\nRAM $(mem)" 23 74 12 \
-    1 "Show web page address" 2 "Download OS to a disk (install)" 3 "Start / restart API" 4 "Stop API" 5 "API log" \
-    6 "Discord client ID" 7 "Discord client secret" 8 "Frontend URL (your Vercel site)" 9 "Running containers" 10 "Shell" 11 "Power off" 12 "Reboot" 13 "Failover: be the backup machine")
+  c=$(dialog --stdout --no-cancel --title "Butter Os" \
+    --menu "Web page  http://$(ip4)\n$(count) Minecraft servers   |   RAM $(mem)" 17 74 6 \
+    1 "Open the web page (address)" 2 "Download OS to a disk" 3 "Connect to my ButterHosting site" 4 "Backup machine (failover)" 5 "Power off" 6 "Reboot")
   case $c in
-    1) dialog --msgbox "Open this on any phone or computer on your network:\n\n  http://$(ip4)\n\nIt shows memory, your Minecraft servers and lets you start, stop and make servers." 12 60 ;;
+    1) dialog --msgbox "Open this on any phone or computer on your network:\n\n  http://$(ip4)\n\nIt shows memory and your Minecraft servers, and lets you start, stop and make servers." 12 60 ;;
     2) /usr/local/bin/butter-install; printf "\nPress Enter to go back "; read x ;;
-    3) rc-service butterhosting restart >/dev/null 2>&1; dialog --msgbox "API: $(api)" 6 30 ;;
-    4) rc-service butterhosting stop >/dev/null 2>&1 ;;
-    5) dialog --textbox /var/log/butterhosting.log 22 78 ;;
-    6) setvar DISCORD_CLIENT_ID "Discord application client ID" ;;
-    7) setvar DISCORD_CLIENT_SECRET "Discord client secret" ;;
-    8) setvar FRONTEND_URL "https://your-site.vercel.app" ;;
-    9) docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' > /tmp/ps.txt 2>&1; dialog --textbox /tmp/ps.txt 20 78 ;;
-    10) clear; echo "Type exit to come back."; /bin/sh ;;
-    11) poweroff ;;
-    12) reboot ;;
-    13) dialog --yesno "Failover lets this machine run the site's servers when the main server (Codespace) is asleep, then hand everything back. You need: the private GitHub repo name, a GitHub token for it (contents: read+write) and the SAME session secret the main server uses. Continue?" 12 66 && {
-          setvar REGISTRY_REPO "owner/repo (private)"; setvar REGISTRY_TOKEN "GitHub token (contents read+write)"; setvar SESSION_SECRET "Same SESSION_SECRET as the Codespace"
-          grep -v "^BUTTER_ROLE=" "$ENVF" > "$ENVF.tmp"; echo BUTTER_ROLE=device >> "$ENVF.tmp"; mv "$ENVF.tmp" "$ENVF"; rc-service butterhosting restart >/dev/null 2>&1; rc-service butterfailover restart >/dev/null 2>&1
-          dialog --msgbox "Failover is on. This machine will wait quietly and take over only if the main server stops answering. The tunnel address stays hidden." 8 60; } ;;
+    3) ask DISCORD_CLIENT_ID "Discord application client ID" && ask DISCORD_CLIENT_SECRET "Discord client secret" && ask FRONTEND_URL "Your site, e.g. https://your-site.vercel.app" && { rc-service butterhosting restart >/dev/null 2>&1; dialog --msgbox "Saved." 6 30; } ;;
+    4) dialog --yesno "This machine can run the site's servers when the main server (Codespace) is asleep, then hand everything back. You need: the private GitHub repo name, a GitHub token for it (contents: read+write) and the SAME session secret the main server uses. Continue?" 12 66 && \
+       ask REGISTRY_REPO "owner/repo (private)" && ask REGISTRY_TOKEN "GitHub token (contents read+write)" && ask SESSION_SECRET "Same SESSION_SECRET as the Codespace" && {
+         grep -v "^BUTTER_ROLE=" "$ENVF" > "$ENVF.tmp"; echo BUTTER_ROLE=device >> "$ENVF.tmp"; mv "$ENVF.tmp" "$ENVF"
+         rc-service butterhosting restart >/dev/null 2>&1; rc-service butterfailover restart >/dev/null 2>&1
+         dialog --msgbox "Backup mode is on. This machine waits quietly and takes over only if the main server stops answering." 8 60; } ;;
+    5) poweroff ;;
+    6) reboot ;;
   esac
 done

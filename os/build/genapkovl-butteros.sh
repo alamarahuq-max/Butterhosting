@@ -25,6 +25,7 @@ install -m 755 "$SRC/os/butterweb.initd"       "$tmp/etc/init.d/butterweb"
 install -m 755 "$SRC/os/butterfailover.initd"  "$tmp/etc/init.d/butterfailover"
 [ -x /home/build/cloudflared ] && { mkdir -p "$tmp/usr/bin"; install -m 755 /home/build/cloudflared "$tmp/usr/bin/cloudflared"; }
 install -m 755 "$SRC/os/butter-install"        "$tmp/usr/local/bin/butter-install"
+install -m 644 "$SRC/os/butter.dialogrc" "$tmp/etc/butter.dialogrc"
 install -m 755 "$SRC/os/serial-getty"          "$tmp/usr/local/bin/serial-getty"
 mkdir -p "$tmp/opt/butterweb"; cp -r "$SRC/os/web"/. "$tmp/opt/butterweb/"; chmod +x "$tmp/opt/butterweb/cgi-bin/api"
 printf 'overlay\nbr_netfilter\nveth\nnf_conntrack\nnf_nat\nxt_MASQUERADE\nxt_conntrack\niptable_nat\niptable_filter\n' > "$tmp/etc/modules"

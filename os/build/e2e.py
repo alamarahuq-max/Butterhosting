@@ -167,7 +167,9 @@ def main():
                 if "Server started" in lg: up = True; break
                 time.sleep(10)
             check("Bedrock %s finished starting (log says Server started)" % nm, up, lg[-200:])
-        pong = raknet_ping(19132); check("Bedrock answers a RakNet ping on UDP", pong is not None, pong)
+        pong = raknet_ping(19132); check("Bedrock answers a RakNet ping on UDP (from the host, through the forwarded port)", pong is not None, pong)
+        js = 'const d=require("dgram").createSocket("udp4");const m=Buffer.from("00ffff00fefefefefdfdfdfd12345678","hex");const p=Buffer.concat([Buffer.from([1]),Buffer.alloc(8),m,Buffer.alloc(8)]);d.on("message",b=>{console.log("PONG"+b[0]);process.exit(0)});setInterval(()=>d.send(p,19132,"127.0.0.1"),500);setTimeout(()=>{console.log("NOPONG");process.exit(1)},10000)'
+        c, o = vm.sh("node -e '" + js + "'", 30); check("Bedrock answers a RakNet ping (inside the machine)", "PONG28" in o, o.strip()[-60:])
         st = api("a=status"); extra.append("Status after 2 Bedrock:\n```\n" + json.dumps({k: st.get(k) for k in ("mem", "web_rss_mb", "capacity", "servers")}) + "\n```")
         json.dump(st, open(os.path.join(OUT, "status-final.json"), "w"), indent=1)
         r = api("a=create&n=third&type=bedrock"); check("Refuses a 3rd server in live mode", not r.get("ok"), r.get("error"))
@@ -185,7 +187,8 @@ def main():
         # failover wiring on the OS (never takes over: FAILOVER_AUTO=0)
         tok = os.environ.get("E2E_REGISTRY_TOKEN"); repo = os.environ.get("E2E_REGISTRY_REPO")
         if tok and repo:
-            vm.sh("cd /etc && grep -v -E '^(BUTTER_ROLE|REGISTRY_REPO|REGISTRY_TOKEN|SESSION_SECRET|FAILOVER_AUTO|DEVICE_ID)=' butterhosting.env > bh.tmp; printf 'BUTTER_ROLE=device\\nREGISTRY_REPO=%s\\nREGISTRY_TOKEN=%s\\nSESSION_SECRET=e2e-secret\\nFAILOVER_AUTO=0\\nDEVICE_ID=e2e-box\\nFAILOVER_TICK_MS=3000\\n' '%s' '%s' >> bh.tmp; mv bh.tmp butterhosting.env; chmod 600 butterhosting.env" % (repo, tok), 20)
+            envcmd = "cd /etc && grep -v -E '^(BUTTER_ROLE|REGISTRY_REPO|REGISTRY_TOKEN|SESSION_SECRET|FAILOVER_AUTO|DEVICE_ID)=' butterhosting.env > bh.tmp; printf 'BUTTER_ROLE=device\\nREGISTRY_REPO=" + repo + "\\nREGISTRY_TOKEN=" + tok + "\\nSESSION_SECRET=e2e-secret\\nFAILOVER_AUTO=0\\nDEVICE_ID=e2e-box\\nFAILOVER_TICK_MS=3000\\n' >> bh.tmp; mv bh.tmp butterhosting.env; chmod 600 butterhosting.env"
+            vm.sh(envcmd, 20)
             vm.sh("rc-service butterhosting restart >/dev/null 2>&1; rc-service butterfailover restart >/dev/null 2>&1", 90)
             c, o = vm.sh("cloudflared --version 2>&1 | head -1", 20); check("cloudflared is in the image", c == 0 and "cloudflared" in o, o.strip()[:80])
             got = False
@@ -223,8 +226,11 @@ def main():
     finally:
         vm2.kill()
     flush_results("\n".join(extra))
+import traceback
 try:
     main()
+except Exception:
+    traceback.print_exc(); RES.append(("script error", False, traceback.format_exc()[-300:]))
 finally:
     flush_results()
     sys.exit(0)

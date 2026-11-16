@@ -25,7 +25,7 @@ share() { # $1 name, $2 port (TCP): free internet join link through bore.pub
   command -v bore >/dev/null 2>&1 || return 1
   pkill -f "bore local $2 " 2>/dev/null; rm -f "/run/butter-join-$1"
   nohup bore local "$2" --to bore.pub >"/run/butter-bore-$1.log" 2>&1 </dev/null &
-  for i in 1 2 3 4 5 6 7 8 9 10 11 12; do sleep 1; a=$(grep -o 'bore.pub:[0-9]*' "/run/butter-bore-$1.log" | head -1); [ -n "$a" ] && { echo "$a" > "/run/butter-join-$1"; echo "$a"; return 0; }; done; return 1; }
+  for i in $(seq 1 25); do sleep 1; a=$(grep -o 'bore.pub:[0-9]*' "/run/butter-bore-$1.log" | head -1); [ -n "$a" ] && { echo "$a" > "/run/butter-join-$1"; echo "$a"; return 0; }; done; return 1; }
 sport() { docker inspect -f '{{range $p,$c := .NetworkSettings.Ports}}{{range $c}}{{.HostPort}}{{end}}{{end}}' "$(cname "$1")" 2>/dev/null; }
 isjava() { docker inspect -f '{{.Config.Image}}' "$(cname "$1")" 2>/dev/null | grep -q minecraft-server; }
 A=$(q a); N=$(q n)

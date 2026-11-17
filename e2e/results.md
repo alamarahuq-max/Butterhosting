@@ -1,0 +1,65 @@
+# ButterOS end-to-end test
+
+KVM acceleration: True
+
+- PASS **DualBoot A: test disk with GRUB on ext4 created** — 59e39d58-6454-45c5-b374-21ea3175cb16
+Installing for i386-pc platform.
+Installation finished. No error reported.
+
+- PASS **DualBoot A: Linux installer copies ISO + boot files and writes the GRUB entry** — butter-dualboot-linux.sh --remove
+/dev/loop0p1    2.9G  711M  2.1G  26% /mnt/a
+menuentry "ButterOS (Minecraft hosting)" --class os {
+	insmod part_gpt
+	insmod part_msdos
+	insmod ext2
+	insmod xfs
+	search --no-floppy --fs-uuid --set=butterboot 59e39d58-6454-45c5-b374-21ea3175cb16
+	linux ($butterboot)/boot/butteros/vmlinuz-lts butter_iso=UUID=59e39d58-6454-45c5-b374-21ea3175cb16:/butteros/ButterOS.iso
+- PASS **DualBoot A: ButterOS boots from the ISO file on the ext4 disk (BIOS)** — 
+~ # [6n
+~ # stty -echo cols 500 2>/dev/null
+~ # ~ # SHELL_READY
+~ # 
+- PASS **DualBoot A: the ISO is loop-mounted and the web agent answers** — butter_iso=UUID=59e39d58-6454-45c5-b374-21ea3175cb16:/butteros/ButterOS.iso 2 butter-box {"ok":true} 
+- PASS **DualBoot B: test disk with an EFI partition and an NTFS partition created** — he number of heads was not specified for /dev/loop0p2 and it could not be obtained automatically.  It has been set to 0.
+To boot from a device, Windows needs the 'partition start sector', the 'sectors per track' and the 'number of heads' to be set.
+Windows will not be able to boot from this device.
+
+- PASS **DualBoot B: boot files placed on the EFI partition and the ISO on the NTFS drive** — root 688128 Nov 17 10:06 BOOTX64.EFI
+
+/mnt/e/EFI/ButterOS:
+total 122749
+drwxr-xr-x 2 root root       512 Nov 17 10:06 .
+drwxr-xr-x 4 root root       512 Nov 17 10:06 ..
+-rwxr-xr-x 1 root root       283 Nov 17 10:06 grub.cfg
+-rwxr-xr-x 1 root root    688128 Nov 17 10:06 grubx64.efi
+-rwxr-xr-x 1 root root 111300749 Nov 17 10:06 initramfs-lts
+-rwxr-xr-x 1 root root  13706240 Nov 17 10:06 vmlinuz-lts
+
+- PASS **DualBoot B: ButterOS boots (UEFI) from the ISO file on the NTFS drive** — BdsDxe: loading Boot0002 "UEFI Misc Device" from PciRoot(0x0)/Pci(0x4,0x0)
+BdsDxe: starting Boot0002 "UEFI Misc Device" from PciRoot(0x0)/Pci(0x4,0x0)
+[0m[30m[40m[2J[001;001H[0m[37m[40m[002;070HGNU GRUB  version 2.14
+
+[004;002H┌───────────
+~ # [6n
+~ # echo SHELL_READY
+SHELL_READY
+~ # [6n
+- PASS **DualBoot B: NTFS read, ISO loop-mounted, web agent answers** — utterOS/ButterOS.iso /dev/vda2 on /media/hostdisk type ntfs (ro,relatime,uid=0,gid=0,iocharset=utf8) /media/hostdisk/ButterOS/ButterOS.iso on /media/butteriso type iso9660 (ro,relatime,nojoli /media/butteriso/boot/modloop-lts on /.modloop type squashfs (ro,relatime,errors=continue) {"ok":true} 
+
+DualBoot A installer output:
+```
+Done. Restart and pick "ButterOS (Minecraft hosting)" in the boot menu. To undo: sudo sh /home/runner/work/Butterhosting/Butterhosting/os/dualboot/butter-dualboot-linux.sh --remove
+/dev/loop0p1    2.9G  711M  2.1G  26% /mnt/a
+menuentry "ButterOS (Minecraft hosting)" --class os {
+	insmod part_gpt
+	insmod part_msdos
+	insmod ext2
+	insmod xfs
+	search --no-floppy --fs-uuid --set=butterboot 59e39d58-6454-45c5-b374-21ea3175cb16
+	linux ($butterboot)/boot/butteros/vmlinuz-lts butter_iso=UUID=59e39d58-6454-45c5-b374-21ea3175cb16:/butteros/ButterOS.iso modules=loop,squashfs,sd-mod,usb-storage quiet
+	initrd ($butterboot)/boot/butteros/initramfs-lts
+}
+
+```
+NTFS id as read by blkid: 4D253DB614718B44

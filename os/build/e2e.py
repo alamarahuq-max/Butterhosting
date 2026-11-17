@@ -292,10 +292,10 @@ def dualboot(iso):
     # ---------- B: UEFI GRUB on an ESP + the ISO on an NTFS 'C:' drive (the layout the Windows program will create) ----------
     c, o = sudo("rm -f /tmp/b.img; truncate -s 3G /tmp/b.img && losetup -fP --show /tmp/b.img"); dev = o.strip().splitlines()[-1]
     c, o = sudo("parted -s %s mklabel gpt mkpart ESP fat32 1MiB 200MiB set 1 esp on mkpart Windows ntfs 200MiB 100%% && sleep 1 && mkfs.vfat -F32 %sp1 && mkfs.ntfs -Q -L Windows %sp2 && "
-                "mkdir -p /mnt/e /mnt/c && mount %sp1 /mnt/e && mount -t ntfs-3g %sp2 /mnt/c && blkid -s UUID -o value %sp2" % (dev, dev, dev, dev, dev, dev))
+                "mkdir -p /mnt/e /mnt/c && mount %sp1 /mnt/e && mount -t ntfs-3g %sp2 /mnt/c" % (dev, dev, dev, dev, dev))
     check("DualBoot B: test disk with an EFI partition and an NTFS partition created", c == 0, o[-300:])
     if c == 0:
-        nt = o.strip().splitlines()[-1]
+        nt = sudo("blkid -s UUID -o value %sp2" % dev)[1].strip().splitlines()[-1]; _X.append("NTFS id as read by blkid: " + nt)
         c, o = sudo("mkdir -p /mnt/c/ButterOS /mnt/e/EFI/ButterOS /mnt/e/EFI/BOOT && cp %s /mnt/c/ButterOS/ButterOS.iso && mkdir -p /mnt/iso && mount -o loop,ro %s /mnt/iso && "
                     "cp /mnt/iso/boot/vmlinuz-lts /mnt/iso/boot/initramfs-lts /mnt/e/EFI/ButterOS/ && umount /mnt/iso && "
                     "printf 'set timeout=1\\nsearch --no-floppy --file --set=esp /EFI/ButterOS/vmlinuz-lts\\nmenuentry ButterOS {\\n linux ($esp)/EFI/ButterOS/vmlinuz-lts butter_iso=UUID=%s:/ButterOS/ButterOS.iso modules=loop,squashfs,sd-mod,usb-storage quiet\\n initrd ($esp)/EFI/ButterOS/initramfs-lts\\n}\\n' > /mnt/e/EFI/ButterOS/grub.cfg && "

@@ -275,7 +275,7 @@ def dualboot(iso):
         c, o = sudo("sh %s/os/dualboot/butter-dualboot-linux.sh --root /mnt/a --iso %s --no-update 2>&1 | tail -8; df -h /mnt/a | tail -1; cat /mnt/a/boot/butteros/grub-entry.cfg" % (REPO, iso))
         check("DualBoot A: Linux installer copies ISO + boot files and writes the GRUB entry", "Done." in o and "butter_iso=UUID=" in o, o[-500:])
         _X.append("DualBoot A installer output:\n```\n" + o[-900:] + "\n```")
-    sudo("umount /mnt/a; losetup -d %s" % dev)
+    sudo("umount /mnt/a; losetup -d %s; chmod 666 /tmp/a.img" % dev)
     vmA = VM("dbA", ["-drive", "file=/tmp/a.img,if=virtio,format=raw", "-boot", "c"], port_off=20)
     try:
         ok = vmA.boot_to_shell(first_enter=False, timeout=420); check("DualBoot A: ButterOS boots from the ISO file on the ext4 disk (BIOS)", ok, vmA.buf.decode(errors="ignore")[-400:])
@@ -297,7 +297,7 @@ def dualboot(iso):
                     "printf 'set timeout=1\\nsearch --no-floppy --file --set=esp /EFI/ButterOS/vmlinuz-lts\\nmenuentry ButterOS {\\n linux ($esp)/EFI/ButterOS/vmlinuz-lts butter_iso=UUID=%s:/ButterOS/ButterOS.iso modules=loop,squashfs,sd-mod,usb-storage quiet\\n initrd ($esp)/EFI/ButterOS/initramfs-lts\\n}\\n' > /mnt/e/EFI/ButterOS/grub.cfg && "
                     "grub-mkimage -O x86_64-efi -p /EFI/ButterOS -o /mnt/e/EFI/ButterOS/grubx64.efi part_gpt fat ntfs search normal linux configfile echo && cp /mnt/e/EFI/ButterOS/grubx64.efi /mnt/e/EFI/BOOT/BOOTX64.EFI && ls -la /mnt/e/EFI/ButterOS /mnt/e/EFI/BOOT" % (iso, iso, nt))
         check("DualBoot B: boot files placed on the EFI partition and the ISO on the NTFS drive", c == 0, o[-400:])
-    sudo("umount /mnt/e /mnt/c; losetup -d %s" % dev)
+    sudo("umount /mnt/e /mnt/c; losetup -d %s; chmod 666 /tmp/b.img" % dev)
     vmB = VM("dbB", ["-drive", "if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd", "-drive", "file=/tmp/b.img,if=virtio,format=raw", "-boot", "c"], port_off=30)
     try:
         ok = vmB.boot_to_shell(first_enter=False, timeout=420); check("DualBoot B: ButterOS boots (UEFI) from the ISO file on the NTFS drive", ok, vmB.buf.decode(errors="ignore")[-400:])

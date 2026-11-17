@@ -28,6 +28,10 @@ awk -v fn=/tmp/butter-fn.sh '
 /^ebegin "Mounting boot media"/ { print "if [ -n \"$KOPT_butter_iso\" ] && butter_iso_boot; then :; else"; print; inblk=1; next }
 inblk && /^eend \$\?/ { print; print "fi"; inblk=0; next }
 { print }' "$INIT" > /tmp/init.new && cat /tmp/init.new > "$INIT"
+# let the init accept the new kernel option (it only reads options on a fixed list)
+sed -i '/^[[:space:]]*zfcp$/i\
+\tbutter_iso' "$INIT"
+grep -q '^[[:space:]]*butter_iso$' "$INIT" || { echo 'patch-init: could not add the butter_iso option'; exit 1; }
 sh -n "$INIT" && echo "init patched"; sed -n '/^butter_iso_boot/,/^eend \$?/p' "$INIT" | head -5 >/dev/null
 mkdir -p /etc/mkinitfs/features.d
 cat > /etc/mkinitfs/features.d/butterhost.modules <<'EOF'

@@ -72,7 +72,9 @@ class VM:
             time.sleep(25); self.shot(self.name + "-menu"); self.mon_cmd("sendkey ret")
         self.sock.send(b"\nstty -echo cols 500 2>/dev/null\n"); t0 = time.time()
         while time.time() - t0 < timeout:
-            self.sock.send(b"\necho SHELL_READY\n"); self.read(3)
+            try: self.sock.send(b"\necho SHELL_READY\n")
+            except OSError: time.sleep(3)
+            self.read(3)
             if b"SHELL_READY" in self.buf.replace(b"echo SHELL_READY", b""): return True
         return False
     def kill(self):
@@ -278,7 +280,8 @@ def dualboot(iso):
     sudo("umount /mnt/a; losetup -d %s; chmod 666 /tmp/a.img" % dev)
     vmA = VM("dbA", ["-drive", "file=/tmp/a.img,if=virtio,format=raw", "-boot", "c"], port_off=20)
     try:
-        ok = vmA.boot_to_shell(first_enter=False, timeout=420); check("DualBoot A: ButterOS boots from the ISO file on the ext4 disk (BIOS)", ok, vmA.buf.decode(errors="ignore")[-400:])
+        time.sleep(45); vmA.shot("dbA-45s")
+        ok = vmA.boot_to_shell(first_enter=False, timeout=360); vmA.shot("dbA-end"); check("DualBoot A: ButterOS boots from the ISO file on the ext4 disk (BIOS)", ok, vmA.buf.decode(errors="ignore")[-400:])
         if ok:
             vmA.sh("killall dialog 2>/dev/null; true")
             c, o = vmA.sh("grep -o 'butter_iso=[^ ]*' /proc/cmdline; mount | grep -c butteriso; cat /etc/hostname; wget -qO- http://127.0.0.1/cgi-bin/api?a=ping")
@@ -300,7 +303,8 @@ def dualboot(iso):
     sudo("umount /mnt/e /mnt/c; losetup -d %s; chmod 666 /tmp/b.img" % dev)
     vmB = VM("dbB", ["-drive", "if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd", "-drive", "file=/tmp/b.img,if=virtio,format=raw", "-boot", "c"], port_off=30)
     try:
-        ok = vmB.boot_to_shell(first_enter=False, timeout=420); check("DualBoot B: ButterOS boots (UEFI) from the ISO file on the NTFS drive", ok, vmB.buf.decode(errors="ignore")[-400:])
+        time.sleep(45); vmB.shot("dbB-45s")
+        ok = vmB.boot_to_shell(first_enter=False, timeout=360); vmB.shot("dbB-end"); check("DualBoot B: ButterOS boots (UEFI) from the ISO file on the NTFS drive", ok, vmB.buf.decode(errors="ignore")[-400:])
         if ok:
             vmB.sh("killall dialog 2>/dev/null; true")
             c, o = vmB.sh("grep -o 'butter_iso=[^ ]*' /proc/cmdline; mount | grep -E 'hostdisk|butteriso' | cut -c1-90; wget -qO- http://127.0.0.1/cgi-bin/api?a=ping")

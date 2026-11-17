@@ -119,6 +119,7 @@ def raknet_ping(port=19132):
 
 def main():
     extra = _X
+    if os.environ.get('ONLY_DUALBOOT'): dualboot(ISO); flush_results(); return
     vm = VM("live", ["-cdrom", ISO, "-boot", "d", "-drive", "file=/tmp/target.img,if=virtio,format=raw"])
     try:
         ok = vm.boot_to_shell()

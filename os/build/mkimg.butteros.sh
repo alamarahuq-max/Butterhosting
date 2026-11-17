@@ -9,4 +9,5 @@ profile_butteros() {
 	image_ext="iso"
 	apks="$apks $(cat "${BUTTER_APKS_FILE:-/dev/null}" 2>/dev/null)"
 	apkovl="genapkovl-butteros.sh"
+	initfs_features="ata base cdrom ext4 keymap kms mmc nvme raid scsi squashfs usb virtio butterhost"
 }

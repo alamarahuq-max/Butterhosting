@@ -38,6 +38,9 @@ BU=$(curl -fsSL https://api.github.com/repos/ekzhang/bore/releases/latest | grep
 if [ -n "$BU" ] && curl -fsSL -o /tmp/bore.tgz "$BU" && tar -xzf /tmp/bore.tgz -C /home/build bore 2>/dev/null && [ -s /home/build/bore ]; then chmod 755 /home/build/bore; chown build /home/build/bore; echo "   bore downloaded"; else echo "   (no bore: butter play will be local network only)"; fi
 echo "$OPT" > /home/build/butter-apks.txt; chown build /home/build/butter-apks.txt
 
+echo "== initramfs: boot from an ISO file on an existing disk (dual-boot)"
+sh "$SRC/os/build/patch-init.sh"
+
 echo "== mkimage"
 chown -R build /work/out
 su build -c "cd /home/build/aports/scripts && BUTTER_SRC=$SRC BUTTER_APKS_FILE=/home/build/butter-apks.txt \

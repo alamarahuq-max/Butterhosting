@@ -56,6 +56,8 @@ jobs:
           sudo udevadm control --reload-rules; sudo udevadm trigger --name-match=kvm || true
           ls -l /dev/kvm || echo "no /dev/kvm (tests will be slow)"
           mkdir -p e2e && npm i --no-audit --no-fund playwright >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1 || echo "playwright install failed"
+          sudo apt-get install -y -qq grub-pc-bin grub-efi-amd64-bin ntfs-3g parted dosfstools >/dev/null 2>&1 || echo 'dualboot tools install failed'
+          grub-mkimage -O x86_64-efi -p /EFI/ButterOS -o out/butter-grubx64.efi part_gpt fat ntfs search normal linux configfile echo && cp os/dualboot/butter-dualboot-linux.sh os/dualboot/install-windows.ps1 out/ && ls -la out
           truncate -s 1536M /tmp/target.img
           (cd out && python3 -m http.server 8000 >/dev/null 2>&1 &)
           NODE_PATH=$PWD/node_modules timeout 5400 python3 os/build/e2e.py out/ButterOS.iso e2e 2>&1 | tee e2e.log || true
@@ -79,7 +81,7 @@ jobs:
           git config --global user.name "butter-ci"; git config --global user.email "ci@users.noreply.github.com"
           if [ -f out/ButterOS.iso ]; then
             gh release delete latest-iso -y --cleanup-tag 2>/dev/null || true
-            gh release create latest-iso out/ButterOS.iso out/ButterOS.iso.sha256 --title "ButterOS ISO (latest build)" --notes "Built by GitHub Actions run ${{ github.run_id }}. Flash with balenaEtcher or Rufus (DD mode)."
+            gh release create latest-iso out/ButterOS.iso out/ButterOS.iso.sha256 out/butter-grubx64.efi out/butter-dualboot-linux.sh out/install-windows.ps1 --title "ButterOS ISO (latest build)" --notes "Built by GitHub Actions run ${{ github.run_id }}. Flash with balenaEtcher or Rufus (DD mode)."
           fi
           d=$(mktemp -d); cp -r shots "$d/" 2>/dev/null || true; cp -r e2e "$d/" 2>/dev/null || true; cp e2e.log "$d/" 2>/dev/null || true; cp build.log "$d/" 2>/dev/null || true; cp -r out/diag "$d/" 2>/dev/null || true
           cd "$d"; git init -q -b ci-shots; git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"

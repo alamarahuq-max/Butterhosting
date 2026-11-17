@@ -254,7 +254,61 @@ def main():
             vm2.shot("installed-boot")
     finally:
         vm2.kill()
+    dualboot(ISO)
     flush_results("\n".join(extra))
+
+def sudo(cmd, timeout=600):
+    r = subprocess.run(["sudo", "sh", "-c", cmd], capture_output=True, text=True, timeout=timeout)
+    return r.returncode, (r.stdout + r.stderr)
+
+def dualboot(iso):
+    iso = os.path.abspath(iso)
+    """Boot ButterOS from an ISO FILE on a disk that has another OS's layout: (A) BIOS + ext4 (Linux host), (B) UEFI + NTFS (Windows layout)."""
+    # ---------- A: BIOS GRUB + ext4, installed with the real Linux installer ----------
+    c, o = sudo("rm -f /tmp/a.img; truncate -s 3G /tmp/a.img && losetup -fP --show /tmp/a.img"); dev = o.strip().splitlines()[-1]
+    c, o = sudo("parted -s %s mklabel msdos mkpart primary ext4 1MiB 100%% && sleep 1 && mkfs.ext4 -q -L hostroot %sp1 && mkdir -p /mnt/a && mount %sp1 /mnt/a && mkdir -p /mnt/a/boot/grub && "
+                "grub-install --target=i386-pc --boot-directory=/mnt/a/boot --modules='part_msdos ext2' %s && blkid -s UUID -o value %sp1" % (dev, dev, dev, dev, dev))
+    check("DualBoot A: test disk with GRUB on ext4 created", c == 0, o[-300:])
+    if c == 0:
+        uuid = o.strip().splitlines()[-1]
+        sudo("printf 'set timeout=1\\ninsmod part_msdos\\ninsmod ext2\\nsearch --no-floppy --fs-uuid --set=root %s\\nsource ($root)/boot/butteros/grub-entry.cfg\\nset default=0\\n' > /mnt/a/boot/grub/grub.cfg" % uuid)
+        c, o = sudo("sh %s/os/dualboot/butter-dualboot-linux.sh --root /mnt/a --iso %s --no-update 2>&1 | tail -8; df -h /mnt/a | tail -1; cat /mnt/a/boot/butteros/grub-entry.cfg" % (REPO, iso))
+        check("DualBoot A: Linux installer copies ISO + boot files and writes the GRUB entry", "Done." in o and "butter_iso=UUID=" in o, o[-500:])
+        _X.append("DualBoot A installer output:\n```\n" + o[-900:] + "\n```")
+    sudo("umount /mnt/a; losetup -d %s" % dev)
+    vmA = VM("dbA", ["-drive", "file=/tmp/a.img,if=virtio,format=raw", "-boot", "c"], port_off=20)
+    try:
+        ok = vmA.boot_to_shell(first_enter=False, timeout=420); check("DualBoot A: ButterOS boots from the ISO file on the ext4 disk (BIOS)", ok, vmA.buf.decode(errors="ignore")[-400:])
+        if ok:
+            vmA.sh("killall dialog 2>/dev/null; true")
+            c, o = vmA.sh("grep -o 'butter_iso=[^ ]*' /proc/cmdline; mount | grep -c butteriso; cat /etc/hostname; wget -qO- http://127.0.0.1/cgi-bin/api?a=ping")
+            check("DualBoot A: the ISO is loop-mounted and the web agent answers", "butter_iso=" in o and '"ok":true' in o.replace(" ", ""), o.replace("\n", " ")[-300:]); vmA.shot("dualboot-A")
+        else: _X.append("DualBoot A boot log tail:\n```\n" + vmA.buf.decode(errors="ignore")[-1500:] + "\n```")
+    finally: vmA.kill()
+    # ---------- B: UEFI GRUB on an ESP + the ISO on an NTFS 'C:' drive (the layout the Windows program will create) ----------
+    c, o = sudo("rm -f /tmp/b.img; truncate -s 3G /tmp/b.img && losetup -fP --show /tmp/b.img"); dev = o.strip().splitlines()[-1]
+    c, o = sudo("parted -s %s mklabel gpt mkpart ESP fat32 1MiB 200MiB set 1 esp on mkpart Windows ntfs 200MiB 100%% && sleep 1 && mkfs.vfat -F32 %sp1 && mkfs.ntfs -Q -L Windows %sp2 && "
+                "mkdir -p /mnt/e /mnt/c && mount %sp1 /mnt/e && mount -t ntfs-3g %sp2 /mnt/c && blkid -s UUID -o value %sp2" % (dev, dev, dev, dev, dev, dev))
+    check("DualBoot B: test disk with an EFI partition and an NTFS partition created", c == 0, o[-300:])
+    if c == 0:
+        nt = o.strip().splitlines()[-1]
+        c, o = sudo("mkdir -p /mnt/c/ButterOS /mnt/e/EFI/ButterOS /mnt/e/EFI/BOOT && cp %s /mnt/c/ButterOS/ButterOS.iso && mkdir -p /mnt/iso && mount -o loop,ro %s /mnt/iso && "
+                    "cp /mnt/iso/boot/vmlinuz-lts /mnt/iso/boot/initramfs-lts /mnt/e/EFI/ButterOS/ && umount /mnt/iso && "
+                    "printf 'set timeout=1\\nsearch --no-floppy --file --set=esp /EFI/ButterOS/vmlinuz-lts\\nmenuentry ButterOS {\\n linux ($esp)/EFI/ButterOS/vmlinuz-lts butter_iso=UUID=%s:/ButterOS/ButterOS.iso modules=loop,squashfs,sd-mod,usb-storage quiet\\n initrd ($esp)/EFI/ButterOS/initramfs-lts\\n}\\n' > /mnt/e/EFI/ButterOS/grub.cfg && "
+                    "grub-mkimage -O x86_64-efi -p /EFI/ButterOS -o /mnt/e/EFI/ButterOS/grubx64.efi part_gpt fat ntfs search normal linux configfile echo && cp /mnt/e/EFI/ButterOS/grubx64.efi /mnt/e/EFI/BOOT/BOOTX64.EFI && ls -la /mnt/e/EFI/ButterOS /mnt/e/EFI/BOOT" % (iso, iso, nt))
+        check("DualBoot B: boot files placed on the EFI partition and the ISO on the NTFS drive", c == 0, o[-400:])
+    sudo("umount /mnt/e /mnt/c; losetup -d %s" % dev)
+    vmB = VM("dbB", ["-drive", "if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd", "-drive", "file=/tmp/b.img,if=virtio,format=raw", "-boot", "c"], port_off=30)
+    try:
+        ok = vmB.boot_to_shell(first_enter=False, timeout=420); check("DualBoot B: ButterOS boots (UEFI) from the ISO file on the NTFS drive", ok, vmB.buf.decode(errors="ignore")[-400:])
+        if ok:
+            vmB.sh("killall dialog 2>/dev/null; true")
+            c, o = vmB.sh("grep -o 'butter_iso=[^ ]*' /proc/cmdline; mount | grep -E 'hostdisk|butteriso' | cut -c1-90; wget -qO- http://127.0.0.1/cgi-bin/api?a=ping")
+            check("DualBoot B: NTFS read, ISO loop-mounted, web agent answers", "butter_iso=" in o and '"ok":true' in o.replace(" ", ""), o.replace("\n", " ")[-300:]); vmB.shot("dualboot-B")
+        else: _X.append("DualBoot B boot log tail:\n```\n" + vmB.buf.decode(errors="ignore")[-1500:] + "\n```")
+    finally: vmB.kill()
+
+REPO = os.environ.get('GITHUB_WORKSPACE', os.getcwd())
 import traceback
 try:
     main()

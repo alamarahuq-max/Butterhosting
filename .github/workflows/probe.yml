@@ -1,4 +1,4 @@
-name: Probe Alpine init
+name: Probe Alpine (wifi drivers)
 on: workflow_dispatch
 permissions: { contents: write }
 jobs:
@@ -8,12 +8,17 @@ jobs:
     steps:
       - name: Collect
         run: |
-          apk add --no-cache mkinitfs linux-lts git github-cli squashfs-tools xorriso grub grub-efi >/dev/null 2>&1 || apk add --no-cache mkinitfs linux-lts git
-          mkdir -p /o; cp /usr/share/mkinitfs/initramfs-init /o/ 2>/dev/null; ls /usr/share/mkinitfs /etc/mkinitfs /etc/mkinitfs/features.d > /o/ls.txt 2>&1
-          cat /etc/mkinitfs/mkinitfs.conf >> /o/ls.txt; apk info -v mkinitfs >> /o/ls.txt
-          K=$(ls /lib/modules | head -1); echo "kernel $K" >> /o/ls.txt
-          find /lib/modules/$K -name 'ntfs3*' -o -name 'exfat*' -o -name 'loop.ko*' -o -name 'isofs*' -o -name 'squashfs*' -o -name 'overlay*' -o -name 'vfat*' -o -name 'ext4*' -o -name 'xfs*' -o -name 'btrfs*' >> /o/ls.txt
-          ls /boot >> /o/ls.txt; which nlplug-findfs >> /o/ls.txt
+          apk add --no-cache linux-lts linux-lts-dev git curl build-base bash >/dev/null 2>&1
+          mkdir -p /o; K=$(ls /lib/modules | head -1); echo "kernel $K" > /o/ls.txt
+          find /lib/modules/$K -iname '*rtl8xxxu*' -o -iname '*r8188eu*' -o -iname '*8188*' -o -iname 'rtw88*' -o -iname 'rtw89*' -o -iname '*rtl8192*' -o -iname 'ath9k_htc*' -o -iname 'mt76*' -o -iname '*mt7601*' -o -iname 'iwlwifi*' -o -iname 'brcmfmac*' -o -iname 'ath10k_pci*' -o -iname 'rtlwifi*' -o -iname 'cfg80211*' -o -iname 'mac80211*' | sed "s|/lib/modules/$K/||" >> /o/ls.txt
+          echo "--- packages" >> /o/ls.txt
+          for p in wpa_supplicant iw wireless-tools wireless-regdb iwd linux-firmware-rtlwifi linux-firmware-rtl_bt linux-firmware-rtw88 linux-firmware-rtw89 linux-firmware-mediatek linux-firmware-ath9k_htc linux-firmware-ath10k linux-firmware-iwlwifi linux-firmware-brcm linux-firmware-other linux-firmware-rtl_nic linux-firmware-ath11k linux-firmware-ath12k linux-firmware-intel linux-firmware; do echo "$p: $(apk search -e $p | head -1)" >> /o/ls.txt; done
+          echo "--- firmware for 8188eu" >> /o/ls.txt
+          apk add --no-cache linux-firmware-rtlwifi >/dev/null 2>&1; find /lib/firmware -iname '*8188*' >> /o/ls.txt
+          echo "--- out-of-tree rtl8188eu build" >> /o/ls.txt
+          cd /tmp && git clone --depth 1 https://github.com/lwfinger/rtl8188eu.git >> /o/ls.txt 2>&1 || git clone --depth 1 https://github.com/aircrack-ng/rtl8188eus.git rtl8188eu >> /o/ls.txt 2>&1
+          cd rtl8188eu && (make -j4 KVER=$K KSRC=/usr/src/linux-headers-$K 2>&1 | tail -25) >> /o/ls.txt; ls *.ko >> /o/ls.txt 2>&1
+          du -sh /usr/src/linux-headers-* >> /o/ls.txt 2>&1
       - name: Push
         env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
         run: |

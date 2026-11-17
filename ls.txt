@@ -1,0 +1,144 @@
+kernel 6.12.117-0-lts
+kernel/drivers/net/wireless/realtek/rtw89
+kernel/drivers/net/wireless/realtek/rtw89/rtw89_8852b_common.ko.gz
+kernel/drivers/net/wireless/realtek/rtw89/rtw89_8852c.ko.gz
+kernel/drivers/net/wireless/realtek/rtw89/rtw89_8852ce.ko.gz
+kernel/drivers/net/wireless/realtek/rtw89/rtw89_8851be.ko.gz
+kernel/drivers/net/wireless/realtek/rtw89/rtw89_8852bte.ko.gz
+kernel/drivers/net/wireless/realtek/rtw89/rtw89_8851b.ko.gz
+kernel/drivers/net/wireless/realtek/rtw89/rtw89_8852ae.ko.gz
+kernel/drivers/net/wireless/realtek/rtw89/rtw89_8852a.ko.gz
+kernel/drivers/net/wireless/realtek/rtw89/rtw89_8852b.ko.gz
+kernel/drivers/net/wireless/realtek/rtw89/rtw89_8922ae.ko.gz
+kernel/drivers/net/wireless/realtek/rtw89/rtw89_8852be.ko.gz
+kernel/drivers/net/wireless/realtek/rtw89/rtw89_core.ko.gz
+kernel/drivers/net/wireless/realtek/rtw89/rtw89_8852bt.ko.gz
+kernel/drivers/net/wireless/realtek/rtw89/rtw89_8922a.ko.gz
+kernel/drivers/net/wireless/realtek/rtw89/rtw89_pci.ko.gz
+kernel/drivers/net/wireless/realtek/rtl8xxxu
+kernel/drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.ko.gz
+kernel/drivers/net/wireless/realtek/rtlwifi
+kernel/drivers/net/wireless/realtek/rtlwifi/rtl8192se
+kernel/drivers/net/wireless/realtek/rtlwifi/rtl8192se/rtl8192se.ko.gz
+kernel/drivers/net/wireless/realtek/rtlwifi/rtl8192ee
+kernel/drivers/net/wireless/realtek/rtlwifi/rtl8192ee/rtl8192ee.ko.gz
+kernel/drivers/net/wireless/realtek/rtlwifi/rtl8188ee
+kernel/drivers/net/wireless/realtek/rtlwifi/rtl8188ee/rtl8188ee.ko.gz
+kernel/drivers/net/wireless/realtek/rtlwifi/rtlwifi.ko.gz
+kernel/drivers/net/wireless/realtek/rtlwifi/rtl8192ce
+kernel/drivers/net/wireless/realtek/rtlwifi/rtl8192ce/rtl8192ce.ko.gz
+kernel/drivers/net/wireless/realtek/rtlwifi/rtl8192d
+kernel/drivers/net/wireless/realtek/rtlwifi/rtl8192d/rtl8192d-common.ko.gz
+kernel/drivers/net/wireless/realtek/rtlwifi/rtl8192de
+kernel/drivers/net/wireless/realtek/rtlwifi/rtl8192de/rtl8192de.ko.gz
+kernel/drivers/net/wireless/realtek/rtlwifi/rtl8192c
+kernel/drivers/net/wireless/realtek/rtlwifi/rtl8192c/rtl8192c-common.ko.gz
+kernel/drivers/net/wireless/realtek/rtlwifi/rtl8192cu
+kernel/drivers/net/wireless/realtek/rtlwifi/rtl8192cu/rtl8192cu.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8723x.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8821ce.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8822bu.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_usb.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_sdio.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8703b.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8822ce.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8822cu.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8723d.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8723cs.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8723de.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_core.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8822bs.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8822b.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8821c.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8821cu.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_pci.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8822cs.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8723du.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8822be.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8723ds.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8821cs.ko.gz
+kernel/drivers/net/wireless/realtek/rtw88/rtw88_8822c.ko.gz
+kernel/drivers/net/wireless/mediatek/mt76
+kernel/drivers/net/wireless/mediatek/mt76/mt76-usb.ko.gz
+kernel/drivers/net/wireless/mediatek/mt76/mt76x2
+kernel/drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko.gz
+kernel/drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2e.ko.gz
+kernel/drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko.gz
+kernel/drivers/net/wireless/mediatek/mt76/mt76-sdio.ko.gz
+kernel/drivers/net/wireless/mediatek/mt76/mt76.ko.gz
+kernel/drivers/net/wireless/mediatek/mt76/mt76x0
+kernel/drivers/net/wireless/mediatek/mt76/mt76x0/mt76x0u.ko.gz
+kernel/drivers/net/wireless/mediatek/mt76/mt76x0/mt76x0-common.ko.gz
+kernel/drivers/net/wireless/mediatek/mt76/mt76-connac-lib.ko.gz
+kernel/drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko.gz
+kernel/drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko.gz
+kernel/drivers/net/wireless/mediatek/mt7601u
+kernel/drivers/net/wireless/mediatek/mt7601u/mt7601u.ko.gz
+kernel/drivers/net/wireless/virtual/mac80211_hwsim.ko.gz
+kernel/drivers/net/wireless/broadcom/brcm80211/brcmfmac
+kernel/drivers/net/wireless/broadcom/brcm80211/brcmfmac/cyw/brcmfmac-cyw.ko.gz
+kernel/drivers/net/wireless/broadcom/brcm80211/brcmfmac/bca/brcmfmac-bca.ko.gz
+kernel/drivers/net/wireless/broadcom/brcm80211/brcmfmac/brcmfmac.ko.gz
+kernel/drivers/net/wireless/broadcom/brcm80211/brcmfmac/wcc/brcmfmac-wcc.ko.gz
+kernel/drivers/net/wireless/intel/iwlwifi
+kernel/drivers/net/wireless/intel/iwlwifi/iwlwifi.ko.gz
+kernel/drivers/net/wireless/ath/ath9k/ath9k_htc.ko.gz
+kernel/drivers/net/wireless/ath/ath10k/ath10k_pci.ko.gz
+kernel/net/wireless/cfg80211.ko.gz
+kernel/net/mac80211
+kernel/net/mac80211/mac80211.ko.gz
+--- packages
+wpa_supplicant: 
+iw: 
+wireless-tools: 
+wireless-regdb: 
+iwd: 
+linux-firmware-rtlwifi: 
+linux-firmware-rtl_bt: 
+linux-firmware-rtw88: 
+linux-firmware-rtw89: 
+linux-firmware-mediatek: 
+linux-firmware-ath9k_htc: 
+linux-firmware-ath10k: 
+linux-firmware-iwlwifi: 
+linux-firmware-brcm: 
+linux-firmware-other: 
+linux-firmware-rtl_nic: 
+linux-firmware-ath11k: 
+linux-firmware-ath12k: 
+linux-firmware-intel: 
+linux-firmware: 
+--- firmware for 8188eu
+/lib/firmware/rtlwifi/rtl8188efw.bin.zst
+/lib/firmware/rtlwifi/rtl8188fufw.bin.zst
+/lib/firmware/rtlwifi/rtl8188eufw.bin.zst
+--- out-of-tree rtl8188eu build
+Cloning into 'rtl8188eu'...
+/tmp/rtl8188eu/os_dep/ioctl_linux.c:6530:35: warning: 'sprintf' argument 3 overlaps destination object 'extra' [-Wrestrict]
+ 6530 |                                   sprintf(extra, "%s %d", extra, strtout);
+      |                                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/rtl8188eu/os_dep/ioctl_linux.c:6459:54: note: destination object referenced by 'restrict'-qualified argument 1 was declared here
+ 6459 |                         struct iw_point *wrqu, char *extra)
+      |                                                ~~~~~~^~~~~
+In function 'rtw_mp_read_rf',
+    inlined from 'rtw_mp_get' at /tmp/rtl8188eu/os_dep/ioctl_linux.c:7444:3:
+/tmp/rtl8188eu/os_dep/ioctl_linux.c:6669:27: warning: 'sprintf' argument 3 overlaps destination object 'extra' [-Wrestrict]
+ 6669 |                           sprintf(extra, "%s %d", extra, strtou);
+      |                           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/rtl8188eu/os_dep/ioctl_linux.c: In function 'rtw_mp_get':
+/tmp/rtl8188eu/os_dep/ioctl_linux.c:7410:56: note: destination object referenced by 'restrict'-qualified argument 1 was declared here
+ 7410 |                         union iwreq_data *wdata, char *extra)
+      |                                                  ~~~~~~^~~~~
+  CC [M]  /tmp/rtl8188eu/os_dep/usb_ops_linux.o
+  CC [M]  /tmp/rtl8188eu/os_dep/xmit_linux.o
+  LD [M]  /tmp/rtl8188eu/8188eu.o
+  MODPOST /tmp/rtl8188eu/Module.symvers
+  CC [M]  /tmp/rtl8188eu/8188eu.mod.o
+  CC [M]  /tmp/rtl8188eu/.module-common.o
+  LD [M]  /tmp/rtl8188eu/8188eu.ko
+  BTF [M] /tmp/rtl8188eu/8188eu.ko
+Skipping BTF generation for /tmp/rtl8188eu/8188eu.ko due to unavailability of vmlinux
+make[1]: Leaving directory '/usr/src/linux-headers-6.12.117-0-lts'
+8188eu.ko
+116.2M	/usr/src/linux-headers-6.12.117-0-lts

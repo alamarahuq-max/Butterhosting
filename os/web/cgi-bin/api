@@ -142,7 +142,7 @@ create)
     case "$M" in ''|*[!0-9]*) M=1024;; esac; [ "$M" -lt 512 ] && M=512; [ "$M" -gt 2048 ] && M=2048
     P=$(nextport tcp 25565); TY=$(echo "$F" | tr 'a-z' 'A-Z')
     docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --label "butterflavor=$F" --label "butterver=$V" --restart unless-stopped \
-      -e EULA=TRUE -e TYPE="$TY" -e VERSION="$V" -e MEMORY="${M}M" -p "$P:25565" -v "$WORLDS/$N:/data" "itzg/minecraft-server:$TAG" >/tmp/run.err 2>&1 || { rm -rf "$WORLDS/$N"; fail "docker run failed: $(tail -c 160 /tmp/run.err | tr '\n"' '  ')"; }
+      -e EULA=TRUE -e TYPE="$TY" -e VERSION="$V" -e MEMORY="${M}M" -p "$P:25565" -v "$WORLDS/$N:/data" "itzg/minecraft-server:$TAG" >/tmp/run.err 2>&1 || { rm -rf "$WORLDS/$N"; if grep -q "no space" /tmp/run.err; then fail "Not enough room in RAM to download this Java runtime. Install ButterOS to a disk, or use a machine with more RAM."; fi; fail "docker run failed: $(tail -c 160 /tmp/run.err | tr '\n"' '  ')"; }
   else
     P=$(nextport udp 19132)
     docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --label "butterflavor=bedrock" --label "butterver=$V" --restart unless-stopped \

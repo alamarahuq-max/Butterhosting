@@ -21,10 +21,11 @@ function local() {
     try { fs.readdirSync("/sys/class/hwmon").forEach((h) => { let nm = ""; try { nm = fs.readFileSync("/sys/class/hwmon/" + h + "/name", "utf8").trim(); } catch (e) {} fs.readdirSync("/sys/class/hwmon/" + h).filter((f) => /^temp\d+_input$/.test(f)).forEach((f) => { const c = rd("/sys/class/hwmon/" + h + "/" + f); if (c > 0 && c < 130) t.push([c, nm]); }); }); } catch (e) {}
     if (t.length) { t.sort((a, b) => b[0] - a[0]); D.temp = t[0][0]; D.tempLabel = t[0][1]; push(H.temp, D.temp); } else { D.temp = null; }
     D.cores = require("os").cpus().length || 1;
+    if (!D.agentOk || !D.ip) { const ni = require("os").networkInterfaces(); for (const k in ni) for (const a of ni[k]) if (a.family === "IPv4" && !a.internal && !/^(docker|br-|veth)/.test(k)) D.ip = a.address; }
   } catch (e) {}
 }
 function agent() {
-  const r = http.get({ host: "127.0.0.1", port: 80, path: "/cgi-bin/api?a=status", timeout: 6000 }, (res) => {
+  const r = http.get({ host: "127.0.0.1", port: 80, path: "/cgi-bin/api?a=status", timeout: 25000 }, (res) => {
     let b = ""; res.on("data", (c) => (b += c)); res.on("end", () => { try { const j = JSON.parse(b); if (j.ok) { D.servers = j.servers || []; D.ip = j.ip || ""; D.persist = j.persist; D.engine = j.engine; D.web = j.web_rss_mb; D.wifi = j.wifi_adapters || 0; D.agentOk = true; } } catch (e) {} });
   }); r.on("error", () => {}); r.on("timeout", () => r.destroy());
 }

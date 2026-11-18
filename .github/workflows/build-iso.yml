@@ -64,6 +64,7 @@ jobs:
           cat e2e/results.md || true
       - uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
         with:
           name: ButterOS
           path: |

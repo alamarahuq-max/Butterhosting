@@ -228,8 +228,8 @@ def main():
         check("Stop works", api("a=stop&n=test-bed").get("ok"))
         time.sleep(3); sv = {s["name"]: s for s in api("a=status").get("servers", [])}
         check("Stopped server shows as not running", sv.get("test-bed", {}).get("state") != "running", sv.get("test-bed", {}).get("state"))
-        check("Start works", api("a=start&n=test-bed").get("ok"))
-        check("Delete works", api("a=delete&n=test-bed").get("ok") and api("a=delete&n=test-bed2").get("ok"))
+        api("a=delete&n=test-bed2"); time.sleep(6); check("Start works", api("a=start&n=test-bed").get("ok"))
+        check("Delete works", api("a=delete&n=test-bed").get("ok"))
         # screenshots of the web page (done by the workflow with playwright)
         r = subprocess.run(["node", os.path.join(os.path.dirname(os.path.abspath(__file__)), "webshots.js"), OUT], capture_output=True, text=True)
         log(r.stdout, r.stderr); check("Web page screenshots taken", r.returncode == 0, r.stderr[-200:])

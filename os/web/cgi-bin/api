@@ -142,11 +142,11 @@ create)
     case "$M" in ''|*[!0-9]*) M=1024;; esac; [ "$M" -lt 512 ] && M=512; [ "$M" -gt 2048 ] && M=2048
     P=$(nextport tcp 25565); TY=$(echo "$F" | tr 'a-z' 'A-Z')
     docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --label "butterflavor=$F" --label "butterver=$V" --restart unless-stopped \
-      -e EULA=TRUE -e TYPE="$TY" -e VERSION="$V" -e MEMORY="${M}M" -p "$P:25565" -v "$WORLDS/$N:/data" "itzg/minecraft-server:$TAG" >/dev/null 2>&1 || fail "docker run failed"
+      -e EULA=TRUE -e TYPE="$TY" -e VERSION="$V" -e MEMORY="${M}M" -p "$P:25565" -v "$WORLDS/$N:/data" "itzg/minecraft-server:$TAG" >/tmp/run.err 2>&1 || { rm -rf "$WORLDS/$N"; fail "docker run failed: $(tail -c 160 /tmp/run.err | tr '\n"' '  ')"; }
   else
     P=$(nextport udp 19132)
     docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --label "butterflavor=bedrock" --label "butterver=$V" --restart unless-stopped \
-      -e EULA=TRUE -e ALLOW_LIST=false -e VERSION="$V" -e SERVER_NAME="$N" -p "$P:19132/udp" -v "$WORLDS/$N:/data" itzg/minecraft-bedrock-server:latest >/dev/null 2>&1 || fail "docker run failed"
+      -e EULA=TRUE -e ALLOW_LIST=false -e VERSION="$V" -e SERVER_NAME="$N" -p "$P:19132/udp" -v "$WORLDS/$N:/data" itzg/minecraft-bedrock-server:latest >/tmp/run.err 2>&1 || { rm -rf "$WORLDS/$N"; fail "docker run failed: $(tail -c 160 /tmp/run.err | tr '\n"' '  ')"; }
   fi
   J=""; [ "$(q share)" = internet ] && [ $T = java ] && { sleep 1; J=$(share "$N" "$P"); }
   out --argjson p "$P" --arg j "$J" '{ok:true,port:$p,join:(if $j==""  then null else $j end)}' ;;

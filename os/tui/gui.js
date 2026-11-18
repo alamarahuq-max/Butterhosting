@@ -36,17 +36,26 @@ const col = (i) => T[i];
 function px(x, y, c) { x |= 0; y |= 0; if (x < 0 || y < 0 || x >= SW || y >= SH) return; const o = (y * SW + x) * 4; fbuf[o] = c[2]; fbuf[o + 1] = c[1]; fbuf[o + 2] = c[0]; fbuf[o + 3] = 255; }
 function rect(x, y, w, h, c) { x |= 0; y |= 0; w |= 0; h |= 0; for (let j = Math.max(0, y); j < Math.min(SH, y + h); j++) for (let i = Math.max(0, x); i < Math.min(SW, x + w); i++) { const o = (j * SW + i) * 4; fbuf[o] = c[2]; fbuf[o + 1] = c[1]; fbuf[o + 2] = c[0]; fbuf[o + 3] = 255; } }
 const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-function frame(x, y, w, h, c, th) { th = th || SC; rect(x, y, w, th, c); rect(x, y + h - th, w, th, c); rect(x, y, th, h, c); rect(x + w - th, y, th, h, c); }
+function frame(x, y, w, h, c, th) { if (th === undefined && w > 60) return neon(x, y, w, h, c); th = th || SC; rect(x, y, w, th, c); rect(x, y + h - th, w, th, c); rect(x, y, th, h, c); rect(x + w - th, y, th, h, c); }
 function text(x, y, s, c, k) { x = Math.round(x); y = Math.round(y); k = k || 1; s = String(s); const sc = SC * k;
   for (let n = 0; n < s.length; n++) { let code = s.charCodeAt(n); if (code >= F.n) code = 63; const o = F.hs + code * F.bpg, rb = Math.ceil(F.w / 8);
     for (let r = 0; r < F.h; r++) for (let q = 0; q < F.w; q++) if (F.b[o + r * rb + (q >> 3)] & (0x80 >> (q & 7))) { if (sc === 1) px(x + n * F.w + q, y + r, c); else rect(x + (n * F.w + q) * sc, y + r * sc, sc, sc, c); } } return s.length * F.w * sc; }
 const tw = (s, k) => String(s).length * F.w * SC * (k || 1);
+function neon(x, y, w, h, c) { const dim = mix(col(0), c, 0.35), t = SC;
+  frame(x + 2, y + 2, w - 4, h - 4, dim, 1); frame(x, y, w, h, c, 1);
+  const L = CW * 2; [[x, y, 1, 1], [x + w, y, -1, 1], [x, y + h, 1, -1], [x + w, y + h, -1, -1]].forEach(([cx, cy, sx, sy]) => { rect(sx > 0 ? cx : cx - L, sy > 0 ? cy : cy - t, L, t, mix(c, col(15), 0.4)); rect(sx > 0 ? cx : cx - t, sy > 0 ? cy : cy - L, t, L, mix(c, col(15), 0.4)); }); }
 function grid(x, y, w, h) { const c = mix(col(0), col(4), 0.35); for (let i = 0; i <= w; i += CW * 2) rect(x + i, y, 1, h, c); for (let j = 0; j <= h; j += CH * 2) rect(x, y + j, w, 1, c); }
-function chart(x, y, w, h, data, lo, hi, c1, c2) { // filled line chart with scanline glow
-  rect(x, y, w, h, mix(col(0), [0, 0, 0], 0.25)); grid(x, y, w, h);
-  const n = Math.min(data.length, Math.floor(w / (2 * SC))), step = 2 * SC, d = data.slice(-n);
-  for (let i = 0; i < d.length; i++) { const v = Math.max(0, Math.min(1, (d[i] - lo) / (hi - lo || 1))), bh = Math.max(SC, v * (h - 2)), bx = x + w - (d.length - i) * step;
-    for (let j = 0; j < bh; j += 2) rect(bx, y + h - 1 - j, step - 1, 1, mix(c1, c2, j / (h - 2))); rect(bx, y + h - 1 - bh, step - 1, SC, col(15)); }
+function chart(x, y, w, h, data, lo, hi, c1, c2) { // smooth filled area chart, gradient fill, glowing top line
+  x |= 0; y |= 0; w |= 0; h |= 0; const base = mix(col(0), [0, 0, 0], 0.3);
+  for (let j = 0; j < h; j++) rect(x, y + j, w, 1, mix(base, col(4), 0.12 * (1 - j / h)));
+  grid(x, y, w, h);
+  const n = Math.min(data.length, 240), d = data.slice(-n), per = w / Math.max(40, n - 1), ys = [];
+  const val = (i) => { const v = d[Math.max(0, Math.min(d.length - 1, i))]; return Math.max(0, Math.min(1, (v - lo) / (hi - lo || 1))); };
+  for (let i = 0; i < w; i++) { const t = (w - 1 - i) / per, fi = d.length - 1 - t; if (fi < 0) { ys.push(null); continue; }
+    const i0 = Math.floor(fi), f = fi - i0, v = val(i0) * (1 - f) + val(i0 + 1) * f; ys.push(v); }
+  for (let i = 0; i < w; i++) { const v = ys[i]; if (v == null) continue; const top = Math.max(1, v * (h - 3));
+    for (let j = 0; j < top; j++) { const k = j / (h - 3); const c = mix(mix(c1, c2, k), base, 0.55 - 0.35 * k); const o = ((y + h - 1 - j) * SW + x + i) * 4; fbuf[o] = c[2]; fbuf[o + 1] = c[1]; fbuf[o + 2] = c[0]; }
+    const ty = y + h - 1 - top; px(x + i, ty, col(15)); px(x + i, ty - 1, mix(c1, col(15), 0.5)); px(x + i, ty + 1, c1); px(x + i, ty - 2, mix(base, c1, 0.35)); }
   frame(x, y, w, h, mix(col(0), col(4), 0.8), 1);
 }
 const bar = (x, y, w, h, v, c) => { rect(x, y, w, h, mix(col(0), col(4), 0.4)); rect(x, y, Math.max(0, Math.min(1, v)) * w, h, c); };
@@ -60,12 +69,13 @@ function toast(s) { msg = s; msgT = Date.now() + 6000; }
 function button(x, y, w, h, label, key, c) { rect(x, y, w, h, mix(col(0), c, 0.18)); frame(x, y, w, h, c); text(x + (w - tw(label)) / 2, y + (h - CH) / 2, label, c); hits.push({ x, y, w, h, key }); }
 
 function draw() {
-  hits = []; const bg = col(0); rect(0, 0, SW, SH, bg);
-  for (let j = 0; j < SH; j += 3) rect(0, j, SW, 1, mix(bg, [0, 0, 0], 0.22)); // scanlines
+  hits = []; const bg = col(0);
+  for (let j = 0; j < SH; j++) rect(0, j, SW, 1, mix(mix(bg, col(4), 0.16), bg, Math.min(1, j / (SH * 0.55))));
+  for (let j = 0; j < SH; j += 4) rect(0, j, SW, 1, mix(bg, [0, 0, 0], 0.12)); // faint scanlines
   const m = Math.round(CW * 1.5), top = m;
   // header
   const k = SC >= 2 ? 3 : 4; let x = m; const L = "BUTTER";
-  for (let i = 0; i < L.length; i++) x += text(x, top, L[i], mix(col(11), col(13), i / 5), k);
+  for (let i = 0; i < L.length; i++) { text(x + SC * 2, top + SC * 2, L[i], mix(col(0), col(4), 0.9), k); x += text(x, top, L[i], mix(col(11), col(13), i / 5), k); }
   x += tw(" ", k); text(x, top, "OS", col(14), k);
   text(m, top + CH * k + 2, "FREE MINECRAFT HOSTING  /  JAVA + BEDROCK", col(8)); const rs = "UP " + tmf(D.up);
   text(SW - m - tw(rs), top + 2, rs, col(14)); const ipx = D.ip ? "http://" + D.ip : "NO NETWORK"; text(SW - m - tw(ipx), top + 2 + CH, ipx, D.ip ? col(10) : col(1));
@@ -89,7 +99,9 @@ function draw() {
   const cols = [0, 0.26, 0.40, 0.55, 0.68, 0.80].map((f) => m + CW + f * (SW - 2 * m - 2 * CW));
   ["NAME", "KIND", "VERSION", "STATE", "PLAYERS", "RAM"].forEach((s, i) => text(cols[i], sy + CH / 2, s, col(8)));
   const rows = Math.max(1, Math.floor((sh - CH * 3) / (CH + 6)));
-  if (!D.servers.length) { text(m + CW, sy + CH * 3, D.engine === "ok" || DEMO ? "No servers yet. Press N to make one." : "Engine starting... (" + (D.engine || "") + ")", col(7)); }
+  if (!D.servers.length) { horizon(m + 4, sy + CH * 2, SW - 2 * m - 8, sh - CH * 2 - 6);
+    const t1 = D.agentOk || DEMO ? "NO SERVERS YET" : "STARTING THE ENGINE...", t2 = D.agentOk || DEMO ? "PRESS N  -  OR TAP NEW SERVER" : "FIRST START TAKES A MINUTE", cx = SW / 2;
+    text(cx - tw(t1, 2) / 2, sy + CH * 3, t1, col(15), 2); text(cx - tw(t2) / 2, sy + CH * 3 + CH * 2.6, t2, col(11)); }
   if (sel >= D.servers.length) sel = Math.max(0, D.servers.length - 1);
   D.servers.slice(0, rows).forEach((s, i) => { const y = sy + CH * 2 + i * (CH + 6), on = i === sel, run = s.state === "running";
     if (on) { rect(m + 4, y - 3, SW - 2 * m - 8, CH + 6, mix(bg, col(13), 0.22)); } hits.push({ x: m + 4, y: y - 3, w: SW - 2 * m - 8, h: CH + 6, key: "sel" + i });
@@ -107,6 +119,14 @@ function draw() {
   for (let i = 0; i < 12; i++) for (let j = 0; j <= i && j < 8; j++) px(mouse.x + j, mouse.y + i, col(15)); // simple arrow
   for (let i = 0; i < 12; i++) px(mouse.x, mouse.y + i, col(0));
 }
+function horizon(x, y, w, h) { // retro sun and perspective grid
+  const hy = y + h * 0.62, cx = x + w / 2, r = Math.min(h * 0.42, w * 0.2);
+  for (let j = -r; j < 0; j++) { const half = Math.sqrt(r * r - j * j), stripe = ((j + r) % (r / 5)) < (r / 11) ? 1 : 0, k = (j + r) / r; if (j > -r * 0.55 && stripe === 0 && j > -r * 0.5) continue;
+    rect(cx - half, hy + j, half * 2, 1, mix(col(13), col(11), k)); }
+  rect(x, hy, w, 1, col(13));
+  for (let i = 1; i <= 7; i++) { const yy = hy + Math.pow(i / 7, 2) * (y + h - hy); rect(x, yy, w, 1, mix(col(0), col(13), 0.5 - i * 0.04)); }
+  for (let i = -12; i <= 12; i++) { const x0 = cx + i * w * 0.012, x1 = cx + i * w * 0.075; for (let j = 0; j < y + h - hy; j++) { const t = j / (y + h - hy); px(x0 + (x1 - x0) * t, hy + j, mix(col(0), col(13), 0.45)); } }
+  rect(x, hy + 1, w, 2, mix(col(0), col(13), 0.6)); }
 function drawModal() {
   const w = Math.min(SW - 40, CW * 64), h = CH * 17, x = (SW - w) >> 1, y = (SH - h) >> 1;
   rect(0, 0, SW, SH, mix(col(0), [0, 0, 0], 0.6)); for (let j = 0; j < SH; j += 3) rect(0, j, SW, 1, [0, 0, 0]);
@@ -179,7 +199,7 @@ function flush() {
   else { out = Buffer.alloc(G.stride * SH); for (let y = 0; y < SH; y++) for (let x = 0; x < SW; x++) { const o = (y * SW + x) * 4, v = ((fbuf[o + 2] >> 3) << 11) | ((fbuf[o + 1] >> 2) << 5) | (fbuf[o] >> 3); out.writeUInt16LE(v, y * G.stride + x * 2); } }
   try { if (fd === null) fd = fs.openSync(FBP, process.env.BUTTER_FB ? "w" : "r+"); fs.writeSync(fd, out, 0, out.length, 0); } catch (e) {}
 }
-if (DEMO) { demo(); if (process.env.BUTTER_DEMO_MODAL) { ver = { java: ["1.21.4", "1.21.1", "1.20.4", "1.16.5", "1.8.9"], bedrock: ["LATEST", "PREVIEW"] }; openNew(); modal.f = 3; } draw(); flush(); process.exit(0); }
+if (DEMO) { demo(); if (process.env.BUTTER_EMPTY) D.servers = []; if (process.env.BUTTER_DEMO_MODAL) { ver = { java: ["1.21.4", "1.21.1", "1.20.4", "1.16.5", "1.8.9"], bedrock: ["LATEST", "PREVIEW"] }; openNew(); modal.f = 3; } draw(); flush(); process.exit(0); }
 process.on("exit", () => { try { fs.writeSync(1, "\x1b[?25h\x1b[2J"); } catch (e) {} });
 process.on("SIGTERM", () => process.exit(0));
 local(); agent(); startInput(); draw(); flush();

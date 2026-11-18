@@ -27,7 +27,8 @@ install -m 755 -o build "$SRC/os/build/genapkovl-butteros.sh" "$S/genapkovl-butt
 apk update >/dev/null 2>&1 || apk update
 OPT=""
 for p in linux-firmware-rtl_nic linux-firmware-i915 linux-firmware-amdgpu linux-firmware-radeon linux-firmware-nvidia linux-firmware-intel \
-         docker docker-openrc nodejs dialog e2fsprogs exfatprogs dosfstools util-linux lsblk chrony ethtool pciutils usbutils parted rsync terminus-font busybox-extras jq curl iptables ip6tables; do
+         docker docker-openrc nodejs dialog e2fsprogs exfatprogs dosfstools util-linux lsblk chrony ethtool pciutils usbutils parted rsync terminus-font busybox-extras jq curl iptables ip6tables \
+         wpa_supplicant iw wireless-regdb wireless-tools rfkill linux-firmware-rtlwifi linux-firmware-rtl_bt linux-firmware-rtw88 linux-firmware-rtw89 linux-firmware-mediatek linux-firmware-ath9k_htc linux-firmware-ath10k linux-firmware-ath11k linux-firmware-iwlwifi linux-firmware-brcm linux-firmware-other; do
   if [ -n "$(apk search -e "$p" 2>/dev/null)" ]; then OPT="$OPT $p"; else echo "   (skipping $p: not in this release)"; fi
 done
 # cloudflared (free quick tunnel for failover) is not packaged for Alpine 3.22: fetch the official static binary
@@ -36,6 +37,14 @@ if curl -fsSL -o /home/build/cloudflared https://github.com/cloudflare/cloudflar
 # bore (free TCP relay client for "butter play" join links)
 BU=$(curl -fsSL https://api.github.com/repos/ekzhang/bore/releases/latest | grep -o 'https://[^"]*x86_64-unknown-linux-musl.tar.gz' | head -1)
 if [ -n "$BU" ] && curl -fsSL -o /tmp/bore.tgz "$BU" && tar -xzf /tmp/bore.tgz -C /home/build bore 2>/dev/null && [ -s /home/build/bore ]; then chmod 755 /home/build/bore; chown build /home/build/bore; echo "   bore downloaded"; else echo "   (no bore: butter play will be local network only)"; fi
+# Out-of-tree RTL8188EU driver (the Alpine kernel has none). Best effort: a failure here only means that one adapter family is missing.
+echo "== rtl8188eu driver (best effort)"
+( set +e; apk add --no-cache linux-lts-dev build-base git >/dev/null 2>&1
+  KV=$(ls /lib/modules | head -1); KS=$(ls -d /usr/src/linux-headers-* 2>/dev/null | head -1)
+  rm -rf /tmp/r8188 && git clone --depth=1 https://github.com/aircrack-ng/rtl8188eus.git /tmp/r8188 >/dev/null 2>&1 \
+   && cd /tmp/r8188 && make -j"$(nproc)" KVER="$KV" KSRC="$KS" >/tmp/r8188.log 2>&1 && ls /tmp/r8188/*.ko \
+   && cp /tmp/r8188/8188eu.ko /home/build/8188eu.ko && chown build /home/build/8188eu.ko && echo "   8188eu.ko built for $KV" \
+   || { echo "   (8188eu driver did not build; log tail:)"; tail -5 /tmp/r8188.log 2>/dev/null; } ) || true
 echo "$OPT" > /home/build/butter-apks.txt; chown build /home/build/butter-apks.txt
 
 echo "== initramfs: boot from an ISO file on an existing disk (dual-boot)"

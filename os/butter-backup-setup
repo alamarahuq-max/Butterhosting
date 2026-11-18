@@ -1,0 +1,11 @@
+#!/bin/sh
+# Advanced, not in the menu: make this machine a failover backup node for a self-hosted ButterHosting site.
+ENVF=/etc/butterhosting.env
+ask() { cur=$(grep "^$1=" "$ENVF" 2>/dev/null | cut -d= -f2-); val=$(dialog --stdout --inputbox "$2" 9 66 "$cur") || return 1
+  touch "$ENVF"; chmod 600 "$ENVF"; grep -v "^$1=" "$ENVF" > "$ENVF.tmp"; echo "$1=$val" >> "$ENVF.tmp"; mv "$ENVF.tmp" "$ENVF"; }
+dialog --yesno "This machine can run the site's servers when the main server (Codespace) is asleep, then hand everything back. You need: the private GitHub repo name, a GitHub token for it (contents: read+write) and the SAME session secret the main server uses. Continue?" 12 66 && \
+   ask REGISTRY_REPO "owner/repo (private)" && ask REGISTRY_TOKEN "GitHub token (contents read+write)" && ask SESSION_SECRET "Same SESSION_SECRET as the Codespace" && {
+     grep -v "^BUTTER_ROLE=" "$ENVF" > "$ENVF.tmp"; echo BUTTER_ROLE=device >> "$ENVF.tmp"; mv "$ENVF.tmp" "$ENVF"
+     rc-service butterhosting restart >/dev/null 2>&1; rc-service butterfailover restart >/dev/null 2>&1
+     dialog --msgbox "Backup mode is on. This machine waits quietly and takes over only if the main server stops answering." 8 60; }
+

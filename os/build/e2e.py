@@ -119,7 +119,7 @@ def raknet_ping(port=19132):
 
 def main():
     extra = _X
-    if os.environ.get('ONLY_DUALBOOT'): dualboot(ISO); flush_results(); return
+    if os.environ.get('ONLY_DUALBOOT'): dualboot(ISO); usbboot(ISO); flush_results(); return
     vm = VM("live", ["-cdrom", ISO, "-boot", "d", "-drive", "file=/tmp/target.img,if=virtio,format=raw"])
     try:
         ok = vm.boot_to_shell()
@@ -149,6 +149,18 @@ def main():
         except Exception as e: check("Local web page serves the UI", False, e)
         rss = st.get("web_rss_mb", 99); check("Web agent RSS under 30 MB", rss is not None and 0 < rss < 30, "%s MB" % rss)
         check("Status reports engine ok and capacity advice", st.get("engine") == "ok" and "capacity" in st, st.get("engine"))
+        # versions, GUI, Wi-Fi
+        vj = api("a=versions", timeout=60); check("Version list API: Java releases and Bedrock choices", vj.get("ok") and len(vj.get("java", [])) > 20 and "LATEST" in vj.get("bedrock", []), "%d java versions, online=%s" % (len(vj.get("java", [])), vj.get("online")))
+        check("Old Java versions are offered (1.8.9, 1.12.2, 1.16.5)", all(v in vj.get("java", []) for v in ("1.8.9", "1.12.2", "1.16.5")), "")
+        c, o = vm.sh("ls /usr/local/lib/butter/; ls /usr/share/consolefonts | grep -c ter-v; BUTTER_DEMO=1 BUTTER_FB=/tmp/gui.raw BUTTER_FBSIZE=1024x768 node /usr/local/lib/butter/gui.js; echo gui_rc=$?; ls -l /tmp/gui.raw | awk '{print $5}'", 60)
+        check("On-device GUI renders a 1024x768 frame (retro HUD)", "gui_rc=0" in o and "3145728" in o, o.replace("\n", " ")[-200:])
+        c, o = vm.sh("BUTTER_DEMO=1 BUTTER_SNAPSHOT=ansi COLS=100 ROWS=32 node /usr/local/lib/butter/tui.js | head -3 | wc -l", 30); check("Text HUD fallback renders", o.strip().endswith("3"), o.strip()[-80:])
+        c, o = vm.sh("which iw wpa_supplicant butter-wifi rfkill; ls -l /usr/lib/butter/ 2>&1; ls /lib/firmware/rtlwifi 2>/dev/null | head -3; ls /lib/firmware/rtlwifi/rtl8188eufw.bin* 2>&1; modinfo rtl8xxxu rtw88_core mt7601u 2>&1 | grep -c filename", 30)
+        check("Wi-Fi tools and firmware are in the image (iw, wpa_supplicant, butter-wifi, Realtek firmware)", all(x in o for x in ("/iw", "wpa_supplicant", "butter-wifi")) and "rtl8188eufw" in o, o.replace("\n", " ")[-400:])
+        c, o = vm.sh("test -f /usr/lib/butter/8188eu.ko && echo HAVE_8188EU; modinfo /usr/lib/butter/8188eu.ko 2>&1 | head -2", 30)
+        check("RTL8188EU out-of-tree driver module is shipped", "HAVE_8188EU" in o, o.replace("\n", " ")[-200:])
+        c, o = vm.sh("modprobe mac80211_hwsim radios=1 2>&1; sleep 2; iw dev 2>&1 | head -4", 40)
+        check("Wi-Fi stack works (virtual radio shows up in iw)", "Interface" in o, o.replace("\n", " ")[-200:])
         # Java server
         r = api("a=create&n=test-java&type=java&mem=1024&share=internet", timeout=900) if st.get("ok") else {"ok": False, "error": "skipped, web page is down"}; check("Create Java server via web API", r.get("ok"), r)
         lg = ""
@@ -174,6 +186,18 @@ def main():
         if up: subprocess.run(["node", os.path.join(os.path.dirname(os.path.abspath(__file__)), "webshots.js"), OUT, "live"], capture_output=True, text=True)
         st = api("a=status"); extra.append("Status after Java:\n```\n" + json.dumps({k: st.get(k) for k in ("mem", "web_rss_mb", "capacity")}) + "\n```")
         check("Delete the Java server (frees RAM)", api("a=delete&n=test-java").get("ok")); time.sleep(8)
+        # an old Java version (Vanilla 1.16.5 needs Java 8)
+        r = api("a=create&n=old-java&type=java&mem=1024&ver=1.16.5&flavor=vanilla", timeout=900); check("Create Vanilla 1.16.5 server (old Java version)", r.get("ok"), r)
+        up = False
+        for i in range(90):
+            lg = api("a=logs&n=old-java").get("logs", "")
+            if re.search(r"Done \(", lg): up = True; break
+        check("Vanilla 1.16.5 finished starting", up, lg[-300:])
+        if up:
+            try: p = mc_ping(); check("Vanilla 1.16.5 answers a real status ping and reports 1.16.5", p and "1.16.5" in json.dumps(p), json.dumps(p)[:160])
+            except Exception as e: check("Vanilla 1.16.5 answers a real status ping and reports 1.16.5", False, e)
+        sv = {x["name"]: x for x in api("a=status").get("servers", [])}; check("Status shows the chosen flavor and version", sv.get("old-java", {}).get("version") == "1.16.5" and sv.get("old-java", {}).get("flavor") == "vanilla", json.dumps(sv.get("old-java")))
+        api("a=delete&n=old-java"); time.sleep(8)
         # Bedrock x2 (what a 4 GB machine is meant to hold)
         for nm in ("test-bed", "test-bed2"):
             r = api("a=create&n=%s&type=bedrock" % nm, timeout=900); check("Create Bedrock server %s via web API" % nm, r.get("ok"), r)
@@ -257,7 +281,7 @@ def main():
             vm2.shot("installed-boot")
     finally:
         vm2.kill()
-    dualboot(ISO)
+    dualboot(ISO); usbboot(ISO)
     flush_results("\n".join(extra))
 
 def sudo(cmd, timeout=600):
@@ -312,6 +336,18 @@ def dualboot(iso):
             check("DualBoot B: NTFS read, ISO loop-mounted, web agent answers", "butter_iso=" in o and '"ok":true' in o.replace(" ", ""), o.replace("\n", " ")[-300:]); vmB.shot("dualboot-B")
         else: _X.append("DualBoot B boot log tail:\n```\n" + vmB.buf.decode(errors="ignore")[-1500:] + "\n```")
     finally: vmB.kill()
+
+def usbboot(iso):
+    """EtchDroid writes the ISO byte for byte to a USB stick: boot it as a USB mass-storage disk in BIOS and UEFI."""
+    c, o = subprocess.getstatusoutput("file -s %s | head -c 300; xxd -s 510 -l 2 -p %s" % (iso, iso)); check("ISO is a hybrid image (MBR boot signature 55aa, so it works written raw to a USB stick)", o.strip().endswith("55aa"), o.replace("\n", " ")[-200:])
+    usb = ["-drive", "if=none,id=u,file=%s,format=raw,readonly=on" % iso, "-device", "qemu-xhci", "-device", "usb-storage,drive=u,bootindex=1"]
+    for nm, extra, off in (("usbBIOS", [], 40), ("usbUEFI", ["-drive", "if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd"], 50)):
+        v = VM(nm, extra + usb, port_off=off)
+        try:
+            ok = v.boot_to_shell(first_enter=True, timeout=360); v.shot(nm + "-end")
+            c, o = v.sh("mount | grep -E '^(tmpfs|rootfs|none) on / ' | head -1; cat /proc/cmdline | cut -c1-120; ls /dev/sd* 2>/dev/null | head -2") if ok else (1, "")
+            check("USB stick boot (%s): ButterOS starts from the raw ISO on a USB disk" % nm[3:], ok, v.buf.decode(errors="ignore")[-400:] if not ok else o.replace("\n", " "))
+        finally: v.kill()
 
 REPO = os.environ.get('GITHUB_WORKSPACE', os.getcwd())
 import traceback

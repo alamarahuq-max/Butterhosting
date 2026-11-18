@@ -17,6 +17,14 @@ $(cat "${BUTTER_APKS_FILE:-/dev/null}" 2>/dev/null | tr ' ' '\n' | sed '/^$/d')
 W
 # our files
 install -m 755 "$SRC/os/butter-tui"            "$tmp/usr/local/bin/butter-tui"
+install -m 755 "$SRC/os/butter-tui-lite"       "$tmp/usr/local/bin/butter-tui-lite"
+install -m 755 "$SRC/os/butter-backup-setup"   "$tmp/usr/local/bin/butter-backup-setup"
+install -m 755 "$SRC/os/butter-wifi"           "$tmp/usr/local/bin/butter-wifi"
+install -m 755 "$SRC/os/butterwifi.initd"      "$tmp/etc/init.d/butterwifi"
+mkdir -p "$tmp/usr/local/lib/butter" "$tmp/usr/lib/butter"
+install -m 644 "$SRC/os/tui/tui.js" "$SRC/os/tui/gui.js" "$SRC/os/tui/data.js" "$tmp/usr/local/lib/butter/"
+install -m 755 "$SRC/os/wifi-load" "$tmp/usr/lib/butter/load-wifi"
+[ -f /home/build/8188eu.ko ] && install -m 644 /home/build/8188eu.ko "$tmp/usr/lib/butter/8188eu.ko"
 install -m 755 "$SRC/os/ramsync"               "$tmp/usr/local/bin/ramsync"
 install -m 755 "$SRC/os/butterhosting.initd"   "$tmp/etc/init.d/butterhosting"
 install -m 755 "$SRC/os/butterramsync.initd"   "$tmp/etc/init.d/butterramsync"
@@ -31,7 +39,7 @@ install -m 755 "$SRC/os/butter-install"        "$tmp/usr/local/bin/butter-instal
 install -m 644 "$SRC/os/butter.dialogrc" "$tmp/etc/butter.dialogrc"
 install -m 755 "$SRC/os/serial-getty"          "$tmp/usr/local/bin/serial-getty"
 mkdir -p "$tmp/opt/butterweb"; cp -r "$SRC/os/web"/. "$tmp/opt/butterweb/"; chmod +x "$tmp/opt/butterweb/cgi-bin/api"
-printf 'overlay\nbr_netfilter\nveth\nnf_conntrack\nnf_nat\nxt_MASQUERADE\nxt_conntrack\niptable_nat\niptable_filter\n' > "$tmp/etc/modules"
+printf 'overlay\nbr_netfilter\nveth\nnf_conntrack\nnf_nat\nxt_MASQUERADE\nxt_conntrack\niptable_nat\niptable_filter\nmousedev\nusbhid\nhid_generic\npsmouse\nevdev\ncfg80211\n' > "$tmp/etc/modules"
 mkdir -p "$tmp/opt/butterhosting/hosting-api" && cp -r "$SRC/hosting-api"/. "$tmp/opt/butterhosting/hosting-api/"
 rm -rf "$tmp/opt/butterhosting/hosting-api/data" "$tmp/opt/butterhosting/data" 2>/dev/null || true
 # settings file (empty values; filled in from the console menu)
@@ -49,7 +57,7 @@ ttyS0::respawn:/usr/local/bin/serial-getty
 ::shutdown:/sbin/openrc shutdown
 I
 for s in devfs dmesg mdev hwdrivers modloop; do rc_add $s sysinit; done
-for s in cgroups modules sysctl hostname bootmisc networking syslog chronyd butterpersist butterramsync; do rc_add $s boot; done
+for s in cgroups modules sysctl hostname bootmisc butterwifi networking syslog chronyd butterpersist butterramsync; do rc_add $s boot; done
 for s in docker butterhosting butterfailover butterweb acpid; do rc_add $s default; done
 for s in mount-ro killprocs savecache; do rc_add $s shutdown; done
 tar -c -C "$tmp" . | gzip -9n > "$HOSTNAME.apkovl.tar.gz"

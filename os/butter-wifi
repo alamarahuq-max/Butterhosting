@@ -1,0 +1,32 @@
+#!/bin/sh
+# ButterOS Wi-Fi: scan, pick a network, type the password, connect. Works with any adapter the kernel has a driver for.
+command -v iw >/dev/null 2>&1 || { echo "Wi-Fi tools are not in this build."; sleep 3; exit 1; }
+export DIALOGRC=/etc/butter.dialogrc
+modprobe cfg80211 2>/dev/null; [ -x /usr/lib/butter/load-wifi ] && /usr/lib/butter/load-wifi
+IF=$(ls /sys/class/net 2>/dev/null | while read n; do [ -d /sys/class/net/$n/wireless ] || [ -d /sys/class/net/$n/phy80211 ] && echo $n; done | head -1)
+if [ -z "$IF" ]; then
+  dialog --msgbox "No Wi-Fi adapter found.\n\nPlug in a USB Wi-Fi adapter (RTL8188EU, RTL8812/8821, MT7601/7612, Atheros AR9271 and most laptop cards work), wait 5 seconds, then try again.\n\nA network cable works with no setup." 14 64; exit 1
+fi
+ip link set "$IF" up 2>/dev/null; rfkill unblock all 2>/dev/null
+dialog --infobox "Scanning for networks on $IF ..." 4 44
+iw dev "$IF" scan 2>/dev/null > /tmp/scan.txt; sleep 1; [ -s /tmp/scan.txt ] || { iw dev "$IF" scan 2>/dev/null > /tmp/scan.txt; }
+awk '/^BSS /{if(s!="")print sig"\t"s; s=""; sig=-100} /signal:/{sig=$2} /SSID:/{sub(/^[ \t]*SSID: /,""); s=$0} END{if(s!="")print sig"\t"s}' /tmp/scan.txt | sort -rn | awk -F'\t' '$2!=""&&!seen[$2]++{printf "%s\n%s dBm\n",$2,$1}' > /tmp/nets.txt
+[ -s /tmp/nets.txt ] || { dialog --msgbox "No networks found. Move closer to the router and try again." 7 56; exit 1; }
+set --; while IFS= read -r a && IFS= read -r b; do set -- "$@" "$a" "$b"; done < /tmp/nets.txt
+SSID=$(dialog --stdout --menu "Pick your Wi-Fi network" 20 64 12 "$@") || exit 0
+PASS=$(dialog --stdout --insecure --passwordbox "Password for $SSID (empty if it is open)" 9 64) || exit 0
+mkdir -p /etc/wpa_supplicant
+if [ -n "$PASS" ]; then printf 'ctrl_interface=/run/wpa_supplicant\nupdate_config=1\n' > /etc/wpa_supplicant/wpa_supplicant.conf; wpa_passphrase "$SSID" "$PASS" | grep -v '#psk' >> /etc/wpa_supplicant/wpa_supplicant.conf
+else printf 'network={\n ssid="%s"\n key_mgmt=NONE\n}\n' "$SSID" > /etc/wpa_supplicant/wpa_supplicant.conf; fi
+chmod 600 /etc/wpa_supplicant/wpa_supplicant.conf
+pkill wpa_supplicant 2>/dev/null; pkill -f "udhcpc.*$IF" 2>/dev/null
+dialog --infobox "Connecting to $SSID ..." 4 44
+wpa_supplicant -B -i "$IF" -c /etc/wpa_supplicant/wpa_supplicant.conf >/dev/null 2>&1
+i=0; while [ $i -lt 20 ]; do iw dev "$IF" link 2>/dev/null | grep -q Connected && break; sleep 1; i=$((i+1)); done
+udhcpc -i "$IF" -q -n -t 6 >/dev/null 2>&1
+IP=$(ip -4 -o addr show dev "$IF" 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
+if [ -n "$IP" ]; then
+  # keep it on after the next boot of this session: written into the live overlay settings
+  mkdir -p /etc/network; grep -q "iface $IF" /etc/network/interfaces 2>/dev/null || printf '\nauto %s\niface %s inet dhcp\n' "$IF" "$IF" >> /etc/network/interfaces
+  dialog --msgbox "Connected to $SSID.\n\nThis machine: $IP\nOpen http://$IP on your phone." 9 56
+else dialog --msgbox "Could not connect. Check the password and try again." 7 56; exit 1; fi

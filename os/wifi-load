@@ -1,0 +1,10 @@
+#!/bin/sh
+# Loads the out-of-tree RTL8188EU driver when such an adapter is plugged in and the kernel has no driver for it.
+modprobe cfg80211 2>/dev/null
+K=/usr/lib/butter/8188eu.ko; [ -f "$K" ] || exit 0
+grep -q '^8188eu ' /proc/modules 2>/dev/null && exit 0
+for d in /sys/bus/usb/devices/*; do
+  [ -f "$d/idVendor" ] || continue; id="$(cat $d/idVendor):$(cat $d/idProduct)"
+  case "$id" in 0bda:8179|0bda:0179|0bda:ffef|2001:3308|2001:330f|056e:4008|07b8:8179|2357:010c|0df6:0076|0b05:18f0|7392:b811) insmod "$K" 2>/dev/null; exit 0;; esac
+done
+exit 0

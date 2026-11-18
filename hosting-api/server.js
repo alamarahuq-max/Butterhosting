@@ -86,6 +86,10 @@ const vname = (id) => `bh-${id}-data`;
 const WORLD_DIR = env.WORLD_DIR || "";
 const volSrc = (id) => { if (!WORLD_DIR) return vname(id); const d = path.join(WORLD_DIR, id); fs.mkdirSync(d, { recursive: true }); return d; };
 
+/** Free space (GB) on the disk that holds Docker and the worlds. The Codespace disk is small; a full disk is the usual cause of "Docker error". */
+function diskFreeGb() { try { const f = fs.statfsSync(WORLD_DIR || DATA_DIR || "/"); return Math.round((f.bavail * f.bsize) / 1073741824 * 10) / 10; } catch { return null; } }
+const MIN_FREE_GB = Number(env.MIN_FREE_GB || 3);
+
 let snapCache = { at: 0, p: null };
 const invalidate = () => { snapCache = { at: 0, p: null }; };
 /** One docker ps + one docker stats call per few seconds, shared by all requests. */
@@ -339,7 +343,7 @@ async function handle(req, res) {
   if (parts.length === 1 && m === "GET") {
     const snap = await snapshot();
     const servers = await Promise.all(mine.sort((a, b) => a.createdAt - b.createdAt).map((s) => view(s, snap)));
-    return json(req, res, 200, { servers, maxRam: MAX_RAM_GB, maxUploadMb: MAX_UPLOAD / 1048576, dockerOk: snap.__ok !== false, dockerError: snap.__err || null });
+    return json(req, res, 200, { servers, maxRam: MAX_RAM_GB, maxUploadMb: MAX_UPLOAD / 1048576, dockerOk: snap.__ok !== false, dockerError: snap.__err || null, diskFreeGb: diskFreeGb(), diskLow: (diskFreeGb() ?? 99) < MIN_FREE_GB });
   }
 
   if (parts.length === 1 && m === "POST") {
@@ -352,6 +356,7 @@ async function handle(req, res) {
     if (mine.some((s) => s.name === name)) return json(req, res, 409, { error: "You already have a server with that name" });
     if (!ADMINS.has(user.id) && mine.length >= MAX_SERVERS) return json(req, res, 403, { error: `Plan limit reached (${MAX_SERVERS} servers)` });
     if (Date.now() - (lastCreate[user.id] || 0) < 5000) return json(req, res, 429, { error: "Slow down a little" });
+    const free = diskFreeGb(); if (free != null && free < MIN_FREE_GB) return json(req, res, 507, { error: `The host disk is almost full (${free} GB free). Free some space on the Codespace, then try again.` });
     const port = freePort();
     if (!port) return json(req, res, 503, { error: "No free ports on this host" });
     lastCreate[user.id] = Date.now();

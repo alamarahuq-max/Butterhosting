@@ -27,6 +27,7 @@ share() { # $1 name, $2 port (TCP): free internet join link through bore.pub
   nohup bore local "$2" --to bore.pub >"/run/butter-bore-$1.log" 2>&1 </dev/null &
   for i in $(seq 1 25); do sleep 1; a=$(grep -o 'bore.pub:[0-9]*' "/run/butter-bore-$1.log" | head -1); [ -n "$a" ] && { echo "$a" > "/run/butter-join-$1"; echo "$a"; return 0; }; done; return 1; }
 sport() { docker inspect -f '{{range $p,$c := .NetworkSettings.Ports}}{{range $c}}{{.HostPort}}{{end}}{{end}}' "$(cname "$1")" 2>/dev/null; }
+pdir() { case "$(docker inspect -f '{{index .Config.Labels "butterflavor"}}' "$(cname "$N")" 2>/dev/null)" in fabric|forge) echo mods;; *) echo plugins;; esac; }
 isjava() { docker inspect -f '{{.Config.Image}}' "$(cname "$1")" 2>/dev/null | grep -q minecraft-server; }
 A=$(q a); N=$(q n)
 [ "$A" = ping ] && { out '{ok:true}'; exit 0; }
@@ -34,15 +35,15 @@ case "$A" in
 status|"")
   TOTAL=$(mb MemTotal); AVAIL=$(mb MemAvailable)
   STATS=$(docker stats --no-stream --format '{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}' 2>/dev/null | awk -F'|' '{split($3,a," / "); v=a[1]; n=v+0; if(v~/GiB/)n=n*1024; else if(v~/KiB/)n=n/1024; else if(v~/MiB/)n=n; else if(v~/B/)n=n/1048576; printf "%s|%s|%d\n",$1,$2,n}')
-  SRV=$(docker ps -a --filter label=butterhosting=1 --format '{{.Names}}|{{.State}}|{{.Image}}|{{.Ports}}' 2>/dev/null | while IFS='|' read -r nm st im po; do
+  SRV=$(docker ps -a --filter label=butterhosting=1 --format '{{.Names}}|{{.State}}|{{.Image}}|{{.Ports}}|{{.Label "butterflavor"}}|{{.Label "butterver"}}' 2>/dev/null | while IFS='|' read -r nm st im po fl vr; do
       ty=java; echo "$im" | grep -q bedrock && ty=bedrock
       ram=0; cpu=0; r=$(echo "$STATS" | grep "^$nm|"); [ -n "$r" ] && { ram=$(echo "$r" | cut -d'|' -f3); cpu=$(echo "$r" | cut -d'|' -f2 | tr -d '%'); }
       pl=null
       if [ "$st" = running ] && [ $ty = java ]; then x=$(timeout 3 docker exec "$nm" rcon-cli list 2>/dev/null | sed -n 's/.*There are \([0-9]*\) of a max.*/\1/p'); [ -n "$x" ] && pl=$x; fi
       port=$(echo "$po" | sed -n 's/.*:\([0-9]*\)->.*/\1/p' | head -1)
       jn=""; [ -f "/run/butter-join-${nm#bw-}" ] && jn=$(cat "/run/butter-join-${nm#bw-}")
-      jq -nc --arg n "${nm#bw-}" --arg c "$nm" --arg s "$st" --arg t "$ty" --argjson r "${ram:-0}" --arg cpu "${cpu:-0}" --argjson p "$pl" --arg port "$port" --arg join "$jn" \
-        '{join:(if $join=="" then null else $join end),name:$n,container:$c,state:$s,type:$t,ram:$r,cpu:($cpu|tonumber? // 0),players:$p,port:($port|tonumber? // null)}'
+      jq -nc --arg n "${nm#bw-}" --arg c "$nm" --arg s "$st" --arg t "$ty" --argjson r "${ram:-0}" --arg cpu "${cpu:-0}" --argjson p "$pl" --arg port "$port" --arg join "$jn" --arg fl "$fl" --arg vr "$vr" \
+        '{flavor:$fl,version:$vr,join:(if $join=="" then null else $join end),name:$n,container:$c,state:$s,type:$t,ram:$r,cpu:($cpu|tonumber? // 0),players:$p,port:($port|tonumber? // null)}'
     done | jq -sc .)
   [ -n "$SRV" ] || SRV='[]'
   SUM=$(echo "$SRV" | jq '[.[].ram]|add // 0')
@@ -50,19 +51,32 @@ status|"")
   OS=$((TOTAL-AVAIL-SUM)); [ $OS -lt 0 ] && OS=0
   WPID=""; for pd in /proc/[0-9]*; do case "$(tr '\0' ' ' < $pd/cmdline 2>/dev/null)" in *httpd\ -f*) WPID=${pd#/proc/}; break;; esac; done; WRSS=0
   [ -n "$WPID" ] && WRSS=$(awk '/VmRSS/{printf "%.1f",$2/1024}' /proc/$WPID/status 2>/dev/null); WRSS=${WRSS:-0}
-  TEMP=$(cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | head -1); [ -n "$TEMP" ] && TEMP=$((TEMP/1000)) || TEMP=null
+  TEMPS=$( { for z in /sys/class/thermal/thermal_zone*; do [ -f "$z/temp" ] && echo "$(cat $z/type 2>/dev/null)|$(cat $z/temp 2>/dev/null)"; done
+    for h in /sys/class/hwmon/hwmon*; do n=$(cat $h/name 2>/dev/null); for t in $h/temp*_input; do [ -f "$t" ] && { l=$(cat "${t%_input}_label" 2>/dev/null); echo "$n $l|$(cat $t 2>/dev/null)"; }; done; done; } \
+    | jq -Rsc 'split("\n")|map(select(length>0)|split("|")|select(.[1]|tonumber? != null)|{label:(.[0]|sub(" +$";"")),c:((.[1]|tonumber)/1000)})|map(select(.c>0 and .c<130))')
+  [ -n "$TEMPS" ] || TEMPS='[]'
+  TEMP=$(echo "$TEMPS" | jq '[.[].c]|max // null')
+  CPUT=$(awk '/^cpu /{t=0;for(i=2;i<=NF;i++)t+=$i; print t; exit}' /proc/stat); CPUI=$(awk '/^cpu /{print $5+$6; exit}' /proc/stat)
+  NET=$(awk 'NR>2 && $1!="lo:"{rx+=$2;tx+=$10} END{printf "%d %d",rx+0,tx+0}' /proc/net/dev); RX=${NET% *}; TX=${NET#* }
+  WIFI=$(ls /sys/class/net 2>/dev/null | grep -c '^wl')
   IP=$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)
   BK=$(ls -d /media/butter/butter-backup 2>/dev/null); LAST=null
   [ -f /media/butter/butter-backup/.last ] && LAST=$(cat /media/butter/butter-backup/.last)
   out --argjson total "$TOTAL" --argjson avail "$AVAIL" --argjson os "$OS" --argjson srvmb "$SUM" --argjson worlds "$WORLDS_MB" --argjson web "$WRSS" \
-      --argjson servers "$SRV" --arg ip "$IP" --argjson temp "$TEMP" --arg up "$(cut -d' ' -f1 /proc/uptime)" --arg load "$(cut -d' ' -f1-3 /proc/loadavg)" \
+      --argjson servers "$SRV" --arg ip "$IP" --argjson temp "$TEMP" --argjson temps "$TEMPS" --argjson cput "$CPUT" --argjson cpui "$CPUI" --argjson rx "$RX" --argjson tx "$TX" --argjson wifi "$WIFI" --arg up "$(cut -d' ' -f1 /proc/uptime)" --arg load "$(cut -d' ' -f1-3 /proc/loadavg)" \
       --arg kernel "$(uname -r)" --argjson cores "$(nproc)" --argjson persist "$(persist)" --argjson max "$(maxsrv)" \
       --argjson jn "$JAVA_NEED" --argjson bn "$BED_NEED" --argjson keep "$KEEP" --arg last "$LAST" --arg engine "$(ENG && echo ok || echo down)" \
-      '{ok:true,mem:{total:$total,avail:$avail,os:$os,servers:$srvmb,worlds:$worlds},web_rss_mb:$web,limit_web_mb:30,servers:$servers,ip:$ip,temp:$temp,uptime:($up|tonumber),load:$load,
+      '{ok:true,mem:{total:$total,avail:$avail,os:$os,servers:$srvmb,worlds:$worlds},web_rss_mb:$web,limit_web_mb:30,temps:$temps,cpu_total:$cput,cpu_idle:$cpui,net_rx:$rx,net_tx:$tx,wifi_adapters:$wifi,servers:$servers,ip:$ip,temp:$temp,uptime:($up|tonumber),load:$load,
         kernel:$kernel,cores:$cores,persist:$persist,max_servers:$max,engine:$engine,
         capacity:{java_need:$jn,bedrock_need:$bn,keep_free:$keep,java_fits:(($avail-$jn)>=$keep),bedrock_fits:(($avail-$bn)>=$keep),estimate:true},
         backup:{usb:$persist,last:(if $last=="null" then null else $last end)}}'
   ;;
+versions)
+  C=/run/butter-versions.json
+  if [ ! -s "$C" ] || [ $(( $(date +%s) - $(date -r "$C" +%s 2>/dev/null || echo 0) )) -gt 21600 ]; then
+    wget -q -T 15 -O /tmp/vm.json https://piston-meta.mojang.com/mc/game/version_manifest_v2.json 2>/dev/null && jq -c '{latest:.latest.release,java:[.versions[]|select(.type=="release")|.id]}' /tmp/vm.json > "$C.new" 2>/dev/null && [ -s "$C.new" ] && mv "$C.new" "$C"; rm -f /tmp/vm.json "$C.new"
+  fi
+  if [ -s "$C" ]; then jq -c '. + {ok:true,online:true,bedrock:["LATEST","PREVIEW"]}' "$C"; else out '{ok:true,online:false,latest:"LATEST",java:["LATEST"],bedrock:["LATEST","PREVIEW"]}'; fi ;;
 logs)
   valid "$N" || fail "bad name"; exists "$N" || fail "no such server"
   docker logs --tail 80 "$(cname "$N")" 2>&1 | tr -d '\033' | sed 's/\[[0-9;]*m//g' | jq -Rsc '{ok:true,logs:.}' ;;
@@ -87,40 +101,54 @@ kick|op|ban)
   timeout 8 docker exec "$(cname "$N")" rcon-cli "$A" "$P" >/dev/null 2>&1 && out '{ok:true}' || fail "$A failed (is the server running?)" ;;
 plugin)
   valid "$N" || fail "bad name"; exists "$N" || fail "no such server"; isjava "$N" || fail "Plugins work on Java (Paper) servers"
-  U=$(urlq url)
+  U=$(urlq url); PD=$(pdir)
   case "$U" in https://cdn.modrinth.com/*.jar|https://hangarcdn.papermc.io/*.jar|https://github.com/*.jar|https://objects.githubusercontent.com/*) ;; *) fail "Use a direct .jar link from Modrinth, Hangar or GitHub";; esac
   F=$(basename "${U%%\?*}" | tr -cd 'A-Za-z0-9._-'); [ -n "$F" ] || fail "bad file name"
-  mkdir -p "$WORLDS/$N/plugins" && wget -q -O "$WORLDS/$N/plugins/$F" "$U" && [ -s "$WORLDS/$N/plugins/$F" ] || { rm -f "$WORLDS/$N/plugins/$F"; fail "download failed"; }
+  mkdir -p "$WORLDS/$N/$PD" && wget -q -O "$WORLDS/$N/$PD/$F" "$U" && [ -s "$WORLDS/$N/$PD/$F" ] || { rm -f "$WORLDS/$N/$PD/$F"; fail "download failed"; }
   docker restart "$(cname "$N")" >/dev/null 2>&1; out --arg f "$F" '{ok:true,file:$f}' ;;
 plugins)
-  valid "$N" || fail "bad name"; ls "$WORLDS/$N/plugins" 2>/dev/null | grep '\.jar$' | jq -Rsc 'split("\n")|map(select(length>0))|{ok:true,plugins:.}' ;;
+  valid "$N" || fail "bad name"; PD=$(pdir); ls "$WORLDS/$N/$PD" 2>/dev/null | grep '\.jar$' | jq -Rsc 'split("\n")|map(select(length>0))|{ok:true,plugins:.}' ;;
 rmplugin)
-  valid "$N" || fail "bad name"; F=$(q f); [ -n "$F" ] && rm -f "$WORLDS/$N/plugins/$F" && out '{ok:true}' || fail "not found" ;;
+  valid "$N" || fail "bad name"; PD=$(pdir); F=$(q f); [ -n "$F" ] && rm -f "$WORLDS/$N/$PD/$F" && out '{ok:true}' || fail "not found" ;;
 share)
   valid "$N" || fail "bad name"; exists "$N" || fail "no such server"; isjava "$N" || fail "The free link carries Java servers (Bedrock is local network only)"
   r=$(share "$N" "$(sport "$N")") && out --arg a "$r" '{ok:true,join:$a}' || fail "Could not open the internet link (is this machine online?)" ;;
 unshare)
   valid "$N" || fail "bad name"; pkill -f "bore local $(sport "$N") " 2>/dev/null; rm -f "/run/butter-join-$N"; out '{ok:true}' ;;
 create)
-  T=$(q type); M=$(q mem)
+  T=$(q type); M=$(q mem); V=$(q ver); F=$(q flavor); [ -n "$V" ] || V=LATEST; [ -n "$F" ] || F=paper
   valid "$N" || fail "Name: 2-24 letters, numbers or dashes"
   ENG || fail "The container engine is not running"
   exists "$N" && fail "A server with that name already exists"
   [ "$(count)" -ge "$(maxsrv)" ] && fail "Limit reached: $(maxsrv) servers in this mode"
   case "$T" in java) need=$JAVA_NEED;; bedrock) need=$BED_NEED;; *) fail "type must be java or bedrock";; esac
+  if [ $T = java ]; then
+    case "$F" in paper|vanilla|fabric|forge) ;; *) fail "flavor must be paper, vanilla, fabric or forge";; esac
+    [ "$V" = LATEST ] || printf '%s' "$V" | grep -Eq '^1\.[0-9]{1,2}(\.[0-9]{1,2})?$' || fail "Version looks like 1.21.4"
+    MNR=$(echo "$V" | cut -d. -f2); PAT=$(echo "$V" | cut -d. -f3); : ${PAT:=0}
+    if [ "$V" = LATEST ]; then TAG=latest
+    elif [ "$MNR" -le 16 ]; then TAG=java8
+    elif [ "$MNR" -le 19 ] || { [ "$MNR" -eq 20 ] && [ "$PAT" -lt 5 ]; }; then TAG=java17
+    else TAG=java21; fi
+    [ "$F" = paper ] && [ "$V" != LATEST ] && [ "$MNR" -lt 8 ] && fail "Paper starts at 1.8. For older versions pick Vanilla."
+    [ "$F" = fabric ] && [ "$V" != LATEST ] && [ "$MNR" -lt 14 ] && fail "Fabric starts at 1.14"
+  else
+    [ "$V" = LATEST ] || [ "$V" = PREVIEW ] || printf '%s' "$V" | grep -Eq '^1\.[0-9]+\.[0-9]+(\.[0-9]+)?$' || fail "Bedrock version looks like 1.21.44.01, or LATEST / PREVIEW"
+    F=bedrock
+  fi
   [ $(( $(mb MemAvailable) - need )) -lt $KEEP ] && fail "Not enough free memory: this server needs about $need MB (estimate) and $KEEP MB must stay free"
   mkdir -p "$WORLDS/$N"
   if [ $T = java ]; then
     case "$M" in ''|*[!0-9]*) M=1024;; esac; [ "$M" -lt 512 ] && M=512; [ "$M" -gt 2048 ] && M=2048
-    P=$(nextport tcp 25565)
-    docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --restart unless-stopped \
-      -e EULA=TRUE -e TYPE=PAPER -e VERSION="${VERSION:-LATEST}" -e MEMORY="${M}M" -p "$P:25565" -v "$WORLDS/$N:/data" itzg/minecraft-server:latest >/dev/null 2>&1 || fail "docker run failed"
+    P=$(nextport tcp 25565); TY=$(echo "$F" | tr 'a-z' 'A-Z')
+    docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --label "butterflavor=$F" --label "butterver=$V" --restart unless-stopped \
+      -e EULA=TRUE -e TYPE="$TY" -e VERSION="$V" -e MEMORY="${M}M" -p "$P:25565" -v "$WORLDS/$N:/data" "itzg/minecraft-server:$TAG" >/dev/null 2>&1 || fail "docker run failed"
   else
     P=$(nextport udp 19132)
-    docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --restart unless-stopped \
-      -e EULA=TRUE -e ALLOW_LIST=false -e SERVER_NAME="$N" -p "$P:19132/udp" -v "$WORLDS/$N:/data" itzg/minecraft-bedrock-server:latest >/dev/null 2>&1 || fail "docker run failed"
+    docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --label "butterflavor=bedrock" --label "butterver=$V" --restart unless-stopped \
+      -e EULA=TRUE -e ALLOW_LIST=false -e VERSION="$V" -e SERVER_NAME="$N" -p "$P:19132/udp" -v "$WORLDS/$N:/data" itzg/minecraft-bedrock-server:latest >/dev/null 2>&1 || fail "docker run failed"
   fi
   J=""; [ "$(q share)" = internet ] && [ $T = java ] && { sleep 1; J=$(share "$N" "$P"); }
-  out --argjson p "$P" --arg j "$J" '{ok:true,port:$p,join:(if $j=="" then null else $j end)}' ;;
+  out --argjson p "$P" --arg j "$J" '{ok:true,port:$p,join:(if $j==""  then null else $j end)}' ;;
 *) fail "unknown action" ;;
 esac

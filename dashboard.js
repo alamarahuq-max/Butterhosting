@@ -57,7 +57,7 @@
     if(!silent&&!state.loaded){state.loading=true;render()}
     return call("/servers").then(function(d){
       if(id!==reqId)return;
-      state.servers=d.servers;state.maxRam=d.maxRam||2;state.err=d.dockerOk===false?"Docker isn't running on the host, so servers can't be managed right now.":null;
+      state.servers=d.servers;state.maxRam=d.maxRam||2;state.err=d.dockerOk===false?(/no space/i.test(d.dockerError||"")||d.diskLow?"The host disk is full ("+(d.diskFreeGb==null?"?":d.diskFreeGb)+" GB free), so Docker can't work. Free space on the Codespace (see the README).":"Docker isn't ready on the host yet"+(d.dockerError?" ("+String(d.dockerError).slice(0,120)+")":"")+". It can take a minute after the Codespace starts."):(d.diskLow?"The host disk is almost full ("+d.diskFreeGb+" GB free). New servers are blocked until space is freed.":null);
       state.loading=false;state.loaded=true;state.loadedAt=Date.now();pushHist();render();
     }).catch(function(e){
       if(id!==reqId||!state.user)return;

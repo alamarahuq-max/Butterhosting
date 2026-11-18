@@ -35,7 +35,7 @@ const until = async (f, ms = 15000) => { const e = Date.now() + ms; while (Date.
   const sid = c.j.id; t("world files were restored on the device", fs.existsSync(path.join(D.dir, "worlds", sid, "level.dat")) && fs.readFileSync(path.join(D.dir, "worlds", sid, "level.dat"), "utf8") === "WORLD-v1");
   const c2 = await post(8202, "/servers", tok, { name: "beta", tpl: "bedrock" }); t("can create a new server while on the device", c2.s === 202, JSON.stringify(c2));
   fs.writeFileSync(path.join(D.dir, "worlds", sid, "level.dat"), "WORLD-v2-from-device");
-  const dj = JSON.parse(fs.readFileSync(path.join(REG, "device-device.json"), "utf8")); t("device publishes its address only into the private store", dj.active === true && dj.url === "https://secret-tunnel.example");
+  let dj = {}; await until(async () => { try { dj = JSON.parse(fs.readFileSync(path.join(REG, "device-device.json"), "utf8")); return dj.active === true; } catch (e) { return false; } }, 8000); t("device publishes its address only into the private store", dj.active === true && dj.url === "https://secret-tunnel.example");
   const hh = JSON.stringify(await get(8202, "/health")) + JSON.stringify(await get(8202, "/")); t("device address never appears in API responses", !hh.includes("secret-tunnel"));
   t("internal handback refuses calls without the local key", (await fetch("http://127.0.0.1:8202/internal/handback", { method: "POST" })).status === 403);
   t("internal handback refuses calls that came through a tunnel", (await fetch("http://127.0.0.1:8202/internal/handback", { method: "POST", headers: { "x-butter-internal": fs.readFileSync(path.join(D.dir, "data", "internal.key"), "utf8"), "x-forwarded-for": "1.2.3.4" } })).status === 403);

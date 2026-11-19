@@ -1,4 +1,6 @@
 #!/sbin/openrc-run
-description="ButterOS Wi-Fi adapter support (RTL8188EU and others)"
+description="ButterOS Wi-Fi: hot-plug adapters, load drivers, reconnect"
+command=/usr/local/bin/butter-wifid
+command_background=true
+pidfile=/run/butter-wifid.pid
 depend() { before networking; }
-start() { ebegin "Loading Wi-Fi drivers"; modprobe cfg80211 2>/dev/null; for m in rtl8xxxu rtw88_8821cu rtw88_8822bu mt7601u mt76x2u ath9k_htc; do modprobe $m 2>/dev/null; done; ( sleep 4; /usr/lib/butter/load-wifi ) >/dev/null 2>&1 & eend 0; }

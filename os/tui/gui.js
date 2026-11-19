@@ -70,7 +70,9 @@ function serverRows(x, y, w, rowH, max, actions) { const cols = [0, 0.27, 0.45, 
     if (actions) { let bx = x + w; const del = tw("Delete", "sans", 14) + u(28); bx -= del; btn(bx, ry, "Delete", "del" + i, { danger: 1, vp: 12 }); bx -= u(8); const lw = tw("Start", "bold", 14) + u(28); bx -= lw + u(8); btn(bx, ry, run ? "Stop" : "Start", "tog" + i, { y: !run, vp: 12 }); } }); }
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
+let prevWifi = -1;
 function draw() {
+  if (prevWifi >= 0 && D.wifi > prevWifi) toast("Wi-Fi adapter found. Press 4 to pick a network."); prevWifi = D.wifi;
   hits = []; rect(0, 0, SW, SH, C.bg);
   const SB = u(200), M = u(24);
   // sidebar

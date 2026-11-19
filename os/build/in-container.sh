@@ -40,11 +40,13 @@ if [ -n "$BU" ] && curl -fsSL -o /tmp/bore.tgz "$BU" && tar -xzf /tmp/bore.tgz -
 # Out-of-tree RTL8188EU driver (the Alpine kernel has none). Best effort: a failure here only means that one adapter family is missing.
 echo "== rtl8188eu driver (best effort)"
 ( set +e; apk add --no-cache linux-lts-dev build-base git >/dev/null 2>&1
-  KV=$(ls /lib/modules | head -1); KS=$(ls -d /usr/src/linux-headers-* 2>/dev/null | head -1)
-  rm -rf /tmp/r8188 && git clone --depth=1 https://github.com/aircrack-ng/rtl8188eus.git /tmp/r8188 >/dev/null 2>&1 \
-   && cd /tmp/r8188 && make -j"$(nproc)" KVER="$KV" KSRC="$KS" >/tmp/r8188.log 2>&1 && ls /tmp/r8188/*.ko \
-   && cp /tmp/r8188/8188eu.ko /home/build/8188eu.ko && chown build /home/build/8188eu.ko && echo "   8188eu.ko built for $KV" \
-   || { echo "   (8188eu driver did not build; log tail:)"; tail -5 /tmp/r8188.log 2>/dev/null; } ) || true
+  KS=$(ls -d /usr/src/linux-headers-* 2>/dev/null | head -1); KV=${KS##*linux-headers-}; echo "   headers: $KS  kernel: $KV"
+  for R in https://github.com/lwfinger/rtl8188eu.git https://github.com/aircrack-ng/rtl8188eus.git; do
+    rm -rf /tmp/r8188; git clone --depth 1 "$R" /tmp/r8188 >/dev/null 2>&1 || { echo "   clone failed: $R"; continue; }
+    ( cd /tmp/r8188 && make -j"$(nproc)" KVER="$KV" KSRC="$KS" >/tmp/r8188.log 2>&1 )
+    if [ -f /tmp/r8188/8188eu.ko ]; then cp /tmp/r8188/8188eu.ko /home/build/8188eu.ko; chown build /home/build/8188eu.ko; echo "   8188eu.ko built from $R for $KV"; break
+    else echo "   build failed for $R:"; grep -E "error|Error" /tmp/r8188.log | head -5; fi
+  done ) || true
 echo "$OPT" > /home/build/butter-apks.txt; chown build /home/build/butter-apks.txt
 
 echo "== initramfs: boot from an ISO file on an existing disk (dual-boot)"

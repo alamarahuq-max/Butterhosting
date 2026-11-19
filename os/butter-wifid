@@ -1,0 +1,25 @@
+#!/bin/sh
+# ButterOS Wi-Fi daemon: notices USB/PCI adapters plugged in at any time, loads the right driver, and reconnects to a saved network.
+LOG=/var/log/butter-wifid.log; SEEN=/run/butter-wifi.seen; : > "$SEEN"
+log() { echo "$(date +%T) $*" >> "$LOG"; }
+modprobe cfg80211 2>/dev/null; modprobe mac80211 2>/dev/null
+log "started"
+while :; do
+  for f in /sys/bus/usb/devices/*/modalias /sys/bus/usb/devices/*/*/modalias /sys/bus/pci/devices/*/modalias; do
+    [ -f "$f" ] || continue
+    grep -qxF "$f" "$SEEN" 2>/dev/null && continue
+    echo "$f" >> "$SEEN"; m=$(cat "$f" 2>/dev/null); [ -n "$m" ] || continue
+    modprobe -b "$m" >/dev/null 2>&1 && log "driver for $m loaded"
+  done
+  /usr/lib/butter/load-wifi 2>/dev/null
+  for n in /sys/class/net/*; do
+    i=${n##*/}; [ -d "$n/wireless" ] || [ -d "$n/phy80211" ] || continue
+    if ! grep -qxF "iface:$i" "$SEEN" 2>/dev/null; then echo "iface:$i" >> "$SEEN"; log "wifi adapter ready: $i"; echo "$i" > /run/butter-wifi.new; fi
+    ip link set "$i" up 2>/dev/null
+    if [ -s /etc/wpa_supplicant/wpa_supplicant.conf ] && ! pgrep -f "wpa_supplicant.* -i $i" >/dev/null; then
+      log "connecting $i to the saved network"; wpa_supplicant -B -i "$i" -c /etc/wpa_supplicant/wpa_supplicant.conf >/dev/null 2>&1
+      ( sleep 8; udhcpc -i "$i" -q -n -t 5 >/dev/null 2>&1 ) &
+    fi
+  done
+  sleep 3
+done

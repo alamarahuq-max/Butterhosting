@@ -155,12 +155,12 @@ def main():
         c, o = vm.sh("ls /usr/local/lib/butter/; ls /usr/share/consolefonts | grep -c ter-v; BUTTER_DEMO=1 BUTTER_FB=/tmp/gui.raw BUTTER_FBSIZE=1024x768 node /usr/local/lib/butter/gui.js; echo gui_rc=$?; ls -l /tmp/gui.raw | awk '{print $5}'", 60)
         check("On-device GUI renders a 1024x768 frame (retro HUD)", "gui_rc=0" in o and "3145728" in o, o.replace("\n", " ")[-200:])
         c, o = vm.sh("BUTTER_DEMO=1 BUTTER_SNAPSHOT=ansi COLS=100 ROWS=32 node /usr/local/lib/butter/tui.js | head -3 | wc -l", 30); check("Text HUD fallback renders", o.strip().endswith("3"), o.strip()[-80:])
-        c, o = vm.sh("which iw wpa_supplicant butter-wifi rfkill; ls -l /usr/lib/butter/ 2>&1; ls /lib/firmware/rtlwifi 2>/dev/null | head -3; ls /lib/firmware/rtlwifi/rtl8188eufw.bin* 2>&1; modinfo rtl8xxxu rtw88_core mt7601u 2>&1 | grep -c filename", 30)
-        check("Wi-Fi tools and firmware are in the image (iw, wpa_supplicant, butter-wifi, Realtek firmware)", all(x in o for x in ("/iw", "wpa_supplicant", "butter-wifi")) and "rtl8188eufw" in o, o.replace("\n", " ")[-400:])
-        c, o = vm.sh("test -f /usr/lib/butter/8188eu.ko && echo HAVE_8188EU; modinfo /usr/lib/butter/8188eu.ko 2>&1 | head -2", 30)
-        check("RTL8188EU out-of-tree driver module is shipped", "HAVE_8188EU" in o, o.replace("\n", " ")[-200:])
-        c, o = vm.sh("modprobe mac80211_hwsim radios=1 2>&1; sleep 2; iw dev 2>&1 | head -4", 40)
-        check("Wi-Fi stack works (virtual radio shows up in iw)", "Interface" in o, o.replace("\n", " ")[-200:])
+        c, o = vm.sh("for x in iw wpa_supplicant butter-wifi butter-wifid rfkill dialog udhcpc; do command -v $x >/dev/null && echo OK\"_\"$x || echo MISSING\"_\"$x; done; echo FW\"_\"$(ls /lib/firmware/rtlwifi/ 2>/dev/null | grep -c 8188eufw)", 30)
+        check("Wi-Fi tools are in the image (iw, wpa_supplicant, dialog, butter-wifi, hot-plug daemon) and Realtek firmware", "MISSING_" not in o and "OK_iw" in o and "OK_butter-wifid" in o and re.search(r"FW_[1-9]", o), o.replace("\n", " ")[-300:])
+        c, o = vm.sh("[ -f /usr/lib/butter/8188eu.ko ] && echo DRV\"_\"FILE; V=$(modinfo -F vermagic /usr/lib/butter/8188eu.ko 2>/dev/null | cut -d' ' -f1); [ -n \"$V\" ] && [ \"$V\" = \"$(uname -r)\" ] && echo DRV\"_\"MATCHES_KERNEL; echo K\"_\"$(uname -r)\"_\"V$V", 30)
+        check("RTL8188EU driver is shipped and built for this exact kernel", "DRV_FILE" in o and "DRV_MATCHES_KERNEL" in o, o.replace("\n", " ")[-200:])
+        c, o = vm.sh("pgrep -f butter-wifid >/dev/null && echo WIFID\"_\"RUNNING; modprobe mac80211_hwsim radios=1 2>&1; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do grep -q 'wifi adapter ready' /var/log/butter-wifid.log 2>/dev/null && break; sleep 1; done; cat /var/log/butter-wifid.log | tail -4; iw dev 2>&1 | head -3", 60)
+        check("Hot-plug works: a Wi-Fi adapter that appears after boot is noticed by the daemon", "WIFID_RUNNING" in o and "adapter ready" in o, o.replace("\n", " ")[-300:])
         # Java server
         r = api("a=create&n=test-java&type=java&mem=1024&share=internet", timeout=900) if st.get("ok") else {"ok": False, "error": "skipped, web page is down"}; check("Create Java server via web API", r.get("ok"), r)
         lg = ""

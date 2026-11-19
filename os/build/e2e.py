@@ -152,8 +152,8 @@ def main():
         # versions, GUI, Wi-Fi
         vj = api("a=versions", timeout=60); check("Version list API: Java releases and Bedrock choices", vj.get("ok") and len(vj.get("java", [])) > 20 and "LATEST" in vj.get("bedrock", []), "%d java versions, online=%s" % (len(vj.get("java", [])), vj.get("online")))
         check("Old Java versions are offered (1.8.9, 1.12.2, 1.16.5)", all(v in vj.get("java", []) for v in ("1.8.9", "1.12.2", "1.16.5")), "")
-        c, o = vm.sh("ls /usr/local/lib/butter/; ls /usr/share/consolefonts | grep -c ter-v; BUTTER_DEMO=1 BUTTER_FB=/tmp/gui.raw BUTTER_FBSIZE=1024x768 node /usr/local/lib/butter/gui.js; echo gui_rc=$?; ls -l /tmp/gui.raw | awk '{print $5}'", 60)
-        check("On-device GUI renders a 1024x768 frame (retro HUD)", "gui_rc=0" in o and "3145728" in o, o.replace("\n", " ")[-200:])
+        c, o = vm.sh("BUTTER_DEMO=1 BUTTER_SNAPSHOT=ansi COLS=110 ROWS=34 node /usr/local/lib/butter/tui.js | sed 's/\\x1b\\[[0-9;]*[mHK]//g' | grep -c -E 'SERVERS|new server|machine'", 60)
+        check("Home screen (monospace terminal UI) renders", re.search(r"\n3\s", o + " ") is not None or o.strip().endswith("3"), o.replace("\n", " ")[-200:])
         c, o = vm.sh("BUTTER_DEMO=1 BUTTER_SNAPSHOT=ansi COLS=100 ROWS=32 node /usr/local/lib/butter/tui.js | head -3 | wc -l", 30); check("Text HUD fallback renders", o.strip().endswith("3"), o.strip()[-80:])
         c, o = vm.sh("for x in iw wpa_supplicant butter-wifi butter-wifid rfkill dialog udhcpc; do command -v $x >/dev/null && echo OK\"_\"$x || echo MISSING\"_\"$x; done; echo FW\"_\"$(ls /lib/firmware/rtlwifi/ 2>/dev/null | grep -c 8188eufw)", 30)
         check("Wi-Fi tools are in the image (iw, wpa_supplicant, dialog, butter-wifi, hot-plug daemon) and Realtek firmware", "MISSING_" not in o and "OK_iw" in o and "OK_butter-wifid" in o and re.search(r"FW_[1-9]", o), o.replace("\n", " ")[-300:])

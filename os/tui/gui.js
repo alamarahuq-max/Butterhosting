@@ -7,7 +7,7 @@ const { H, D, local, agent, demo, api } = require("./data");
 const DEMO = process.env.BUTTER_DEMO === "1", FBP = process.env.BUTTER_FB || "/dev/fb0", UIF = process.env.BUTTER_UI_FILE || "/etc/butter-ui.json";
 let ui = { light: false }; try { ui = Object.assign(ui, JSON.parse(fs.readFileSync(UIF, "utf8"))); } catch (e) {}
 if (process.env.BUTTER_LIGHT) ui.light = true;
-const DIR = __dirname;
+const DIR = __dirname; let fd = null;
 
 function geom() {
   if (process.env.BUTTER_FBSIZE) { const [w, h] = process.env.BUTTER_FBSIZE.split("x").map(Number); return { w, h, bpp: 32, stride: w * 4 }; }
@@ -54,6 +54,7 @@ function hit(x, y, w, h, key) { hits.push({ x, y, w, h, key }); }
 function pill(x, y, label, sz, filled, right) { const w = tw(label, filled ? "bold" : "sans", sz) + u(28), h = lh("sans", sz) + u(12); if (right) x -= w; if (filled) rr(x, y, w, h, h / 2, C.y); else { rr(x, y, w, h, h / 2, C.b); rr(x + 1, y + 1, w - 2, h - 2, h / 2 - 1, C.bg); } text(x + w / 2, y + u(6), label, filled ? "bold" : "sans", sz, filled ? C.yt : C.t, "center"); return { w, h, x }; }
 function btn(x, y, label, key, o) { o = o || {}; const sz = o.sz || 14, w = tw(label, o.y ? "bold" : "sans", sz) + u(o.pad || 28), h = lh("sans", sz) + u(o.vp || 16), r = u(10);
   if (o.danger) { rr(x, y, w, h, r, C.r); rr(x + 1, y + 1, w - 2, h - 2, r - 1, C.p); } else rr(x, y, w, h, r, o.y ? C.y : C.p2);
+  if (mouse.x >= x && mouse.x < x + w && mouse.y >= y && mouse.y < y + h) rr(x, y, w, h, r, o.y ? [255, 255, 255] : C.t, 0.14);
   text(x + w / 2, y + (h - lh("sans", sz)) / 2, label, o.y ? "bold" : "sans", sz, o.danger ? C.r : o.y ? C.yt : C.t, "center"); hit(x, y, w, h, key); return w; }
 
 function stat(x, y, w, h, label, value, sub, data, lo, hi, c) { card(x, y, w, h); text(x + u(20), y + u(16), label, "sans", 14, C.m); text(x + u(20), y + u(40), value, "serif", 34, C.t);
@@ -72,6 +73,7 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 let prevWifi = -1;
 function draw() {
+  if (screen !== "app") { drawLogin(); return; }
   if (prevWifi >= 0 && D.wifi > prevWifi) toast("Wi-Fi adapter found. Press 4 to pick a network."); prevWifi = D.wifi;
   hits = []; rect(0, 0, SW, SH, C.bg);
   const SB = u(200), M = u(24);
@@ -106,12 +108,15 @@ function draw() {
   text(X, SH - u(34), Date.now() < msgT ? msg : "Hosting Minecraft Java and Bedrock, nothing else.", "sans", 13, Date.now() < msgT ? C.y : C.m);
   text(SW - M, SH - u(34), "keys: 1 play  2 web  3 install  4 wi-fi  n new  t theme  p power", "sans", 12, C.m, "right");
   if (modal) drawModal(); if (power) drawPower();
-  for (let i = 0; i < 14; i++) for (let j = 0; j <= i * 0.65 && j < 9; j++) blend(mouse.x + j, mouse.y + i, ui.light ? C.t : [255, 255, 255], 1); // cursor
 }
 function dim() { rect(0, 0, SW, SH, [0, 0, 0], 0.55); }
-function drawPower() { dim(); const w = u(420), h = u(220), x = (SW - w) / 2, y = (SH - h) / 2; card(x, y, w, h); text(x + u(26), y + u(24), "Power", "serif", 26, C.t); text(x + u(26), y + u(70), "What would you like to do?", "sans", 16, C.m);
-  let bx = x + u(26); bx += btn(bx, y + u(110), "Shut down", "pw-off", { y: 1 }) + u(10); bx += btn(bx, y + u(110), "Restart", "pw-re") + u(10); btn(bx, y + u(110), "Cancel", "pw-no"); }
+function drawPower() { dim(); const w = u(520), h = u(220), x = (SW - w) / 2, y = (SH - h) / 2; card(x, y, w, h); text(x + u(26), y + u(24), "Power", "serif", 26, C.t); text(x + u(26), y + u(70), "What would you like to do?", "sans", 16, C.m);
+  let bx = x + u(26); bx += btn(bx, y + u(110), "Shut down", "pw-off", { y: 1 }) + u(10); bx += btn(bx, y + u(110), "Restart", "pw-re") + u(10); bx += btn(bx, y + u(110), "Lock", "pw-lock") + u(10); btn(bx, y + u(110), "Cancel", "pw-no"); }
+function drawAcct() { dim(); const w = u(520), h = u(250), x = (SW - w) / 2, y = (SH - h) / 2; card(x, y, w, h); text(x + u(28), y + u(22), "Password for " + (users[cu] || users[0]).name, "serif", 26, C.t);
+  text(x + u(28), y + u(74), "New password (empty = no password)", "sans", 12, C.m); rr(x + u(28), y + u(92), w - u(56), u(40), u(10), C.y); rr(x + u(29), y + u(93), w - u(58), u(38), u(9), C.bg); text(x + u(42), y + u(102), "\u2022".repeat(modal.pw.length) || "", "sans", 16, C.t);
+  btn(x + u(28), y + h - u(72), "Save", "enter", { y: 1 }); btn(x + u(130), y + h - u(72), "Cancel", "esc"); }
 function drawModal() {
+  if (modal.acct) return drawAcct();
   dim(); const w = Math.min(SW - u(40), u(640)), h = u(470), x = (SW - w) >> 1, y = (SH - h) >> 1, m = modal; card(x, y, w, h); text(x + u(28), y + u(22), "New server", "serif", 26, C.t);
   const list = m.type === "bedrock" ? (ver ? ver.bedrock : ["LATEST"]) : ["LATEST"].concat(ver ? ver.java : []), rows = [["Name", m.name + (m.f === 0 && tick % 2 ? "|" : "")], ["Game", m.type === "java" ? "Minecraft Java" : "Minecraft Bedrock"], ["Software", m.type === "bedrock" ? "Bedrock (official)" : cap(m.flavor)], ["Version", String(list[m.vi] || "LATEST").replace("LATEST", "Latest").replace("PREVIEW", "Preview")]];
   rows.forEach((r, i) => { const ry = y + u(80) + i * u(62), on = m.f === i; text(x + u(28), ry - u(2), r[0], "sans", 12, C.m); rr(x + u(28), ry + u(16), w - u(56), u(38), u(10), on ? C.y : C.b); rr(x + u(28) + 1, ry + u(17), w - u(56) - 2, u(36), u(9), C.bg);
@@ -126,8 +131,11 @@ function external(cmd) { stopInput(); try { fs.writeSync(1, "\x1b[2J\x1b[H\x1b[?
 function toggle(s) { if (!s) return; const a = s.state === "running" ? "stop" : "start"; toast((a === "stop" ? "Stopping " : "Starting ") + s.name + "..."); api("a=" + a + "&n=" + encodeURIComponent(s.name), (j) => { toast(j && j.ok ? "Done" : (j && j.error) || "Failed"); agent(); }, 90000); }
 function remove(s) { if (!s) return; toast("Removing " + s.name + "..."); api("a=delete&n=" + encodeURIComponent(s.name), (j) => { toast(j && j.ok ? "Removed" : (j && j.error) || "Failed"); agent(); }, 90000); }
 function go(i) { const k = NAV[i][0]; if (k === "wifi") key("4"); else if (k === "install") key("3"); else if (k === "power") power = true; else page = k; nav = i; }
+function powerKey(k) { power = false; if (k === "pw-off" || k === "y") cp.exec("poweroff"); else if (k === "pw-re" || k === "r") cp.exec("reboot"); else if (k === "pw-lock" || k === "l") { screen = users.length > 1 ? "picker" : "login"; pw = ""; lerr = ""; } }
 function key(k) {
-  if (power) { power = false; if (k === "pw-off" || k === "y") cp.exec("poweroff"); else if (k === "pw-re" || k === "r") cp.exec("reboot"); return; }
+  if (screen !== "app") { loginKey(k); return; }
+  if (power) { powerKey(k); return; }
+  if (modal && modal.acct) { const m = modal; if (k === "esc") modal = null; else if (k === "enter") { const us = users[cu] || users[0]; if (m.pw) { us.salt = crypto.randomBytes(8).toString("hex"); us.hash = hashpw(us.salt, m.pw); } else { delete us.hash; delete us.salt; } try { fs.writeFileSync(USERF, JSON.stringify({ users })); toast(m.pw ? "Password saved" : "Password removed"); } catch (e) { toast("Could not save"); } modal = null; } else if (k === "bs") m.pw = m.pw.slice(0, -1); else if (k.length === 1 && k >= " " && m.pw.length < 40) m.pw += k; return; }
   if (modal) { const m = modal;
     if (k === "esc") modal = null; else if (k === "enter") create(); else if (k.startsWith("field")) m.f = +k.slice(5);
     else if (k === "up" || k === "btab") m.f = (m.f + 3) % 4; else if (k === "down" || k === "tab") m.f = (m.f + 1) % 4;
@@ -141,24 +149,91 @@ function key(k) {
   else if (k === "enter") toggle(s); else if (k === "d" || k === "del") remove(s);
   else if (k === "1") external("/usr/local/bin/butter-play; printf '\\nPress Enter '; read x"); else if (k === "2") page = "network";
   else if (k === "3") external("/usr/local/bin/butter-install; printf '\\nPress Enter '; read x"); else if (k === "4") external("/usr/local/bin/butter-wifi");
-  else if (k === "n") openNew(); else if (k === "t") { ui.light = !ui.light; theme(); try { fs.writeFileSync(UIF, JSON.stringify(ui)); } catch (e) {} } else if (k === "p") power = true; else if (k === "h") page = "home"; else if (k === "s") page = "servers";
+  else if (k === "n") openNew(); else if (k === "t") { ui.light = !ui.light; theme(); try { fs.writeFileSync(UIF, JSON.stringify(ui)); } catch (e) {} } else if (k === "a") modal = { acct: true, pw: "", f: 0 }; else if (k === "p") power = true; else if (k === "h") page = "home"; else if (k === "s") page = "servers";
+}
+
+// ---- accounts (optional password; default is one account with no password) ----
+const crypto = require("crypto"), USERF = process.env.BUTTER_USERS || "/etc/butter-users.json";
+let users = [{ name: "Claude", role: "Admin" }]; try { const j = JSON.parse(fs.readFileSync(USERF, "utf8")); if (Array.isArray(j.users) && j.users.length) users = j.users; } catch (e) {}
+const hashpw = (salt, pw) => crypto.createHash("sha256").update(salt + pw).digest("hex");
+let screen = process.env.BUTTER_NOLOGIN ? "app" : process.env.BUTTER_SCREEN === "picker" ? "picker" : process.env.BUTTER_SCREEN === "login" || process.env.BUTTER_SCREEN === "wrong" ? "login" : users.length > 1 ? "picker" : "login";
+let cu = 0, pw = "", lerr = process.env.BUTTER_SCREEN === "wrong" ? "Wrong password, try again" : "", me = users[0].name;
+const AV = [["ffe27a", "ffc21a", "222222"], ["7dd3fc", "3b82f6", "0b1b3a"], ["5ef2b0", "13966a", "062a1e"], ["ff9ecb", "d63384", "3a0a22"]];
+const hx = (h) => [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+function avatar(cx, cy, r, i, name) { const a = AV[i % AV.length], c1 = hx(a[0]), c2 = hx(a[1]);
+  for (let y = -r; y <= r; y++) { const half = Math.sqrt(r * r - y * y); for (let x = -Math.floor(half); x <= half; x++) { const edge = Math.min(1, (half - Math.abs(x)) + 0.5); blend(Math.round(cx + x), Math.round(cy + y), mix(c1, c2, (y + r) / (2 * r)), Math.max(0, edge)); } }
+  text(cx, cy - lh("serif", r > 40 * U ? 52 : 34) / 2 + u(2), (name || "?").charAt(0).toUpperCase(), "serif", r > u(40) ? 52 : 34, hx(a[2]), "center"); }
+function ring(cx, cy, r, c, th) { for (let a = 0; a < 6.2832; a += 0.5 / r) for (let t = 0; t < th; t++) blend(Math.round(cx + Math.cos(a) * (r + t)), Math.round(cy + Math.sin(a) * (r + t)), c, 1); }
+function batt() { try { for (const d of fs.readdirSync("/sys/class/power_supply")) { if (fs.readFileSync("/sys/class/power_supply/" + d + "/type", "utf8").trim() === "Battery") return fs.readFileSync("/sys/class/power_supply/" + d + "/capacity", "utf8").trim() + "%"; } } catch (e) {} return DEMO ? "87%" : null; }
+function drawLogin() {
+  hits = []; rect(0, 0, SW, SH, C.bg); const gx = SW / 2, gy = SH * 0.38, R = Math.min(SW, SH) * 0.62;
+  for (let y = Math.max(0, Math.floor(gy - R)); y < Math.min(SH, gy + R); y++) for (let x = Math.max(0, Math.floor(gx - R * 1.4)); x < Math.min(SW, gx + R * 1.4); x++) { const d = Math.hypot((x - gx) / 1.4, y - gy) / R; if (d < 1) blend(x, y, C.y, ui.light ? 0.16 * (1 - d) * (1 - d) : 0.14 * (1 - d) * (1 - d)); }
+  let lx = u(30); lx += text(lx, u(26), "Butter", "serif", 20, C.t) + u(6); const lw = drawLogo(lx, u(24), u(24)); text(lx + lw + u(6), u(26), "Os", "serif", 20, C.t);
+  text(SW - u(30), u(28), "butter-box · " + (D.ip || "no network"), "sans", 14, C.m, "right");
+  const cx = SW / 2, cy = SH * 0.38;
+  if (screen === "picker") {
+    text(cx, cy - u(110), "Who is hosting today?", "serif", 34, C.t, "center"); const n = Math.min(4, users.length), cw = u(170), gap = u(26), tot = n * cw + (n - 1) * gap;
+    users.slice(0, 4).forEach((us, i) => { const x = cx - tot / 2 + i * (cw + gap), y = cy - u(50), on = i === cu; card(x, y, cw, u(190), u(18), on ? C.p2 : C.p, on ? C.y : C.b); avatar(x + cw / 2, y + u(66), u(36), i, us.name); text(x + cw / 2, y + u(120), us.name, "bold", 16, C.t, "center"); text(x + cw / 2, y + u(146), us.role === "Guest" ? "Nothing is saved" : us.role || "", "sans", 12, C.m, "center"); hit(x, y, cw, u(190), "user" + i); });
+    text(cx, cy + u(180), "Left / Right to choose  ·  Enter to continue", "sans", 13, C.m, "center");
+  } else {
+    const r = u(60), us = users[cu] || users[0]; avatar(cx, cy - u(40), r, cu, us.name); ring(cx, cy - u(40), r + u(5), C.p, 2); ring(cx, cy - u(40), r + u(7), C.b, 1);
+    text(cx, cy + u(36), us.name, "serif", 34, C.t, "center"); text(cx, cy + u(84), us.hash ? "Enter your password" : "Hosting account  ·  ready", "sans", 14, C.m, "center");
+    const w = u(420), x = cx - w / 2, y = cy + u(116); rr(x, y, w, u(50), u(12), C.y); rr(x + 1, y + 1, w - 2, u(48), u(11), C.p); rr(x - 3, y - 3, w + 6, u(56), u(14), C.y, 0.18);
+    text(x + u(18), y + u(15), pw ? "•".repeat(pw.length) : (us.hash ? "Password" : "Password (press Enter to skip)"), "sans", 16, pw ? C.t : C.m);
+    rr(x, y + u(64), w, u(50), u(12), C.y); text(cx, y + u(64) + u(14), "Log in", "bold", 16, C.yt, "center"); hit(x, y + u(64), w, u(50), "enter");
+    text(cx, y + u(134), lerr || (us.hash ? "Type your password and press Enter" : "No password is set. Press A inside to add one."), "sans", 13, lerr ? C.r : C.m, "center");
+    if (users.length > 1) { text(cx, y + u(160), "Tab: switch user", "sans", 12, C.m, "center"); }
+  }
+  const d = new Date(), days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"], tm = days[d.getDay()] + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  text(u(30), SH - u(42), tm, "sans", 14, C.m); let rx = SW - u(30); const b = batt();
+  const P = (label, key, dot) => { const w = tw(label, "sans", 14) + u(28) + (dot ? u(18) : 0), h = lh("sans", 14) + u(12); rx -= w; rr(rx, SH - u(52), w, h, h / 2, C.b); rr(rx + 1, SH - u(51), w - 2, h - 2, h / 2 - 1, C.p); if (dot) { rr(rx + w - u(24), SH - u(52) + h / 2 - u(4), u(8), u(8), u(4), D.ip ? C.g : C.r); } text(rx + u(14), SH - u(46), label, "sans", 14, C.t); if (key) hit(rx, SH - u(52), w, h, key); rx -= u(8); };
+  P("Power", "pwask"); if (b) P("Battery " + b); P("Wi-Fi", null, true); P("English (US)");
+  if (power) drawPower();
+}
+function loginKey(k) {
+  if (power) { powerKey(k); return; }
+  if (k === "pwask") { power = true; return; }
+  if (k.startsWith("user")) { cu = +k.slice(4); me = users[cu].name; screen = "login"; pw = ""; lerr = ""; return; }
+  if (screen === "picker") { if (k === "left") cu = (cu + users.length - 1) % users.length; else if (k === "right") cu = (cu + 1) % users.length; else if (k === "enter") { screen = "login"; pw = ""; lerr = ""; } return; }
+  if (k === "tab" && users.length > 1) { cu = (cu + 1) % users.length; pw = ""; lerr = ""; return; }
+  if (k === "esc" && users.length > 1) { screen = "picker"; return; }
+  if (k === "bs") { pw = pw.slice(0, -1); return; }
+  if (k === "enter") { const us = users[cu]; if (!us.hash || hashpw(us.salt || "", pw) === us.hash) { screen = "app"; me = us.name; pw = ""; lerr = ""; toast("Welcome, " + me); } else { lerr = "Wrong password, try again"; pw = ""; } return; }
+  if (k.length === 1 && k >= " " && pw.length < 40) { pw += k; lerr = ""; }
 }
 // ---- input ----
 const KEYS = { "\x1b[A": "up", "\x1b[B": "down", "\x1b[C": "right", "\x1b[D": "left", "\x1b[3~": "del", "\x1b[Z": "btab", "\r": "enter", "\n": "enter", "\t": "tab", "\x7f": "bs", "\b": "bs", "\x1b": "esc" };
-function onData(d) { const s = d.toString("latin1"), k = KEYS[s] || (s.length === 1 ? s : null); if (!k) return; key(modal ? k : k.length === 1 ? k.toLowerCase() : k); draw(); flush(); }
+function onData(d) { const s = d.toString("latin1"), k = KEYS[s] || (s.length === 1 ? s : null); if (!k) return; key(modal || screen !== "app" ? k : k.length === 1 ? k.toLowerCase() : k); draw(); flush(); }
 let mfd = null, mbuf = [];
-function onMouse(d) { for (const b of d) { mbuf.push(b); if (mbuf.length === 3) { const [f, dx, dy] = mbuf; mbuf = []; if (!(f & 8)) continue;
-  mouse.x = Math.max(0, Math.min(SW - 1, mouse.x + (dx - (f & 0x10 ? 256 : 0)))); mouse.y = Math.max(0, Math.min(SH - 1, mouse.y - (dy - (f & 0x20 ? 256 : 0))));
-  if (f & 1 && !mouse.down) { mouse.down = true; const h = hits.slice().reverse().find((r) => mouse.x >= r.x && mouse.x < r.x + r.w && mouse.y >= r.y && mouse.y < r.y + r.h); if (h) key(h.key); } else if (!(f & 1)) mouse.down = false; } } draw(); flush(); }
+// ---- pointer: drawn as a small overlay straight on the screen so moving it never redraws the page ----
+const CS = SH >= 1000 ? 2 : 1, SPEED = SH >= 1000 ? 1.5 : 1;
+const ARROW = ["X", "XX", "XWX", "XWWX", "XWWWX", "XWWWWX", "XWWWWWX", "XWWWWWWX", "XWWWWWWWX", "XWWWWWXXXXX", "XWWXWWX", "XWX XWWX", "XX  XWWX", "X    XWWX", "     XWWX", "      XX"];
+const CW_ = 12 * CS + 2, CH_ = 17 * CS + 2;
+function overHit() { return hits.slice().reverse().find((r) => mouse.x >= r.x && mouse.x < r.x + r.w && mouse.y >= r.y && mouse.y < r.y + r.h); }
+function stampCursor(buf, ox, oy, w, h) { const over = !!overHit(); for (let r = 0; r < ARROW.length; r++) for (let q = 0; q < ARROW[r].length; q++) { const ch = ARROW[r][q]; if (ch !== "X" && ch !== "W") continue;
+  const c = ch === "X" ? [0, 0, 0] : over ? [255, 210, 63] : [255, 255, 255];
+  for (let dy = 0; dy < CS; dy++) for (let dx = 0; dx < CS; dx++) { const x = mouse.x + q * CS + dx - ox, y = mouse.y + r * CS + dy - oy; if (x < 0 || y < 0 || x >= w || y >= h) continue; const o = (y * w + x) * 4; buf[o] = c[2]; buf[o + 1] = c[1]; buf[o + 2] = c[0]; } } }
+function openFb() { if (fd === null) fd = fs.openSync(FBP, process.env.BUTTER_FB ? "w" : "r+"); return fd; }
+function putRegion(x, y, w, h, src) { try { const f = openFb(); for (let j = 0; j < h; j++) { let row; if (G.bpp === 32) row = src.subarray(j * w * 4, (j + 1) * w * 4); else { row = Buffer.alloc(w * 2); for (let i = 0; i < w; i++) { const o = (j * w + i) * 4; row.writeUInt16LE(((src[o + 2] >> 3) << 11) | ((src[o + 1] >> 2) << 5) | (src[o] >> 3), i * 2); } } fs.writeSync(f, row, 0, row.length, (y + j) * G.stride + x * (G.bpp / 8)); } } catch (e) {} }
+function region(x, y) { const x0 = Math.max(0, Math.min(SW - 1, x)), y0 = Math.max(0, Math.min(SH - 1, y)), w = Math.min(CW_, SW - x0), h = Math.min(CH_, SH - y0), buf = Buffer.alloc(w * h * 4); for (let j = 0; j < h; j++) fb.copy(buf, j * w * 4, ((y0 + j) * SW + x0) * 4, ((y0 + j) * SW + x0 + w) * 4); return { x0, y0, w, h, buf }; }
+function paintCursor() { const r = region(mouse.x, mouse.y); stampCursor(r.buf, r.x0, r.y0, r.w, r.h); putRegion(r.x0, r.y0, r.w, r.h, r.buf); }
+function eraseCursor(x, y) { const r = region(x, y); putRegion(r.x0, r.y0, r.w, r.h, r.buf); }
+const acc = (d) => d * (1 + Math.min(2.5, Math.abs(d) / 8)) * SPEED;
+let hoverK = null;
+function onMouse(d) { let moved = false, click = null; const ox = mouse.x, oy = mouse.y;
+  for (const b of d) { mbuf.push(b); if (mbuf.length === 3) { const [f, dx, dy] = mbuf; mbuf = []; if (!(f & 8)) { mbuf = []; continue; }
+    const sx = dx - (f & 0x10 ? 256 : 0), sy = dy - (f & 0x20 ? 256 : 0); if (sx || sy) { mouse.fx = (mouse.fx || 0) + acc(sx); mouse.fy = (mouse.fy || 0) - acc(sy); const ix = Math.trunc(mouse.fx), iy = Math.trunc(mouse.fy); mouse.fx -= ix; mouse.fy -= iy; mouse.x = Math.max(0, Math.min(SW - 1, mouse.x + ix)); mouse.y = Math.max(0, Math.min(SH - 1, mouse.y + iy)); moved = true; }
+    if (f & 1 && !mouse.down) { mouse.down = true; const h = overHit(); if (h) click = h.key; } else if (!(f & 1)) mouse.down = false; } }
+  if (click) { key(click); draw(); flush(); return; }
+  if (moved) { const h = overHit(), hk = h ? h.key : null; if (hk !== hoverK) { hoverK = hk; draw(); flush(); } else { eraseCursor(ox, oy); paintCursor(); } } }
 function startInput() { try { process.stdin.setRawMode && process.stdin.setRawMode(true); } catch (e) {} process.stdin.resume(); process.stdin.on("data", onData);
   try { mfd = fs.createReadStream("/dev/input/mice"); mfd.on("data", onMouse); mfd.on("error", () => {}); } catch (e) {} fs.writeSync(1, "\x1b[?25l\x1b[2J"); }
 function stopInput() { process.stdin.removeListener("data", onData); try { process.stdin.setRawMode && process.stdin.setRawMode(false); } catch (e) {} if (mfd) { mfd.destroy(); mfd = null; } }
-let fd = null;
 function flush() { let out;
   if (G.bpp === 32 && G.stride === SW * 4) out = fb; else if (G.bpp === 32) { out = Buffer.alloc(G.stride * SH); for (let y = 0; y < SH; y++) fb.copy(out, y * G.stride, y * SW * 4, (y + 1) * SW * 4); }
   else { out = Buffer.alloc(G.stride * SH); for (let y = 0; y < SH; y++) for (let x = 0; x < SW; x++) { const o = (y * SW + x) * 4; out.writeUInt16LE(((fb[o + 2] >> 3) << 11) | ((fb[o + 1] >> 2) << 5) | (fb[o] >> 3), y * G.stride + x * 2); } }
-  try { if (fd === null) fd = fs.openSync(FBP, process.env.BUTTER_FB ? "w" : "r+"); fs.writeSync(fd, out, 0, out.length, 0); } catch (e) {} }
-if (DEMO) { demo(); if (process.env.BUTTER_EMPTY) D.servers = []; if (process.env.BUTTER_DEMO_MODAL) { ver = { java: ["1.21.4", "1.21.1", "1.20.4", "1.16.5", "1.8.9"], bedrock: ["LATEST", "PREVIEW"] }; openNew(); modal.f = 3; } draw(); flush(); process.exit(0); }
+  try { if (fd === null) fd = fs.openSync(FBP, process.env.BUTTER_FB ? "w" : "r+"); fs.writeSync(fd, out, 0, out.length, 0); } catch (e) {} if (!process.env.BUTTER_NOCURSOR) paintCursor(); }
+if (DEMO) { demo(); mouse.x = Math.round(SW * 0.62); mouse.y = Math.round(SH * 0.47); if (process.env.BUTTER_EMPTY) D.servers = []; if (process.env.BUTTER_DEMO_MODAL) { ver = { java: ["1.21.4", "1.21.1", "1.20.4", "1.16.5", "1.8.9"], bedrock: ["LATEST", "PREVIEW"] }; openNew(); modal.f = 3; } draw(); flush(); process.exit(0); }
 process.on("exit", () => { try { fs.writeSync(1, "\x1b[?25h\x1b[2J"); } catch (e) {} }); process.on("SIGTERM", () => process.exit(0));
 local(); agent(); startInput(); draw(); flush();
 setInterval(() => { local(); D.guiMb = process.memoryUsage().rss / 1048576; tick++; draw(); flush(); }, 1000); setInterval(agent, 4000);

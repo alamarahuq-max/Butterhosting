@@ -11,7 +11,7 @@ for scale in (1, 1.5, 2):
     for face, fn in FACES.items():
         for sz in SIZES[{'sans': 's', 'bold': 'bold', 'serif': 'serif'}[face] if False else ('s' if face == 'sans' else face)]:
             px = round(sz * scale); f = ImageFont.truetype(find(fn), px); asc, desc = f.getmetrics(); g = {}
-            for c in list(range(32, 127)) + [0xb7, 0xb0, 0x2193, 0x2191]:
+            for c in list(range(32, 127)) + [0xb7, 0xb0, 0x2193, 0x2191, 0x2022]:
                 ch = chr(c); adv = f.getlength(ch); im = Image.new('L', (px * 2, asc + desc + 4), 0); ImageDraw.Draw(im).text((0, 0), ch, font=f, fill=255); bb = im.getbbox()
                 if not bb: g[c] = [round(adv, 2), 0, 0, 0, 0, '']; continue
                 cr = im.crop(bb); g[c] = [round(adv, 2), cr.width, cr.height, bb[0], bb[1], base64.b64encode(cr.tobytes()).decode()]

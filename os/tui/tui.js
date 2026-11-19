@@ -1,152 +1,156 @@
 #!/usr/bin/env node
-// ButterOS console screen: retro-futuristic HUD (CPU/memory/temperature/network graphs, servers, menu).
-// Linux text console: only CP437 characters are used, so it works with every console font. The 16 console colours are re-programmed per theme.
-const fs = require("fs"), cp = require("child_process"), http = require("http");
-const DEMO = process.env.BUTTER_DEMO === "1", SNAP = process.env.BUTTER_SNAPSHOT || "";
-const UIF = process.env.BUTTER_UI_FILE || "/etc/butter-ui.json";
+// ButterOS home screen: a plain monospace terminal screen (works on the console, over SSH or a serial cable).
+// Preview: BUTTER_DEMO=1 BUTTER_SNAPSHOT=html|ansi COLS=110 ROWS=36 [BUTTER_SCREEN=login|new|logs|power] node tui.js
+const fs = require("fs"), cp = require("child_process"), crypto = require("crypto");
+const { H, D, local, agent, demo, api } = require("./data");
+const DEMO = process.env.BUTTER_DEMO === "1", SNAP = process.env.BUTTER_SNAPSHOT;
+const COLS = +process.env.COLS || process.stdout.columns || 100, ROWS = +process.env.ROWS || process.stdout.rows || 32;
+if (!SNAP && (!process.stdin.isTTY || COLS < 80 || ROWS < 24)) process.exit(3);
 
-const { THEMES } = require("./data");
-const FONTS = ["ter-v16b", "ter-v20b", "ter-v24b", "ter-v28b", "ter-v32b"];
-let ui = { theme: "NEON BUTTER", font: 2 };
-try { ui = Object.assign(ui, JSON.parse(fs.readFileSync(UIF, "utf8"))); } catch (e) {}
-if (!THEMES[ui.theme]) ui.theme = "NEON BUTTER";
-const saveUi = () => { try { fs.writeFileSync(UIF, JSON.stringify(ui)); } catch (e) {} };
+// ---- palette (re-programmed into the console's 16 colors) ----
+const PAL = ["0a0a1c", "ff6b6b", "5ef2b0", "ffd23f", "23235a", "2e2e6e", "7dd3fc", "f1f1ff", "9a9acb", "ff6b6b", "5ef2b0", "ffd23f", "5b8cff", "c792ea", "7dd3fc", "ffffff"];
+const N = { bg: 0, red: 1, grn: 2, yel: 3, chip: 4, rule: 5, cyn: 6, txt: 7, mut: 8 };
+const fg = (i) => "\x1b[" + (i < 8 ? 30 + i : 90 + i - 8) + "m", bgc = (i) => "\x1b[" + (i < 8 ? 40 + i : 100 + i - 8) + "m", R0 = "\x1b[0m" + fg(N.txt) + bgc(N.bg), B = "\x1b[1m";
+const c = (col, s) => fg(col) + s + fg(N.txt);
+const strip = (s) => s.replace(/\x1b\[[0-9;]*m/g, "");
+const vlen = (s) => [...strip(s)].length;
+const pad = (s, n) => s + " ".repeat(Math.max(0, n - vlen(s)));
+const cut = (s, n) => (vlen(s) > n ? [...s].slice(0, n - 1).join("") + "~" : s);
 
-const { H, D, local, agent, demo, push } = require("./data");
-// ---- drawing ----
-const C = { bg: 0, bad: 1, ok: 2, a1: 3, a1b: 11, a2: 5, a2b: 13, a3: 6, a3b: 14, txt: 7, dim: 8, hi: 15 };
-let W = 80, Hh = 25, grid = [];
-function init(w, h) { W = w; Hh = h; grid = Array.from({ length: h }, () => Array.from({ length: w }, () => [" ", 7])); }
-function put(r, c, s, fg) { if (r < 0 || r >= Hh) return; for (const ch of String(s)) { if (c >= 0 && c < W) grid[r][c] = [ch, fg]; c++; } }
-function center(r, s, fg, lo, hi) { lo = lo ?? 0; hi = hi ?? W; put(r, lo + Math.floor((hi - lo - [...s].length) / 2), s, fg); }
-function box(r, c, w, h, fg, title, tfg) {
-  put(r, c, "┌" + "─".repeat(w - 2) + "┐", fg); put(r + h - 1, c, "└" + "─".repeat(w - 2) + "┘", fg);
-  for (let i = 1; i < h - 1; i++) { put(r + i, c, "│", fg); put(r + i, c + w - 1, "│", fg); }
-  if (title) put(r, c + 2, "╡" + title + "╞", tfg ?? C.a1b);
-}
-function graph(r, c, w, h, data, lo, hi, cols) { // h rows, half-block resolution
-  const n = data.slice(-w); const off = w - n.length;
-  for (let i = 0; i < n.length; i++) {
-    const v = Math.max(0, Math.min(1, (n[i] - lo) / (hi - lo || 1))), lv = Math.round(v * h * 2);
-    for (let k = 0; k < h; k++) { const full = Math.floor(lv / 2); const row = r + h - 1 - k; if (k < full) put(row, c + off + i, "█", cols[k]); else if (k === full && lv % 2) put(row, c + off + i, "▄", cols[k]); }
-  }
-  for (let i = 0; i < off; i++) put(r + h - 1, c + i, "─", C.dim);
-}
-const bar = (v, w) => { const f = Math.round(Math.max(0, Math.min(1, v)) * w); return "█".repeat(f) + "░".repeat(w - f); };
-const kb = (b) => (b >= 1e6 ? (b / 1e6).toFixed(1) + "M" : b >= 1e3 ? (b / 1e3).toFixed(0) + "K" : Math.round(b) + "B");
-const gbs = (m) => (m >= 1024 ? (m / 1024).toFixed(1) + "G" : Math.round(m) + "M");
-const tm = (s) => { s = Math.floor(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
-const LOGO = ["█████▄ ██  ██ ██████ ██████ ██████ █████▄    ▄████▄ ▄█████",
-  "██  ██ ██  ██   ██     ██   ██     ██  ██    ██  ██ ██",
-  "█████▀ ██  ██   ██     ██   ████   █████▀    ██  ██ ▀████▄",
-  "██  ██ ██  ██   ██     ██   ██     ██ ▀█▄   ██  ██     ██",
-  "█████▀ ▀████▀   ██     ██   ██████ ██  ▀█    ▀████▀ █████▀"];
-const LOGO_COLS = [C.a1b, C.a1b, C.a1, C.a2b, C.a2];
+// ---- accounts ----
+const USERF = process.env.BUTTER_USERS || "/etc/butter-users.json";
+let users = [{ name: "Claude", role: "Admin" }]; try { const j = JSON.parse(fs.readFileSync(USERF, "utf8")); if (Array.isArray(j.users) && j.users.length) users = j.users; } catch (e) {}
+const hashpw = (salt, pw) => crypto.createHash("sha256").update(salt + pw).digest("hex");
 
-let flash = "";
-function frame(ts) {
-  init(W, Hh);
-  const wide = W >= 100, big = Hh >= 30;
-  // outer frame with title and status
-  put(0, 0, "╔" + "═".repeat(W - 2) + "╗", C.a3); put(Hh - 1, 0, "╚" + "═".repeat(W - 2) + "╝", C.a3);
-  for (let r = 1; r < Hh - 1; r++) { put(r, 0, "║", C.a3); put(r, W - 1, "║", C.a3); }
-  put(0, 3, "╡ BUTTER-OS ╞", C.a1b); const right = "╡ " + (D.ip || "NO NETWORK") + " ╞═╡ UP " + tm(D.up) + " ╞"; put(0, W - 3 - right.length, right, C.a3b);
-  // logo
-  let r = 2;
-  if (W >= 84) { LOGO.forEach((l, i) => center(r + i, l, LOGO_COLS[i])); r += 5; } else { center(r, "B U T T E R   O S", C.a1b); r += 1; }
-  center(r++, "M I N E C R A F T   H O S T I N G  •  N O T H I N G   E L S E", C.dim);
-  put(r, 2, "═".repeat(W - 4), C.a2); r += 1;
-  // panels
-  const pw = Math.floor((W - 2 - (wide ? 0 : 0)) / 4), ph = 7;
-  const P = (i) => 1 + i * pw, pwi = (i) => (i === 3 ? W - 1 - P(3) : pw);
-  const gcols = [C.a3b, C.a1b, C.a2b];
-  const t = D.temp, tcol = t == null ? C.dim : t >= 80 ? C.bad : t >= 65 ? C.a1b : C.ok;
-  const panels = [
-    { t: "CPU", v: D.cpu.toFixed(0) + "%", vc: D.cpu > 85 ? C.bad : C.a3b, d: H.cpu, lo: 0, hi: 100, cap: "LOAD " + D.load.split(" ")[0] + "  " + D.cores + " CORES" },
-    { t: "MEMORY", v: gbs(D.memUsed) + "/" + gbs(D.memTotal), vc: D.memAvail < 300 ? C.bad : C.a1b, d: H.mem, lo: 0, hi: 100, cap: "FREE " + gbs(D.memAvail) },
-    { t: "TEMP", v: t == null ? "NO SENSOR" : t.toFixed(0) + "øC", vc: tcol, d: H.temp, lo: 25, hi: 95, cap: t == null ? "THIS MACHINE HIDES IT" : (D.tempLabel || "SENSOR").toUpperCase().slice(0, pw - 6) },
-    { t: "NETWORK", v: "↓" + kb(D.rx) + " ↑" + kb(D.tx), vc: C.a2b, d: H.rx, lo: 0, hi: Math.max(50000, ...H.rx.slice(-60)), cap: "TOTAL ↓" + kb(D.rxTotal) + " ↑" + kb(D.txTotal) },
-  ];
-  panels.forEach((p, i) => {
-    const c = P(i), w = pwi(i); box(r, c, w, ph, i === 2 ? tcol : C.a3, p.t, C.a1b);
-    put(r + 1, c + 2, p.v, p.vc); graph(r + 2, c + 1, w - 2, 3, p.d, p.lo, p.hi, i === 2 ? [C.ok, C.a1b, C.bad] : gcols); put(r + 5, c + 2, p.cap.slice(0, w - 4), C.dim);
+// ---- state ----
+let screen = process.env.BUTTER_NOLOGIN || (DEMO && !process.env.BUTTER_SCREEN) ? "home" : (process.env.BUTTER_SCREEN === "login" ? "login" : "login");
+if (DEMO && ["new", "logs", "power", "home"].includes(process.env.BUTTER_SCREEN)) screen = "home";
+let sel = 0, cu = 0, pw = "", lerr = "", msg = "", msgT = 0, modal = null, ver = null, logs = [], power = false;
+const toast = (s) => { msg = s; msgT = Date.now() + 6000; };
+const kb = (b) => (b >= 1e6 ? (b / 1e6).toFixed(1) + " MB/s" : b >= 1e3 ? Math.round(b / 1e3) + " KB/s" : Math.round(b) + " B/s");
+const upf = (s) => { s = Math.floor(s); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return h ? h + "h " + m + "m" : m + "m"; };
+const meter = (v, n, col) => { const k = Math.max(0, Math.min(n, Math.round((v / 100) * n))); return fg(col) + "\u2588".repeat(k) + fg(N.rule) + "\u2591".repeat(n - k) + fg(N.txt); };
+
+const LOGO = ["  ____        _   _             ___  ____  ", " | __ ) _   _| |_| |_ ___ _ __ / _ \\/ ___| ", " |  _ \\| | | | __| __/ _ \\ '__| | | \\___ \\ ", " | |_) | |_| | |_| ||  __/ |  | |_| |___) |", " |____/ \\__,_|\\__|\\__\\___|_|   \\___/|____/ "];
+
+function rule(w) { return c(N.rule, "\u2500".repeat(w)); }
+function hostname() { try { return fs.readFileSync("/etc/hostname", "utf8").trim() || "butter-box"; } catch (e) { return "butter-box"; } }
+function home(W, Hh) {
+  const L = [], ind = "  ", inner = W - 4;
+  L.push("");
+  LOGO.forEach((l, i) => L.push(ind + B + c(N.yel, l) + (i === 0 ? c(N.mut, " " + users[cu].name.toLowerCase()) : "") + R0));
+  L.push(ind + rule(inner));
+  const running = D.servers.filter((s) => s.state === "running"), players = running.reduce((a, s) => a + (+s.players || 0), 0);
+  const left = [c(N.mut, "machine ") + hostname(), c(N.mut, "network ") + (D.ip ? c(N.grn, "\u25a0 online") + " " + D.ip : c(N.red, "\u25a0 no network") + c(N.mut, "  (press w for Wi-Fi)")), c(N.mut, "manage  ") + (D.ip ? c(N.cyn, "http://" + D.ip) : c(N.mut, "-"))];
+  const right = [c(N.mut, "cpu  ") + pad(D.cpu.toFixed(0) + "%", 5) + meter(D.cpu, 14, N.cyn), c(N.mut, "mem  ") + pad(Math.round(D.memUsed) + "/" + Math.round(D.memTotal) + "M", 11) + meter(100 * D.memUsed / D.memTotal, 8, N.yel), c(N.mut, "temp ") + (D.temp == null ? c(N.mut, "no sensor") : pad(D.temp.toFixed(0) + "\u00b0C", 5) + meter(Math.max(0, D.temp - 20) * 100 / 80, 14, D.temp > 80 ? N.red : N.grn)) + c(N.mut, "   net ") + "\u2193 " + kb(D.rx) + " \u2191 " + kb(D.tx)];
+  const half = Math.floor(inner * 0.46);
+  for (let i = 0; i < 3; i++) L.push(ind + pad(left[i], half) + right[i]);
+  L.push(ind + rule(inner));
+  L.push(ind + c(N.mut, "SERVERS") + c(N.mut, "   " + running.length + " running, " + players + " player" + (players === 1 ? "" : "s") + " online, up " + upf(D.up)));
+  if (!D.servers.length) L.push(ind + c(N.mut, D.agentOk || DEMO ? "  No servers yet. Press n to make one." : "  Starting the server engine. The first start takes a minute..."));
+  const maxRows = Math.max(1, Hh - L.length - 9);
+  D.servers.slice(0, maxRows).forEach((s, i) => {
+    const on = i === sel, run = s.state === "running", kind = (s.type === "bedrock" ? "bedrock" : "java " + (s.flavor || "paper")) + " " + (s.version || "latest").toString().toLowerCase();
+    const addr = s.join || (D.ip && s.port ? D.ip + ":" + s.port : "-");
+    const line = (on ? c(N.yel, "> ") : "  ") + c(run ? N.grn : N.mut, "\u25a0") + " " + (on ? B : "") + pad(cut(String(s.name), 14), 15) + R0 + c(N.mut, pad(cut(kind, 24), 25)) + (run ? pad((s.players == null ? 0 : s.players) + " players", 12) : c(N.mut, pad(s.state || "stopped", 12))) + (s.join ? c(N.cyn, addr) : c(N.txt, addr));
+    L.push(ind + line);
   });
-  r += ph;
-  // servers
-  const menuRows = 3, sh = Hh - 1 - menuRows - r;
-  if (sh >= 3) {
-    box(r, 1, W - 2, sh, C.a3, "SERVERS", C.a1b);
-    const run = D.servers.filter((s) => s.state === "running").length; put(r, W - 2 - 14, " " + run + "/" + D.servers.length + " ONLINE ", run ? C.ok : C.dim);
-    put(r + 1, 3, "NAME".padEnd(16) + "GAME".padEnd(20) + "PLAYERS".padEnd(9) + "MEMORY".padEnd(9) + "JOIN", C.dim);
-    if (!D.servers.length) put(r + 2, 3, "NO SERVERS YET. PRESS 1 TO MAKE ONE FOR YOU AND YOUR FRIENDS.", C.a1);
-    D.servers.slice(0, sh - 3).forEach((s, i) => {
-      const on = s.state === "running", g = (s.type === "bedrock" ? "BEDROCK" : (s.flavor || "java").toUpperCase()) + " " + (s.version || ""), addr = s.join || (D.ip && s.port ? D.ip + ":" + s.port : "-");
-      put(r + 2 + i, 3, on ? "●" : "○", on ? C.ok : C.dim); put(r + 2 + i, 5, s.name.slice(0, 14).padEnd(14), on ? C.hi : C.dim);
-      put(r + 2 + i, 19, g.slice(0, 19).padEnd(20), C.txt); put(r + 2 + i, 39, String(s.players == null ? "-" : s.players).padEnd(9), C.a3b); put(r + 2 + i, 48, (on ? gbs(s.ram) : "-").padEnd(9), C.txt); put(r + 2 + i, 57, addr.slice(0, W - 60), s.join ? C.a2b : C.txt);
-    });
-    r += sh;
+  L.push(ind + rule(inner));
+  L.push(ind + (Date.now() < msgT ? c(N.yel, msg) : c(N.mut, "Hosting Minecraft Java and Bedrock, nothing else.")));
+  L.push(ind + rule(inner));
+  const keys = [["n", "new server"], ["s", "start/stop"], ["d", "delete"], ["l", "logs"], ["1", "play with friends"], ["w", "wi-fi"], ["i", "install"], ["a", "password"], ["x", "shell"], ["p", "power"]];
+  let row = ind, rows = [];
+  keys.forEach(([k, t]) => { const chip = bgc(N.chip) + c(N.yel, " " + k + " ") + R0 + " " + t + "  "; if (vlen(row) + vlen(chip) > W - 2) { rows.push(row); row = ind; } row += chip; }); rows.push(row);
+  rows.forEach((r) => L.push(r));
+  L.push("");
+  L.push(ind + c(N.grn, "butter@" + hostname()) + ":" + c(N.cyn, "~") + "$ " + c(N.mut, "(up/down choose a server, press a key above)"));
+  return L;
+}
+function login(W, Hh) {
+  const L = [""]; const ind = " ".repeat(Math.max(2, Math.floor((W - 46) / 2)));
+  L.push(""); LOGO.forEach((l) => L.push(ind + B + c(N.yel, l) + R0)); L.push("");
+  L.push(ind + c(N.mut, "butter-box  " + (D.ip || "no network")) + "   " + new Date().toTimeString().slice(0, 5)); L.push("");
+  if (users.length > 1) { L.push(ind + c(N.txt, "Who is hosting today?")); users.slice(0, 4).forEach((u, i) => L.push(ind + (i === cu ? c(N.yel, "> ") : "  ") + (i === cu ? B : "") + pad(u.name, 12) + R0 + c(N.mut, u.role || ""))); L.push(ind + c(N.mut, "  Up/Down to choose  (Tab)")); L.push(""); }
+  const us = users[cu] || users[0];
+  L.push(ind + c(N.mut, "account  ") + B + us.name + R0 + c(N.mut, "  " + (us.role || "Admin")));
+  L.push(ind + c(N.mut, "password ") + (pw ? "*".repeat(pw.length) : c(N.mut, us.hash ? "" : "(none set, press Enter)")) + c(N.yel, "\u2588"));
+  L.push(""); L.push(ind + (lerr ? c(N.red, lerr) : c(N.mut, "Enter to log in    F1/Ctrl-P power")));
+  return L;
+}
+function overlay(L, W, Hh, title, lines, w) {
+  w = Math.min(W - 4, w || 64); const x = Math.floor((W - w) / 2), y = Math.max(1, Math.floor((Hh - lines.length - 4) / 2));
+  const box = [c(N.yel, "\u250c\u2500 ") + B + title + R0 + c(N.yel, " " + "\u2500".repeat(Math.max(0, w - 5 - vlen(title))) + "\u2510")];
+  lines.forEach((l) => box.push(c(N.yel, "\u2502") + " " + pad(l, w - 4) + " " + c(N.yel, "\u2502"))); box.push(c(N.yel, "\u2514" + "\u2500".repeat(w - 2) + "\u2518"));
+  box.forEach((bl, i) => { const row = y + i; while (L.length <= row) L.push(""); L[row] = " ".repeat(x) + bgc(N.bg) + bl + R0; });
+}
+function newBox() {
+  const m = modal, jl = ["LATEST"].concat(ver ? ver.java : []), bl = ver ? ver.bedrock : ["LATEST"], list = m.type === "bedrock" ? bl : jl, sw = m.type === "bedrock" ? "bedrock (official)" : m.flavor;
+  const row = (i, k, v, arrows) => (m.f === i ? c(N.yel, "> ") : "  ") + c(N.mut, pad(k, 10)) + (m.f === i ? B : "") + (arrows && m.f === i ? "< " + v + " >" : v) + R0;
+  const vv = String(list[m.vi] || "LATEST").toLowerCase();
+  return [row(0, "name", m.name + (m.f === 0 ? c(N.yel, "\u2588") : "")), row(1, "game", m.type === "java" ? "minecraft java" : "minecraft bedrock", 1), row(2, "software", sw, m.type === "java"), row(3, "version", vv, 1), "",
+    m.err ? c(N.red, cut(m.err, 56)) : c(N.mut, !ver ? "loading the version list..." : m.type === "java" && m.flavor === "paper" ? "Paper runs 1.8 and newer. Older: pick vanilla." : "Any version. Mods: use fabric or forge."), "", c(N.mut, m.busy ? "creating... (the first start downloads the game)" : "arrows change   Tab next   Enter create   Esc cancel")];
+}
+function view(W, Hh) {
+  let L;
+  if (screen === "login") L = login(W, Hh); else L = home(W, Hh);
+  if (screen === "home") {
+    if (modal && modal.t === "new") overlay(L, W, Hh, "NEW SERVER", newBox(), 64);
+    else if (modal && modal.t === "logs") overlay(L, W, Hh, "LOGS  " + modal.name, logs.slice(-(Hh - 10)).map((x) => cut(x.replace(/\x1b\[[0-9;]*m/g, ""), W - 12)).concat(["", c(N.mut, "Esc to close")]), W - 6);
+    else if (modal && modal.t === "pw") overlay(L, W, Hh, "PASSWORD for " + users[cu].name, [c(N.mut, "new password (empty = no password)"), "*".repeat(modal.pw.length) + c(N.yel, "\u2588"), "", c(N.mut, "Enter save   Esc cancel")], 50);
   }
-  // menu
-  const items = [["1", "PLAY WITH FRIENDS"], ["2", "WEB PAGE"], ["3", "INSTALL TO DISK"], ["4", "WI-FI"], ["T", "THEME"], ["F", "FONT"], ["P", "POWER OFF"], ["R", "RESTART"]];
-  const l1 = items.slice(0, 4), l2 = items.slice(4);
-  const draw = (row, arr) => { const len = arr.reduce((a, x) => a + x[1].length + 6, 0) - 2; let c = Math.max(2, Math.floor((W - len) / 2)); arr.forEach((x) => { put(row, c, "[", C.dim); put(row, c + 1, x[0], C.a1b); put(row, c + 2, "]", C.dim); put(row, c + 4, x[1], C.txt); c += x[1].length + 6; }); };
-  draw(Hh - 3, l1); draw(Hh - 2, l2);
-  if (flash) center(Hh - 1, "╡ " + flash + " ╞", C.a2b);
-  else put(Hh - 1, 3, "╡ " + ui.theme + " ╞", C.dim);
+  if (power) overlay(L, W, Hh, "POWER", ["", c(N.yel, " y ") + " shut down", c(N.yel, " r ") + " restart", c(N.yel, " l ") + " lock screen", c(N.yel, " esc") + " cancel", ""], 36);
+  return L;
 }
-const sgrFg = (i) => (i < 8 ? "3" + i : "9" + (i - 8));
-function toAnsi() { let s = "\x1b[H"; for (let r = 0; r < Hh; r++) { let cur = -1, line = ""; for (let c = 0; c < W; c++) { const [ch, fg] = grid[r][c]; if (fg !== cur) { line += "\x1b[" + sgrFg(fg) + ";40m"; cur = fg; } line += ch; } s += line + (r < Hh - 1 ? "\r\n" : ""); } return s + "\x1b[0m"; }
-function toHtml() {
-  const pal = THEMES[ui.theme]; let s = `<html><body style="margin:0;background:#${pal[0]}"><pre style="margin:0;padding:12px;font:15px/17px 'DejaVu Sans Mono',monospace;color:#${pal[7]}">`;
-  for (let r = 0; r < Hh; r++) { for (let c = 0; c < W; c++) { const [ch, fg] = grid[r][c]; s += `<span style="color:#${pal[fg]}">${ch === "<" ? "&lt;" : ch === "&" ? "&amp;" : ch}</span>`; } s += "\n"; } return s + "</pre></body></html>";
-}
-const palSeq = () => THEMES[ui.theme].map((h, i) => "\x1b]P" + i.toString(16) + h).join("");
+function frame() { const L = view(COLS, ROWS); let out = "\x1b[H"; for (let i = 0; i < ROWS; i++) out += (L[i] || "") + "\x1b[K\n"; return out.replace(/\n$/, ""); }
 
-if (SNAP) { // preview without a terminal
-  const w = +process.env.COLS || 100, h = +process.env.ROWS || 32; if (DEMO) demo(); init(w, h); W = w; Hh = h; frame(); fs.writeSync(1, SNAP === "html" ? toHtml() : toAnsi() + "\n"); process.exit(0);
+// ---- snapshot / preview ----
+function toHtml(s) { const cols = { 0: "#0a0a1c", 1: "#ff6b6b", 2: "#5ef2b0", 3: "#ffd23f", 4: "#23235a", 5: "#2e2e6e", 6: "#7dd3fc", 7: "#f1f1ff", 8: "#9a9acb", 9: "#ff6b6b", 10: "#5ef2b0", 11: "#ffd23f", 12: "#5b8cff", 13: "#c792ea", 14: "#7dd3fc", 15: "#fff" };
+  let out = "", f = "#f1f1ff", b = "", bold = false; const re = /\x1b\[([0-9;]*)m|\x1b\[[HK]|([^\x1b])/g; let m;
+  while ((m = re.exec(s))) { if (m[2] !== undefined) { const ch = m[2] === "<" ? "&lt;" : m[2] === ">" ? "&gt;" : m[2] === "&" ? "&amp;" : m[2]; out += ch === "\n" ? "\n" : '<span style="color:' + f + (b ? ";background:" + b : "") + (bold ? ";font-weight:700" : "") + '">' + ch + "</span>"; }
+    else if (m[1] !== undefined) m[1].split(";").forEach((x) => { x = +x; if (x === 0) { f = "#f1f1ff"; b = ""; bold = false; } else if (x === 1) bold = true; else if (x >= 30 && x <= 37) f = cols[x - 30]; else if (x >= 90 && x <= 97) f = cols[x - 90 + 8]; else if (x >= 40 && x <= 47) b = x === 40 ? "" : cols[x - 40]; else if (x >= 100) b = cols[x - 100 + 8]; }); }
+  return '<pre style="margin:0;padding:18px;background:#0a0a1c;font:17px/1.3 \'DejaVu Sans Mono\',monospace;width:' + COLS * 10.4 + 'px">' + out + "</pre>"; }
+if (SNAP) {
+  if (DEMO) { demo(); if (process.env.BUTTER_EMPTY) D.servers = []; if (process.env.BUTTER_SCREEN === "new") { ver = { java: ["1.21.4", "1.20.4", "1.16.5", "1.8.9"], bedrock: ["LATEST", "PREVIEW"] }; modal = { t: "new", name: "world4", type: "java", flavor: "paper", vi: 0, f: 3 }; } if (process.env.BUTTER_SCREEN === "logs") { modal = { t: "logs", name: "survival" }; logs = ["[12:01:12] [Server thread/INFO]: Done (8.214s)! For help, type \"help\"", "[12:03:40] [Server thread/INFO]: Steve joined the game", "[12:04:02] [Server thread/INFO]: <Steve> hello", "[12:05:17] [Server thread/INFO]: Alex joined the game"]; } if (process.env.BUTTER_SCREEN === "power") power = true; if (process.env.BUTTER_SCREEN === "login") screen = "login"; }
+  const f = frame(); fs.writeSync(1, SNAP === "html" ? toHtml(f) : f + "\n"); process.exit(0);
 }
 
-// ---- terminal session ----
-const out = process.stdout, inp = process.stdin;
-if (!out.isTTY || (out.columns || 80) < 60 || (out.rows || 25) < 20) { try { cp.execFileSync("/usr/local/bin/butter-tui-lite", { stdio: "inherit" }); } catch (e) {} process.exit(0); }
-const sh = (c) => cp.spawnSync("sh", ["-c", c], { stdio: "ignore" });
-function applyFont() { sh("setfont /usr/share/consolefonts/" + FONTS[ui.font % FONTS.length] + ".psf.gz 2>/dev/null || setfont /usr/share/consolefonts/ter-v20n.psf.gz 2>/dev/null"); }
-function size() { W = out.columns || 80; Hh = out.rows || 25; }
-function setup() { out.write(palSeq() + "\x1b[0;37;40m\x1b[2J\x1b[?25l"); }
-let busy = false, timer = null;
-function draw() { if (busy) return; size(); init(W, Hh); frame(); out.write(toAnsi()); }
-function toLeave() { busy = true; clearInterval(timer); inp.setRawMode(false); inp.pause(); out.write("\x1b[0;37;40m\x1b[2J\x1b[H\x1b[?25h"); }
-function back() { inp.setRawMode(true); inp.resume(); busy = false; applyFont(); setup(); draw(); timer = setInterval(() => { local(); draw(); }, 1000); }
-function run(cmd, args) { toLeave(); cp.spawnSync(cmd, args || [], { stdio: "inherit" }); process.stdout.write("\nPress Enter to go back "); const b = Buffer.alloc(1); try { fs.readSync(0, b, 0, 1); } catch (e) {} back(); }
-function modal(lines, fg) { busy = true; size(); init(W, Hh); frame(); const w = Math.max(...lines.map((l) => l.length)) + 6, h = lines.length + 4, r0 = Math.floor((Hh - h) / 2), c0 = Math.floor((W - w) / 2);
-  for (let r = r0; r < r0 + h; r++) for (let c = c0; c < c0 + w; c++) grid[r][c] = [" ", 7]; box(r0, c0, w, h, C.a2b); lines.forEach((l, i) => put(r0 + 2 + i, c0 + 3, l, fg ?? C.txt)); out.write(toAnsi()); }
-const ask = (cb) => { const f = (k) => { inp.removeListener("data", f); busy = false; cb(String(k)); }; inp.once("data", f); };
+// ---- actions ----
+function external(cmd) { stop(); try { process.stdout.write("\x1b[2J\x1b[H\x1b[?25h" + R0); cp.spawnSync("/bin/sh", ["-c", cmd], { stdio: "inherit" }); } catch (e) {} start(); }
+function openNew() { modal = { t: "new", name: "world" + (D.servers.length + 1), type: "java", flavor: "paper", vi: 0, f: 0, err: "", busy: false }; if (!ver) api("a=versions", (j) => { if (j && j.ok) ver = j; }, 25000); }
+function create() { const m = modal; if (m.busy) return; m.busy = true; m.err = ""; const list = m.type === "bedrock" ? (ver ? ver.bedrock : ["LATEST"]) : ["LATEST"].concat(ver ? ver.java : []), v = list[m.vi] || "LATEST";
+  api("a=create&n=" + encodeURIComponent(m.name) + "&type=" + m.type + "&mem=1024&ver=" + encodeURIComponent(v) + "&flavor=" + (m.type === "bedrock" ? "paper" : m.flavor), (j) => { m.busy = false; if (j && j.ok) { modal = null; toast("server " + m.name + " is starting"); agent(); } else m.err = (j && j.error) || "could not create"; render(); }, 300000); }
+function toggle(s) { if (!s) return; const a = s.state === "running" ? "stop" : "start"; toast((a === "stop" ? "stopping " : "starting ") + s.name + "..."); api("a=" + a + "&n=" + encodeURIComponent(s.name), (j) => { toast(j && j.ok ? "done" : (j && j.error) || "failed"); agent(); render(); }, 90000); }
+function remove(s) { if (!s) return; toast("removing " + s.name + "..."); api("a=delete&n=" + encodeURIComponent(s.name), (j) => { toast(j && j.ok ? "removed" : (j && j.error) || "failed"); agent(); render(); }, 90000); }
 function key(k) {
-  const c = String(k).toLowerCase();
-  if (busy) return;
-  if (c === "1") run("/usr/local/bin/butter-play");
-  else if (c === "2") { modal(["OPEN THIS ON ANY PHONE OR PC ON YOUR NETWORK:", "", "http://" + (D.ip || "<no network>"), "", "PRESS ANY KEY"]); ask(() => draw()); }
-  else if (c === "3") run("/usr/local/bin/butter-install");
-  else if (c === "4") run("/usr/local/bin/butter-wifi");
-  else if (c === "t") { const n = Object.keys(THEMES); ui.theme = n[(n.indexOf(ui.theme) + 1) % n.length]; saveUi(); out.write(palSeq()); flash = "THEME: " + ui.theme; setTimeout(() => (flash = ""), 2500); draw(); }
-  else if (c === "f") { ui.font = (ui.font + 1) % FONTS.length; saveUi(); applyFont(); flash = "FONT SIZE " + (ui.font + 1) + "/" + FONTS.length; setTimeout(() => (flash = ""), 2500); size(); draw(); }
-  else if (c === "p") { modal(["POWER OFF THIS MACHINE?", "", "Servers stop and worlds are backed up first.", "", "[Y] YES    [ANY OTHER KEY] NO"], C.a1b); ask((x) => { if (x.toLowerCase() === "y") { out.write("\x1b[2J\x1b[H POWERING OFF...\n"); cp.spawnSync("poweroff"); } else draw(); }); }
-  else if (c === "r") { modal(["RESTART THIS MACHINE?", "", "[Y] YES    [ANY OTHER KEY] NO"], C.a1b); ask((x) => { if (x.toLowerCase() === "y") cp.spawnSync("reboot"); else draw(); }); }
+  if (power) { power = false; if (k === "y") cp.exec("poweroff"); else if (k === "r") cp.exec("reboot"); else if (k === "l") { screen = "login"; pw = ""; lerr = ""; } return; }
+  if (screen === "login") {
+    if (k === "\x10" || k === "f1") { power = true; return; }
+    if (k === "up" || k === "tab") { if (users.length > 1) { cu = (cu + (k === "up" ? users.length - 1 : 1)) % users.length; pw = ""; lerr = ""; } return; }
+    if (k === "down") { cu = (cu + 1) % users.length; pw = ""; return; }
+    if (k === "bs") { pw = pw.slice(0, -1); return; }
+    if (k === "enter") { const us = users[cu]; if (!us.hash || hashpw(us.salt || "", pw) === us.hash) { screen = "home"; pw = ""; lerr = ""; toast("welcome, " + us.name); } else { lerr = "Wrong password, try again"; pw = ""; } return; }
+    if (k.length === 1 && k >= " " && pw.length < 40) { pw += k; lerr = ""; } return; }
+  if (modal) { const m = modal;
+    if (m.t === "pw") { if (k === "esc") modal = null; else if (k === "enter") { const us = users[cu]; if (m.pw) { us.salt = crypto.randomBytes(8).toString("hex"); us.hash = hashpw(us.salt, m.pw); } else { delete us.hash; delete us.salt; } try { fs.writeFileSync(USERF, JSON.stringify({ users })); toast(m.pw ? "password saved" : "password removed"); } catch (e) { toast("could not save"); } modal = null; } else if (k === "bs") m.pw = m.pw.slice(0, -1); else if (k.length === 1 && k >= " " && m.pw.length < 40) m.pw += k; return; }
+    if (m.t === "logs") { if (k === "esc" || k === "q") modal = null; return; }
+    if (k === "esc") modal = null; else if (k === "enter") create();
+    else if (k === "up" || k === "btab") m.f = (m.f + 3) % 4; else if (k === "down" || k === "tab") m.f = (m.f + 1) % 4;
+    else if (k === "left" || k === "right") { const d = k === "left" ? -1 : 1; if (m.f === 1) { m.type = m.type === "java" ? "bedrock" : "java"; m.vi = 0; } else if (m.f === 2 && m.type === "java") { const o = ["paper", "vanilla", "fabric", "forge"]; m.flavor = o[(o.indexOf(m.flavor) + d + 4) % 4]; } else if (m.f === 3) { const n = m.type === "bedrock" ? (ver ? ver.bedrock.length : 1) : 1 + (ver ? ver.java.length : 0); m.vi = (m.vi + d + n) % n; } }
+    else if (m.f === 0) { if (k === "bs") m.name = m.name.slice(0, -1); else if (/^[A-Za-z0-9-]$/.test(k) && m.name.length < 24) m.name += k; }
+    return; }
+  const s = D.servers[sel];
+  if (k === "up") sel = Math.max(0, sel - 1); else if (k === "down") sel = Math.min(Math.max(0, D.servers.length - 1), sel + 1);
+  else if (k === "n") openNew(); else if (k === "s" || k === "enter") toggle(s); else if (k === "d" || k === "del") remove(s);
+  else if (k === "l" && s) { modal = { t: "logs", name: s.name }; logs = ["loading..."]; api("a=logs&n=" + encodeURIComponent(s.name), (j) => { logs = String((j && j.logs) || "no log yet").split("\n"); render(); }, 20000); }
+  else if (k === "1") external("/usr/local/bin/butter-play; printf '\\nPress Enter '; read x");
+  else if (k === "w") external("/usr/local/bin/butter-wifi"); else if (k === "i") external("/usr/local/bin/butter-install; printf '\\nPress Enter '; read x");
+  else if (k === "a") modal = { t: "pw", pw: "" }; else if (k === "x") external("echo 'ButterOS shell. Type exit to come back.'; /bin/sh -l"); else if (k === "p") power = true; else if (k === "q") { /* stay */ }
 }
-function intro(done) {
-  if (process.env.BUTTER_FAST) return done();
-  size(); out.write(palSeq() + "\x1b[0;37;40m\x1b[2J\x1b[?25l");
-  const lines = ["BUTTER-OS  SYSTEM CHECK", "", "MEMORY ........... OK", "NETWORK .......... SEARCHING", "CONTAINER ENGINE . STARTING", "MINECRAFT AGENT .. STARTING", ""]; let n = 0, ready = 0, tries = 0;
-  const tick = setInterval(() => {
-    size(); init(W, Hh); const logoW = W >= 84; let r = 3; if (logoW) { LOGO.forEach((l, i) => center(r + i, l, LOGO_COLS[i])); r += 7; } else { center(r, "B U T T E R   O S", C.a1b); r += 3; }
-    lines.forEach((l, i) => { if (i === 0) center(r + i, l, C.a1b); else if (l) center(r + i, l.replace("SEARCHING", ready > 1 ? "ONLINE" : "SEARCHING").replace("STARTING", ready > 2 ? "READY" : "STARTING"), C.txt); });
-    const bw = Math.min(40, W - 10), f = Math.min(bw, Math.floor(bw * (n + 1) / 28)); center(r + 8, "[" + "▓".repeat(f) + "░".repeat(bw - f) + "]", C.a2b);
-    out.write(toAnsi()); n++; tries++;
-    if (n % 4 === 0 && !ready) { ready = 1; } if (n === 10) ready = 2; if (n === 18) ready = 3;
-    if (tries > 24 && (n >= 28)) { clearInterval(tick); done(); } if (tries > 90) { clearInterval(tick); done(); }
-  }, 250);
-}
-process.on("SIGTERM", () => { out.write("\x1b[?25h"); process.exit(0); });
-out.on("resize", () => { if (!busy) draw(); });
-applyFont(); size(); if (DEMO) demo();
-intro(() => { local(); setTimeout(local, 700); agent(); setInterval(agent, 5000); back(); inp.setRawMode(true); inp.on("data", key); });
+const KEYS = { "\x1b[A": "up", "\x1b[B": "down", "\x1b[C": "right", "\x1b[D": "left", "\x1b[3~": "del", "\x1b[Z": "btab", "\r": "enter", "\n": "enter", "\t": "tab", "\x7f": "bs", "\b": "bs", "\x1b": "esc", "\x1bOP": "f1", "\x1b[[A": "f1" };
+function onData(d) { const s = d.toString("latin1"), k = KEYS[s] || (s.length === 1 ? s : null); if (!k) return; const raw = screen === "login" || (modal && (modal.t === "pw" || (modal.t === "new" && modal.f === 0))) || k.length > 1; key(raw ? k : k.toLowerCase()); render(); }
+let timer = null;
+function render() { process.stdout.write(frame()); }
+function start() { try { process.stdin.setRawMode(true); } catch (e) {} process.stdin.resume(); process.stdin.on("data", onData); process.stdout.write(PAL.map((h, i) => "\x1b]P" + i.toString(16) + h).join("") + R0 + "\x1b[2J\x1b[?25l"); render(); }
+function stop() { process.stdin.removeListener("data", onData); try { process.stdin.setRawMode(false); } catch (e) {} }
+process.on("exit", () => { try { process.stdout.write("\x1b[?25h\x1b[0m\x1b[2J\x1b[H"); } catch (e) {} }); process.on("SIGTERM", () => process.exit(0)); process.stdout.on("resize", render);
+local(); agent(); start(); timer = setInterval(() => { local(); render(); }, 1000); setInterval(agent, 4000);

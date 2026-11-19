@@ -1,15 +1,15 @@
 #!/bin/sh
-# ButterOS screen on tty1: graphical HUD if a framebuffer exists, else the text HUD, else the plain menu.
+# ButterOS screen on tty1: the monospace home screen (tui.js). Falls back to the plain menu if it cannot run.
 export TERM=${TERM:-linux}
-# let the machine finish booting first (shows the same loading screen as the menu)
 if grep -q 'butter=install' /proc/cmdline 2>/dev/null; then exec /usr/local/bin/butter-tui-lite; fi
 i=0; while [ $i -lt 30 ] && ! wget -q -O /dev/null http://127.0.0.1/cgi-bin/api?a=ping 2>/dev/null; do sleep 1; i=$((i+1)); done
-if command -v node >/dev/null 2>&1; then
-  if [ -e /dev/fb0 ] && [ "$BUTTER_UI" != text ]; then
-    while :; do node /usr/local/lib/butter/gui.js; rc=$?; [ $rc -eq 3 ] && break; sleep 1; done
-  fi
-  if [ -t 0 ]; then
-    while :; do node /usr/local/lib/butter/tui.js; rc=$?; [ $rc -eq 3 ] && break; sleep 1; done
-  fi
+# biggest Terminus font that still fits 100 columns x 34 rows
+if [ -r /sys/class/graphics/fb0/virtual_size ] && command -v setfont >/dev/null 2>&1; then
+  W=$(cut -d, -f1 /sys/class/graphics/fb0/virtual_size); Hh=$(cut -d, -f2 /sys/class/graphics/fb0/virtual_size)
+  for s in 32:16 28:14 24:12 22:11 20:10 18:9 16:8; do h=${s%:*}; w=${s#*:}
+    if [ $((W / w)) -ge 100 ] && [ $((Hh / h)) -ge 34 ]; then setfont ter-v${h}b 2>/dev/null && break; fi; done
+fi
+if command -v node >/dev/null 2>&1 && [ -t 0 ]; then
+  while :; do node /usr/local/lib/butter/tui.js; rc=$?; [ $rc -eq 3 ] && break; sleep 1; done
 fi
 exec /usr/local/bin/butter-tui-lite

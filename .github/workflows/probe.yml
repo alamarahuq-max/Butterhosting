@@ -10,15 +10,12 @@ jobs:
         run: |
           apk add --no-cache linux-lts linux-lts-dev git curl build-base bash >/dev/null 2>&1
           mkdir -p /o; K=$(ls /lib/modules | head -1); echo "kernel $K" > /o/ls.txt
-          find /lib/modules/$K -iname '*rtl8xxxu*' -o -iname '*r8188eu*' -o -iname '*8188*' -o -iname 'rtw88*' -o -iname 'rtw89*' -o -iname '*rtl8192*' -o -iname 'ath9k_htc*' -o -iname 'mt76*' -o -iname '*mt7601*' -o -iname 'iwlwifi*' -o -iname 'brcmfmac*' -o -iname 'ath10k_pci*' -o -iname 'rtlwifi*' -o -iname 'cfg80211*' -o -iname 'mac80211*' | sed "s|/lib/modules/$K/||" >> /o/ls.txt
-          echo "--- packages" >> /o/ls.txt
-          for p in wpa_supplicant iw wireless-tools wireless-regdb iwd linux-firmware-rtlwifi linux-firmware-rtl_bt linux-firmware-rtw88 linux-firmware-rtw89 linux-firmware-mediatek linux-firmware-ath9k_htc linux-firmware-ath10k linux-firmware-iwlwifi linux-firmware-brcm linux-firmware-other linux-firmware-rtl_nic linux-firmware-ath11k linux-firmware-ath12k linux-firmware-intel linux-firmware; do echo "$p: $(apk search -e $p | head -1)" >> /o/ls.txt; done
-          echo "--- firmware for 8188eu" >> /o/ls.txt
-          apk add --no-cache linux-firmware-rtlwifi >/dev/null 2>&1; find /lib/firmware -iname '*8188*' >> /o/ls.txt
-          echo "--- out-of-tree rtl8188eu build" >> /o/ls.txt
-          cd /tmp && git clone --depth 1 https://github.com/lwfinger/rtl8188eu.git >> /o/ls.txt 2>&1 || git clone --depth 1 https://github.com/aircrack-ng/rtl8188eus.git rtl8188eu >> /o/ls.txt 2>&1
-          cd rtl8188eu && (make -j4 KVER=$K KSRC=/usr/src/linux-headers-$K 2>&1 | tail -25) >> /o/ls.txt; ls *.ko >> /o/ls.txt 2>&1
-          du -sh /usr/src/linux-headers-* >> /o/ls.txt 2>&1
+          for R in https://github.com/aircrack-ng/rtl8188eus.git https://github.com/kelebek333/rtl8188eus.git https://github.com/lwfinger/rtl8188eu.git https://github.com/gglluukk/rtl8188eus.git; do
+            N=$(echo $R | cut -d/ -f4-5 | tr / _ | sed 's/.git//'); echo "=== $R" >> /o/ls.txt
+            rm -rf /tmp/d && git clone --depth 1 $R /tmp/d >> /o/ls.txt 2>&1 || { echo "clone failed" >> /o/ls.txt; continue; }
+            ( cd /tmp/d && git log -1 --format='%h %ad' >> /o/ls.txt; make -j4 KVER=$K KSRC=/usr/src/linux-headers-$K > /tmp/b.log 2>&1; grep -E "error:|Error " /tmp/b.log | head -12 >> /o/ls.txt; ls -la *.ko >> /o/ls.txt 2>&1 && cp *.ko /o/$N.ko )
+          done
+          ls -la /o >> /o/ls.txt
       - name: Push
         env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
         run: |

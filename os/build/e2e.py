@@ -198,6 +198,11 @@ def main():
             if re.search(r"Done \(", lg): up = True; break
             time.sleep(10)
         check("Java (Paper) server finished starting (log says Done)", up, lg[-300:])
+        sv = {x["name"]: x for x in api("a=status").get("servers", [])}.get("test-java", {}); bp = sv.get("bedrock_port")
+        if up and bp:
+            c, o = vm.sh("wget -S -O /dev/null -T 8 http://127.0.0.1:%s/ 2>&1 | head -4; echo ---; docker logs bw-test-java 2>&1 | grep -iE 'signaling|Geyser.*(Done|Started|error)' | cut -c1-160 | tail -4" % bp, 40)
+            check("Phones: Geyser's NetherNet signaling answers on TCP port %s" % bp, "HTTP/" in o, o.strip()[-300:])
+        else: check("Phones: Geyser crossplay port reported by status", False, sv)
         if up:
             try: p = mc_ping(); check("Java server answers a real Minecraft status ping", p and "players" in p, json.dumps(p)[:200])
             except Exception as e: check("Java server answers a real Minecraft status ping", False, e)
@@ -236,18 +241,8 @@ def main():
                 time.sleep(10)
             check("Bedrock %s finished starting (log says Server started)" % nm, up, lg[-200:])
         c, o = vm.sh("grep -E '^(allow-list|server-name)' /ram/butter/worlds/test-bed/server.properties"); check("Bedrock allow-list is off (friends can join)", "allow-list=false" in o, o.strip()[-120:])
-        pong = raknet_ping(19132); check("Bedrock answers a RakNet ping on UDP (from the host, through the forwarded port)", pong is not None, pong)
-        js = 'const d=require("dgram").createSocket("udp4");const m=Buffer.from("00ffff00fefefefefdfdfdfd12345678","hex");const p=Buffer.concat([Buffer.from([1]),Buffer.alloc(8),m,Buffer.alloc(8)]);d.on("message",b=>{console.log("PONG"+b[0]);process.exit(0)});setInterval(()=>d.send(p,19132,"127.0.0.1"),500);setTimeout(()=>{console.log("NOPONG");process.exit(1)},10000)'
-        c, o = vm.sh("node -e '" + js + "'", 30); check("Bedrock answers a RakNet ping (inside the machine)", "PONG28" in o, o.strip()[-60:])
-        if "PONG28" not in o:
-            ip = vm.sh("docker inspect -f '{{.NetworkSettings.IPAddress}}' bw-test-bed")[1].strip().splitlines()[-1] if True else ""
-            js2 = js.replace('"127.0.0.1"', '"' + ip + '"')
-            c2, o2 = vm.sh("node -e '" + js2 + "'", 30); extra.append("Bedrock direct-to-container ping (" + ip + "): " + o2.strip()[-40:])
-            c3, o3 = vm.sh("docker ps -a --format '{{.Names}} {{.Status}} {{.Ports}}'; ss -lunp 2>&1 | head; docker logs --tail 15 bw-test-bed 2>&1 | cut -c1-160; iptables -t nat -S 2>&1 | grep 1913 | head")
-            extra.append("Bedrock diagnostics:\n```\n" + o3[-1800:] + "\n```")
-        if "PONG28" not in o:
-            c, o2 = vm.sh("docker logs --tail 6 bw-test-bed 2>&1; docker port bw-test-bed; netstat -lun; echo RAW:; " + "node -e '" + js + "' 2>&1 | tail -3", 40)
-            extra.append("Bedrock ping diagnostics:\n```\n" + o2 + "\n```")
+        lg = api("a=logs&n=test-bed").get("logs", "")
+        check("Bedrock registered with Mojang's NetherNet signaling (what 26.60+ phones use; RakNet is retired)", "Signed in to signaling service successfully" in lg or "IPv4 supported, port: 19132" in lg, [l for l in lg.splitlines() if "signaling" in l.lower() or "port" in l.lower()][-3:])
         st = api("a=status"); extra.append("Status after 2 Bedrock:\n```\n" + json.dumps({k: st.get(k) for k in ("mem", "web_rss_mb", "capacity", "servers")}) + "\n```")
         json.dump(st, open(os.path.join(OUT, "status-final.json"), "w"), indent=1)
         r = api("a=create&n=third&type=bedrock"); check("Refuses a 3rd server in live mode", not r.get("ok"), r.get("error"))

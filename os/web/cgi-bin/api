@@ -17,7 +17,7 @@ valid() { printf '%s' "$1" | grep -Eq '^[a-z0-9][a-z0-9-]{1,23}$'; }
 exists() { docker inspect "$(cname "$1")" >/dev/null 2>&1; }
 count() { docker ps -a -q --filter label=butterhosting=1 2>/dev/null | wc -l; }
 nextport() { # $1 = tcp|udp, $2 = base
-  p=$2; used=$(docker ps -a --format '{{.Ports}} {{.Label "butterport"}}' 2>/dev/null)
+  p=$2; used=$(docker ps -a --format '{{.Ports}} {{.Label "butterport"}} {{.Label "butterbport"}}' 2>/dev/null)
   while echo "$used" | grep -Eq ":$p->|(^| )$p( |$)"; do p=$((p+1)); done; echo $p; }
 
 urlq() { printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n "s/^$1=//p" | head -1 | sed 's/+/ /g; s/%\([0-9A-Fa-f][0-9A-Fa-f]\)/\\x\1/g' | { read -r v; printf '%b' "$v"; }; }
@@ -35,13 +35,13 @@ case "$A" in
 status|"")
   TOTAL=$(mb MemTotal); AVAIL=$(mb MemAvailable)
   STATS=$(docker stats --no-stream --format '{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}' 2>/dev/null | awk -F'|' '{split($3,a," / "); v=a[1]; n=v+0; if(v~/GiB/)n=n*1024; else if(v~/KiB/)n=n/1024; else if(v~/MiB/)n=n; else if(v~/B/)n=n/1048576; printf "%s|%s|%d\n",$1,$2,n}')
-  SRV=$(docker ps -a --filter label=butterhosting=1 --format '{{.Names}}|{{.State}}|{{.Image}}|{{.Ports}}|{{.Label "butterflavor"}}|{{.Label "butterver"}}|{{.Label "butterport"}}' 2>/dev/null | while IFS='|' read -r nm st im po fl vr bp; do
+  SRV=$(docker ps -a --filter label=butterhosting=1 --format '{{.Names}}|{{.State}}|{{.Image}}|{{.Ports}}|{{.Label "butterflavor"}}|{{.Label "butterver"}}|{{.Label "butterport"}}|{{.Label "butterbport"}}' 2>/dev/null | while IFS='|' read -r nm st im po fl vr bp bbp; do
       ty=java; echo "$im" | grep -q bedrock && ty=bedrock
       ram=0; cpu=0; r=$(echo "$STATS" | grep "^$nm|"); [ -n "$r" ] && { ram=$(echo "$r" | cut -d'|' -f3); cpu=$(echo "$r" | cut -d'|' -f2 | tr -d '%'); }
       pl=null
       if [ "$st" = running ] && [ $ty = java ]; then x=$(timeout 3 docker exec "$nm" rcon-cli list 2>/dev/null | sed -n 's/.*There are \([0-9]*\) of a max.*/\1/p'); [ -n "$x" ] && pl=$x; fi
       port=$(echo "$po" | tr ',' '\n' | grep -E -- '->25565/tcp|->19132/udp' | grep -E '25565/tcp' | sed -n 's/.*:\([0-9]*\)->.*/\1/p' | head -1); [ -n "$port" ] || port=$(echo "$po" | sed -n 's/.*:\([0-9]*\)->.*/\1/p' | head -1); [ -n "$port" ] || port=$bp
-      bport=$(echo "$po" | tr ',' '\n' | grep '/udp' | sed -n 's/.*:\([0-9]*\)->.*/\1/p' | head -1); [ $ty = bedrock ] && bport=$port
+      bport=$(echo "$po" | tr ',' '\n' | grep '/udp' | sed -n 's/.*:\([0-9]*\)->.*/\1/p' | head -1); [ -n "$bbp" ] && bport=$bbp; [ $ty = bedrock ] && bport=$port
       jn=""; [ -f "/run/butter-join-${nm#bw-}" ] && jn=$(cat "/run/butter-join-${nm#bw-}")
       jq -nc --arg n "${nm#bw-}" --arg c "$nm" --arg s "$st" --arg t "$ty" --argjson r "${ram:-0}" --arg cpu "${cpu:-0}" --argjson p "$pl" --arg port "$port" --arg join "$jn" --arg fl "$fl" --arg vr "$vr" --arg bport "$bport" \
         '{bedrock_port:($bport|tonumber? // null),flavor:$fl,version:$vr,join:(if $join=="" then null else $join end),name:$n,container:$c,state:$s,type:$t,ram:$r,cpu:($cpu|tonumber? // 0),players:$p,port:($port|tonumber? // null)}'
@@ -135,7 +135,6 @@ create)
     [ "$F" = fabric ] && [ "$V" != LATEST ] && [ "$MNR" -lt 14 ] && fail "Fabric starts at 1.14"
     X=$(q cross); [ -n "$X" ] || X=1; [ "$F" != paper ] && X=0; [ "$V" != LATEST ] && [ "$MNR" -lt 16 ] && X=0
   else
-    [ "$V" = LATEST ] && V=1.26.45.1
     [ "$V" = LATEST ] || [ "$V" = PREVIEW ] || printf '%s' "$V" | grep -Eq '^1\.[0-9]+\.[0-9]+(\.[0-9]+)?$' || fail "Bedrock version looks like 1.21.44.01, or LATEST / PREVIEW"
     F=bedrock
   fi
@@ -144,10 +143,13 @@ create)
   if [ $T = java ]; then
     case "$M" in ''|*[!0-9]*) M=1024;; esac; [ "$M" -lt 512 ] && M=512; [ "$M" -gt 2048 ] && M=2048
     P=$(nextport tcp 25565); TY=$(echo "$F" | tr 'a-z' 'A-Z'); XA=""
-    if [ "$X" = 1 ]; then BP=$(nextport udp 19132); XA="-p $BP:19132/udp -e PLUGINS=https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot,https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot"
-      mkdir -p "$WORLDS/$N/plugins/Geyser-Spigot"; printf 'bedrock:\n  port: 19132\nremote:\n  auth-type: floodgate\n' > "$WORLDS/$N/plugins/Geyser-Spigot/config.yml"; fi
+    NETA="-p $P:25565"
+    if [ "$X" = 1 ]; then BP=$(nextport udp 19132); [ "$BP" = "$P" ] && BP=$((BP+1))
+      NETA="--network host -e SERVER_PORT=$P --label butterport=$P --label butterbport=$BP"
+      XA="-e PLUGINS=https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot,https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot"
+      mkdir -p "$WORLDS/$N/plugins/Geyser-Spigot"; printf 'bedrock:\n  address: 0.0.0.0\n  port: %s\n  transport: nethernet\nremote:\n  auth-type: floodgate\n' "$BP" > "$WORLDS/$N/plugins/Geyser-Spigot/config.yml"; fi
     docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --label "butterflavor=$F" --label "butterver=$V" --restart unless-stopped \
-      -e EULA=TRUE -e TYPE="$TY" -e VERSION="$V" -e MEMORY="${M}M" -p "$P:25565" $XA -v "$WORLDS/$N:/data" "itzg/minecraft-server:$TAG" >/tmp/run.err 2>&1 || { rm -rf "$WORLDS/$N"; if grep -q "no space" /tmp/run.err; then fail "Not enough room in RAM to download this Java runtime. Install ButterOS to a disk, or use a machine with more RAM."; fi; fail "docker run failed: $(tail -c 160 /tmp/run.err | tr '\n"' '  ')"; }
+      -e EULA=TRUE -e TYPE="$TY" -e VERSION="$V" -e MEMORY="${M}M" $NETA $XA -v "$WORLDS/$N:/data" "itzg/minecraft-server:$TAG" >/tmp/run.err 2>&1 || { rm -rf "$WORLDS/$N"; if grep -q "no space" /tmp/run.err; then fail "Not enough room in RAM to download this Java runtime. Install ButterOS to a disk, or use a machine with more RAM."; fi; fail "docker run failed: $(tail -c 160 /tmp/run.err | tr '\n"' '  ')"; }
   else
     P=$(nextport udp 19132)
     docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --label "butterflavor=bedrock" --label "butterver=$V" --label "butterport=$P" --restart unless-stopped --network host \

@@ -17,8 +17,8 @@ valid() { printf '%s' "$1" | grep -Eq '^[a-z0-9][a-z0-9-]{1,23}$'; }
 exists() { docker inspect "$(cname "$1")" >/dev/null 2>&1; }
 count() { docker ps -a -q --filter label=butterhosting=1 2>/dev/null | wc -l; }
 nextport() { # $1 = tcp|udp, $2 = base
-  p=$2; used=$(docker ps -a --format '{{.Ports}}' 2>/dev/null)
-  while echo "$used" | grep -q ":$p->"; do p=$((p+1)); done; echo $p; }
+  p=$2; used=$(docker ps -a --format '{{.Ports}} {{.Label "butterport"}}' 2>/dev/null)
+  while echo "$used" | grep -Eq ":$p->|(^| )$p( |$)"; do p=$((p+1)); done; echo $p; }
 
 urlq() { printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n "s/^$1=//p" | head -1 | sed 's/+/ /g; s/%\([0-9A-Fa-f][0-9A-Fa-f]\)/\\x\1/g' | { read -r v; printf '%b' "$v"; }; }
 share() { # $1 name, $2 port (TCP): free internet join link through bore.pub
@@ -26,7 +26,7 @@ share() { # $1 name, $2 port (TCP): free internet join link through bore.pub
   pkill -f "bore local $2 " 2>/dev/null; rm -f "/run/butter-join-$1"
   nohup bore local "$2" --to bore.pub >"/run/butter-bore-$1.log" 2>&1 </dev/null &
   for i in $(seq 1 25); do sleep 1; a=$(grep -o 'bore.pub:[0-9]*' "/run/butter-bore-$1.log" | head -1); [ -n "$a" ] && { echo "$a" > "/run/butter-join-$1"; echo "$a"; return 0; }; done; return 1; }
-sport() { docker inspect -f '{{range $p,$c := .NetworkSettings.Ports}}{{range $c}}{{.HostPort}}{{end}}{{end}}' "$(cname "$1")" 2>/dev/null; }
+sport() { x=$(docker inspect -f '{{range $p,$c := .NetworkSettings.Ports}}{{range $c}}{{.HostPort}}{{end}}{{end}}' "$(cname "$1")" 2>/dev/null); [ -n "$x" ] || x=$(docker inspect -f '{{index .Config.Labels "butterport"}}' "$(cname "$1")" 2>/dev/null); echo "$x"; }
 pdir() { case "$(docker inspect -f '{{index .Config.Labels "butterflavor"}}' "$(cname "$N")" 2>/dev/null)" in fabric|forge) echo mods;; *) echo plugins;; esac; }
 isjava() { docker inspect -f '{{.Config.Image}}' "$(cname "$1")" 2>/dev/null | grep -q minecraft-server; }
 A=$(q a); N=$(q n)
@@ -35,12 +35,12 @@ case "$A" in
 status|"")
   TOTAL=$(mb MemTotal); AVAIL=$(mb MemAvailable)
   STATS=$(docker stats --no-stream --format '{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}' 2>/dev/null | awk -F'|' '{split($3,a," / "); v=a[1]; n=v+0; if(v~/GiB/)n=n*1024; else if(v~/KiB/)n=n/1024; else if(v~/MiB/)n=n; else if(v~/B/)n=n/1048576; printf "%s|%s|%d\n",$1,$2,n}')
-  SRV=$(docker ps -a --filter label=butterhosting=1 --format '{{.Names}}|{{.State}}|{{.Image}}|{{.Ports}}|{{.Label "butterflavor"}}|{{.Label "butterver"}}' 2>/dev/null | while IFS='|' read -r nm st im po fl vr; do
+  SRV=$(docker ps -a --filter label=butterhosting=1 --format '{{.Names}}|{{.State}}|{{.Image}}|{{.Ports}}|{{.Label "butterflavor"}}|{{.Label "butterver"}}|{{.Label "butterport"}}' 2>/dev/null | while IFS='|' read -r nm st im po fl vr bp; do
       ty=java; echo "$im" | grep -q bedrock && ty=bedrock
       ram=0; cpu=0; r=$(echo "$STATS" | grep "^$nm|"); [ -n "$r" ] && { ram=$(echo "$r" | cut -d'|' -f3); cpu=$(echo "$r" | cut -d'|' -f2 | tr -d '%'); }
       pl=null
       if [ "$st" = running ] && [ $ty = java ]; then x=$(timeout 3 docker exec "$nm" rcon-cli list 2>/dev/null | sed -n 's/.*There are \([0-9]*\) of a max.*/\1/p'); [ -n "$x" ] && pl=$x; fi
-      port=$(echo "$po" | sed -n 's/.*:\([0-9]*\)->.*/\1/p' | head -1)
+      port=$(echo "$po" | sed -n 's/.*:\([0-9]*\)->.*/\1/p' | head -1); [ -n "$port" ] || port=$bp
       jn=""; [ -f "/run/butter-join-${nm#bw-}" ] && jn=$(cat "/run/butter-join-${nm#bw-}")
       jq -nc --arg n "${nm#bw-}" --arg c "$nm" --arg s "$st" --arg t "$ty" --argjson r "${ram:-0}" --arg cpu "${cpu:-0}" --argjson p "$pl" --arg port "$port" --arg join "$jn" --arg fl "$fl" --arg vr "$vr" \
         '{flavor:$fl,version:$vr,join:(if $join=="" then null else $join end),name:$n,container:$c,state:$s,type:$t,ram:$r,cpu:($cpu|tonumber? // 0),players:$p,port:($port|tonumber? // null)}'
@@ -145,8 +145,8 @@ create)
       -e EULA=TRUE -e TYPE="$TY" -e VERSION="$V" -e MEMORY="${M}M" -p "$P:25565" -v "$WORLDS/$N:/data" "itzg/minecraft-server:$TAG" >/tmp/run.err 2>&1 || { rm -rf "$WORLDS/$N"; if grep -q "no space" /tmp/run.err; then fail "Not enough room in RAM to download this Java runtime. Install ButterOS to a disk, or use a machine with more RAM."; fi; fail "docker run failed: $(tail -c 160 /tmp/run.err | tr '\n"' '  ')"; }
   else
     P=$(nextport udp 19132)
-    docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --label "butterflavor=bedrock" --label "butterver=$V" --restart unless-stopped \
-      -e EULA=TRUE -e ALLOW_LIST=false -e VERSION="$V" -e SERVER_NAME="$N" -p "$P:19132/udp" -v "$WORLDS/$N:/data" itzg/minecraft-bedrock-server:latest >/tmp/run.err 2>&1 || { rm -rf "$WORLDS/$N"; fail "docker run failed: $(tail -c 160 /tmp/run.err | tr '\n"' '  ')"; }
+    docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --label "butterflavor=bedrock" --label "butterver=$V" --label "butterport=$P" --restart unless-stopped --network host \
+      -e EULA=TRUE -e ALLOW_LIST=false -e VERSION="$V" -e SERVER_NAME="$N" -e SERVER_PORT="$P" -e SERVER_PORT_V6="$((P+10000))" -v "$WORLDS/$N:/data" itzg/minecraft-bedrock-server:latest >/tmp/run.err 2>&1 || { rm -rf "$WORLDS/$N"; fail "docker run failed: $(tail -c 160 /tmp/run.err | tr '\n"' '  ')"; }
   fi
   J=""; [ "$(q share)" = internet ] && [ $T = java ] && { sleep 1; J=$(share "$N" "$P"); }
   out --argjson p "$P" --arg j "$J" '{ok:true,port:$p,join:(if $j==""  then null else $j end)}' ;;

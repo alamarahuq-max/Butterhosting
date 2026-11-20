@@ -152,7 +152,8 @@ def main():
             for ver in os.environ.get("BEDROCK_VERS", "LATEST").split(","):
                 r = api("a=create&n=bb&type=bedrock&ver=%s" % ver, timeout=900); check("Create Bedrock %s" % ver, r.get("ok"), r)
                 for i in range(40):
-                    if "Server started" in api("a=logs&n=bb").get("logs", ""): break
+                    lg = api("a=logs&n=bb").get("logs", "")
+                    if "Server started" in lg or "failed to download" in lg: break
                     time.sleep(8)
                 time.sleep(15)
                 pg = vm.sh("node -e '" + ping + "' 2>&1 | tail -1", 30)[1].strip().splitlines()[-1:]

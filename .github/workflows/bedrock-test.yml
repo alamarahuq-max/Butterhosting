@@ -12,10 +12,13 @@ jobs:
       - name: Get ISO
         env: { GH_TOKEN: "${{ github.token }}" }
         run: mkdir -p out && gh release download latest-iso -p ButterOS.iso -D out && ls -la out
+      - name: Probe valid versions
+        run: |
+          V=""; for m in 34 36 43 45 52 62 65; do for n in 1 0 2 3; do u=https://www.minecraft.net/bedrockdedicatedserver/bin-linux/bedrock-server-1.26.$m.$n.zip; c=$(curl -s -o /dev/null -w '%{http_code}' -A 'Mozilla/5.0' -I $u); echo "$m.$n $c"; if [ "$c" = 200 ]; then V="$V,1.26.$m.$n"; break; fi; done; done; echo "VERS=${V#,}"; echo "VERS=${V#,}" >> $GITHUB_ENV
       - name: Test
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules; sudo udevadm control --reload-rules; sudo udevadm trigger --name-match=kvm || true
-          mkdir -p e2e; qemu-img create -f raw /tmp/target.img 6G; ONLY_BEDROCK=1 BEDROCK_VERS=1.26.23.1,1.26.31.1,1.26.40.1,1.26.52.1,1.26.60.1 timeout 1800 python3 os/build/e2e.py out/ButterOS.iso e2e 2>&1 | tee e2e.log || true
+          mkdir -p e2e; qemu-img create -f raw /tmp/target.img 6G; ONLY_BEDROCK=1 BEDROCK_VERS=$VERS timeout 1800 python3 os/build/e2e.py out/ButterOS.iso e2e 2>&1 | tee e2e.log || true
       - name: Publish
         if: always()
         env: { GH_TOKEN: "${{ github.token }}" }

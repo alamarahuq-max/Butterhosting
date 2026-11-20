@@ -40,10 +40,11 @@ status|"")
       ram=0; cpu=0; r=$(echo "$STATS" | grep "^$nm|"); [ -n "$r" ] && { ram=$(echo "$r" | cut -d'|' -f3); cpu=$(echo "$r" | cut -d'|' -f2 | tr -d '%'); }
       pl=null
       if [ "$st" = running ] && [ $ty = java ]; then x=$(timeout 3 docker exec "$nm" rcon-cli list 2>/dev/null | sed -n 's/.*There are \([0-9]*\) of a max.*/\1/p'); [ -n "$x" ] && pl=$x; fi
-      port=$(echo "$po" | sed -n 's/.*:\([0-9]*\)->.*/\1/p' | head -1); [ -n "$port" ] || port=$bp
+      port=$(echo "$po" | tr ',' '\n' | grep -E -- '->25565/tcp|->19132/udp' | grep -E '25565/tcp' | sed -n 's/.*:\([0-9]*\)->.*/\1/p' | head -1); [ -n "$port" ] || port=$(echo "$po" | sed -n 's/.*:\([0-9]*\)->.*/\1/p' | head -1); [ -n "$port" ] || port=$bp
+      bport=$(echo "$po" | tr ',' '\n' | grep '/udp' | sed -n 's/.*:\([0-9]*\)->.*/\1/p' | head -1); [ $ty = bedrock ] && bport=$port
       jn=""; [ -f "/run/butter-join-${nm#bw-}" ] && jn=$(cat "/run/butter-join-${nm#bw-}")
-      jq -nc --arg n "${nm#bw-}" --arg c "$nm" --arg s "$st" --arg t "$ty" --argjson r "${ram:-0}" --arg cpu "${cpu:-0}" --argjson p "$pl" --arg port "$port" --arg join "$jn" --arg fl "$fl" --arg vr "$vr" \
-        '{flavor:$fl,version:$vr,join:(if $join=="" then null else $join end),name:$n,container:$c,state:$s,type:$t,ram:$r,cpu:($cpu|tonumber? // 0),players:$p,port:($port|tonumber? // null)}'
+      jq -nc --arg n "${nm#bw-}" --arg c "$nm" --arg s "$st" --arg t "$ty" --argjson r "${ram:-0}" --arg cpu "${cpu:-0}" --argjson p "$pl" --arg port "$port" --arg join "$jn" --arg fl "$fl" --arg vr "$vr" --arg bport "$bport" \
+        '{bedrock_port:($bport|tonumber? // null),flavor:$fl,version:$vr,join:(if $join=="" then null else $join end),name:$n,container:$c,state:$s,type:$t,ram:$r,cpu:($cpu|tonumber? // 0),players:$p,port:($port|tonumber? // null)}'
     done | jq -sc .)
   [ -n "$SRV" ] || SRV='[]'
   SUM=$(echo "$SRV" | jq '[.[].ram]|add // 0')
@@ -132,7 +133,9 @@ create)
     else TAG=java21; fi
     [ "$F" = paper ] && [ "$V" != LATEST ] && [ "$MNR" -lt 8 ] && fail "Paper starts at 1.8. For older versions pick Vanilla."
     [ "$F" = fabric ] && [ "$V" != LATEST ] && [ "$MNR" -lt 14 ] && fail "Fabric starts at 1.14"
+    X=$(q cross); [ "$X" = 1 ] && [ "$F" != paper ] && fail "Phone crossplay needs the Paper software"
   else
+    [ "$V" = LATEST ] && V=1.26.45.1
     [ "$V" = LATEST ] || [ "$V" = PREVIEW ] || printf '%s' "$V" | grep -Eq '^1\.[0-9]+\.[0-9]+(\.[0-9]+)?$' || fail "Bedrock version looks like 1.21.44.01, or LATEST / PREVIEW"
     F=bedrock
   fi
@@ -140,9 +143,11 @@ create)
   mkdir -p "$WORLDS/$N"
   if [ $T = java ]; then
     case "$M" in ''|*[!0-9]*) M=1024;; esac; [ "$M" -lt 512 ] && M=512; [ "$M" -gt 2048 ] && M=2048
-    P=$(nextport tcp 25565); TY=$(echo "$F" | tr 'a-z' 'A-Z')
+    P=$(nextport tcp 25565); TY=$(echo "$F" | tr 'a-z' 'A-Z'); XA=""
+    if [ "$X" = 1 ]; then BP=$(nextport udp 19132); XA="-p $BP:19132/udp -e MODRINTH_PROJECTS=geyser,floodgate -e MODRINTH_DOWNLOAD_DEPENDENCIES=none"
+      mkdir -p "$WORLDS/$N/plugins/Geyser-Spigot"; printf 'bedrock:\n  port: 19132\nremote:\n  auth-type: floodgate\n' > "$WORLDS/$N/plugins/Geyser-Spigot/config.yml"; fi
     docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --label "butterflavor=$F" --label "butterver=$V" --restart unless-stopped \
-      -e EULA=TRUE -e TYPE="$TY" -e VERSION="$V" -e MEMORY="${M}M" -p "$P:25565" -v "$WORLDS/$N:/data" "itzg/minecraft-server:$TAG" >/tmp/run.err 2>&1 || { rm -rf "$WORLDS/$N"; if grep -q "no space" /tmp/run.err; then fail "Not enough room in RAM to download this Java runtime. Install ButterOS to a disk, or use a machine with more RAM."; fi; fail "docker run failed: $(tail -c 160 /tmp/run.err | tr '\n"' '  ')"; }
+      -e EULA=TRUE -e TYPE="$TY" -e VERSION="$V" -e MEMORY="${M}M" -p "$P:25565" $XA -v "$WORLDS/$N:/data" "itzg/minecraft-server:$TAG" >/tmp/run.err 2>&1 || { rm -rf "$WORLDS/$N"; if grep -q "no space" /tmp/run.err; then fail "Not enough room in RAM to download this Java runtime. Install ButterOS to a disk, or use a machine with more RAM."; fi; fail "docker run failed: $(tail -c 160 /tmp/run.err | tr '\n"' '  ')"; }
   else
     P=$(nextport udp 19132)
     docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --label "butterflavor=bedrock" --label "butterver=$V" --label "butterport=$P" --restart unless-stopped --network host \

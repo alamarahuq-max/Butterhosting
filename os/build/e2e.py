@@ -161,6 +161,17 @@ def main():
                 c, o = vm.sh("P=$(pgrep -f 'bedrock_server' | tail -1); echo PID $P; ls -l /proc/$P/fd 2>&1 | grep -c socket; cat /proc/$P/net/udp6 | cut -c1-90; cat /proc/$P/net/udp | cut -c1-90; echo NETNS; readlink /proc/$P/ns/net /proc/1/ns/net; echo LOG; docker logs bw-bb 2>&1 | cut -c1-200 | tail -45; echo CAP; grep -E 'Cap|Seccomp|NoNewPrivs' /proc/$P/status; echo FLAGS; grep -m1 flags /proc/cpuinfo | tr ' ' '\n' | grep -cE 'avx|sse4'", 60)
                 extra.append("Bedrock %s diagnostics:\n```\n%s\n```" % (ver, o[-5000:]))
                 api("a=delete&n=bb"); time.sleep(6)
+            if os.environ.get("CROSSPLAY"):
+                r = api("a=create&n=xp&type=java&flavor=paper&cross=1&mem=1024", timeout=900); check("Create Java+phones server", r.get("ok"), r)
+                for i in range(75):
+                    lg = api("a=logs&n=xp").get("logs", "")
+                    if "Done (" in lg or "Geyser" in lg and "Started Geyser" in lg: break
+                    time.sleep(8)
+                time.sleep(20)
+                pg = vm.sh("node -e '" + ping + "' 2>&1 | tail -1", 30)[1].strip().splitlines()[-1:]
+                check("Phones (Bedrock) can ping the Java+Geyser server", pg == ["PONG28"], pg)
+                c, o = vm.sh("docker logs bw-xp 2>&1 | grep -iE 'geyser|floodgate|modrinth|error|Done \\(' | cut -c1-200 | tail -30; ls /ram/butter/worlds/xp/plugins 2>&1 | head; cat /proc/net/udp | cut -c1-80; echo PS; docker ps --format '{{.Names}} {{.Ports}}'", 60)
+                extra.append("Crossplay diagnostics:\n```\n" + o[-4500:] + "\n```")
             flush_results(); return
         rss = st.get("web_rss_mb", 99); check("Web agent RSS under 30 MB", rss is not None and 0 < rss < 30, "%s MB" % rss)
         check("Status reports engine ok and capacity advice", st.get("engine") == "ok" and "capacity" in st, st.get("engine"))

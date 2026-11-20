@@ -33,6 +33,18 @@ const meter = (v, n, col) => { const k = Math.max(0, Math.min(n, Math.round((v /
 
 const LOGO = ["  ____        _   _             ___  ____  ", " | __ ) _   _| |_| |_ ___ _ __ / _ \\/ ___| ", " |  _ \\| | | | __| __/ _ \\ '__| | | \\___ \\ ", " | |_) | |_| | |_| ||  __/ |  | |_| |___) |", " |____/ \\__,_|\\__|\\__\\___|_|   \\___/|____/ "];
 
+
+// circular gauge: half-block characters give twice the vertical detail, so it really looks round. Fills clockwise from the top.
+function ring(pct, col, big, small, RW, RH) {
+  RW = RW || 19; RH = RH || 9; const PH = RH * 2, cx = (RW - 1) / 2, cy = (PH - 1) / 2, Rr = Math.min(RW, PH) / 2, p = Math.max(0, Math.min(100, pct)) / 100;
+  const pix = (x, y) => { const dx = x - cx, dy = y - cy, r = Math.hypot(dx, dy); if (r > Rr || r < Rr - 2.4) return 0; let a = Math.atan2(dx, -dy); if (a < 0) a += Math.PI * 2; return a / (Math.PI * 2) <= p ? 1 : 2; };
+  const colr = (v) => (v === 1 ? col : N.rule), rows = [];
+  for (let i = 0; i < RH; i++) { const cells = []; for (let j = 0; j < RW; j++) { const t = pix(j, 2 * i), bt = pix(j, 2 * i + 1);
+    if (!t && !bt) cells.push(" "); else if (t && bt && t === bt) cells.push(fg(colr(t)) + "█"); else if (t && bt) cells.push(fg(colr(t)) + bgc(colr(bt)) + "▀" + bgc(N.bg)); else if (t) cells.push(fg(colr(t)) + "▀"); else cells.push(fg(colr(bt)) + "▄"); } rows.push(cells); }
+  const put = (row, txt, bold) => { const chars = [...txt], st = Math.max(0, Math.floor((RW - chars.length) / 2)); chars.forEach((ch, k) => { if (st + k < RW) rows[row][st + k] = (bold ? B : "") + fg(N.txt) + bgc(N.bg) + ch + R0; }); };
+  put(Math.floor(RH / 2) - 1, big, true); put(Math.floor(RH / 2) + 1, small, false);
+  return rows.map((r) => r.join("") + R0);
+}
 function rule(w) { return c(N.rule, "\u2500".repeat(w)); }
 function hostname() { try { return fs.readFileSync("/etc/hostname", "utf8").trim() || "butter-box"; } catch (e) { return "butter-box"; } }
 function home(W, Hh) {
@@ -41,10 +53,18 @@ function home(W, Hh) {
   LOGO.forEach((l, i) => L.push(ind + B + c(N.yel, l) + (i === 0 ? c(N.mut, " " + users[cu].name.toLowerCase()) : "") + R0));
   L.push(ind + rule(inner));
   const running = D.servers.filter((s) => s.state === "running"), players = running.reduce((a, s) => a + (+s.players || 0), 0);
-  const left = [c(N.mut, "machine ") + hostname(), c(N.mut, "network ") + (D.ip ? c(N.grn, "\u25a0 online") + " " + D.ip : c(N.red, "\u25a0 no network") + c(N.mut, "  (press w for Wi-Fi)")), c(N.mut, "manage  ") + (D.ip ? c(N.cyn, "http://" + D.ip) : c(N.mut, "-"))];
-  const right = [c(N.mut, "cpu  ") + pad(D.cpu.toFixed(0) + "%", 5) + meter(D.cpu, 14, N.cyn), c(N.mut, "mem  ") + pad(Math.round(D.memUsed) + "/" + Math.round(D.memTotal) + "M", 11) + meter(100 * D.memUsed / D.memTotal, 8, N.yel), c(N.mut, "temp ") + (D.temp == null ? c(N.mut, "no sensor") : pad(D.temp.toFixed(0) + "\u00b0C", 5) + meter(Math.max(0, D.temp - 20) * 100 / 80, 14, D.temp > 80 ? N.red : N.grn)) + c(N.mut, "   net ") + "\u2193 " + kb(D.rx) + " \u2191 " + kb(D.tx)];
-  const half = Math.floor(inner * 0.46);
-  for (let i = 0; i < 3; i++) L.push(ind + pad(left[i], half) + right[i]);
+  const tempPct = D.temp == null ? 0 : Math.max(0, Math.min(100, (D.temp - 20) * 100 / 80));
+  if (Hh >= 34) {
+    const left = [c(N.mut, "machine ") + hostname(), c(N.mut, "network ") + (D.ip ? c(N.grn, "\u25a0 online") : c(N.red, "\u25a0 offline")), "         " + (D.ip || c(N.mut, "press w for Wi-Fi")), c(N.mut, "manage  ") + (D.ip ? c(N.cyn, "http://" + D.ip) : c(N.mut, "-")), "",
+      c(N.mut, "down    ") + kb(D.rx), c(N.mut, "up      ") + kb(D.tx), c(N.mut, "load    ") + D.load.split(" ")[0] + c(N.mut, "  (" + D.cores + " cores)"), c(N.mut, "uptime  ") + upf(D.up)];
+    const r1 = ring(D.cpu, N.cyn, D.cpu.toFixed(0) + "%", "CPU"), r2 = ring(100 * D.memUsed / D.memTotal, N.yel, (100 * D.memUsed / D.memTotal).toFixed(0) + "%", "MEMORY"), r3 = ring(tempPct, D.temp > 80 ? N.red : N.grn, D.temp == null ? "n/a" : D.temp.toFixed(0) + "\u00b0C", "TEMP");
+    for (let i = 0; i < 9; i++) L.push(ind + pad(left[i] || "", 36) + r1[i] + "  " + r2[i] + "  " + r3[i]);
+    const cap = (t) => { t = cut(t, 19); const l = Math.floor((19 - [...t].length) / 2); return " ".repeat(l) + pad(t, 19 - l); }; L.push(ind + pad("", 36) + c(N.mut, cap((D.cores) + " cores")) + "  " + c(N.mut, cap(Math.round(D.memUsed) + "/" + Math.round(D.memTotal) + " MB")) + "  " + c(N.mut, cap(D.temp == null ? "no sensor" : (D.tempLabel || "sensor").toLowerCase())));
+  } else {
+    const left = [c(N.mut, "machine ") + hostname(), c(N.mut, "network ") + (D.ip ? c(N.grn, "\u25a0 online") + " " + D.ip : c(N.red, "\u25a0 no network") + c(N.mut, "  (press w for Wi-Fi)")), c(N.mut, "manage  ") + (D.ip ? c(N.cyn, "http://" + D.ip) : c(N.mut, "-"))];
+    const right = [c(N.mut, "cpu  ") + pad(D.cpu.toFixed(0) + "%", 5) + meter(D.cpu, 14, N.cyn), c(N.mut, "mem  ") + pad(Math.round(D.memUsed) + "/" + Math.round(D.memTotal) + "M", 11) + meter(100 * D.memUsed / D.memTotal, 8, N.yel), c(N.mut, "temp ") + (D.temp == null ? c(N.mut, "no sensor") : pad(D.temp.toFixed(0) + "\u00b0C", 5) + meter(tempPct, 14, D.temp > 80 ? N.red : N.grn)) + c(N.mut, "   net ") + "\u2193 " + kb(D.rx) + " \u2191 " + kb(D.tx)];
+    const half = Math.floor(inner * 0.46); for (let i = 0; i < 3; i++) L.push(ind + pad(left[i], half) + right[i]);
+  }
   L.push(ind + rule(inner));
   L.push(ind + c(N.mut, "SERVERS") + c(N.mut, "   " + running.length + " running, " + players + " player" + (players === 1 ? "" : "s") + " online, up " + upf(D.up)));
   if (!D.servers.length) L.push(ind + c(N.mut, D.agentOk || DEMO ? "  No servers yet. Press n to make one." : "  Starting the server engine. The first start takes a minute..."));

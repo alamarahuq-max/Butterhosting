@@ -148,17 +148,18 @@ def main():
             check("Local web page serves the UI", "Butter" in html and "Overview" in html)
         except Exception as e: check("Local web page serves the UI", False, e)
         if os.environ.get("ONLY_BEDROCK"):
-            r = api("a=create&n=bb&type=bedrock", timeout=900); check("Create Bedrock", r.get("ok"), r)
-            for i in range(40):
-                if "Server started" in api("a=logs&n=bb").get("logs", ""): break
-                time.sleep(8)
-            time.sleep(10)
-            ping = 'const d=require("dgram").createSocket("%s");const m=Buffer.from("00ffff00fefefefefdfdfdfd12345678","hex");const p=Buffer.concat([Buffer.from([1]),Buffer.alloc(8),m,Buffer.alloc(8)]);d.on("message",b=>{console.log("PONG"+b[0]);process.exit(0)});d.on("error",e=>{console.log("ERR "+e.message);process.exit(2)});setInterval(()=>d.send(p,PORT,"HOST"),500);setTimeout(()=>{console.log("NOPONG");process.exit(1)},8000)'
-            def png(kind, host, port): return vm.sh("node -e '" + ping.replace("%s", kind).replace("PORT", str(port)).replace("HOST", host) + "' 2>&1 | tail -1", 30)[1].strip().splitlines()[-1:]
-            out = []
-            for k, h, pt in (("udp4", "127.0.0.1", 19132), ("udp6", "::1", 19132), ("udp6", "::1", 29132), ("udp4", "127.0.0.1", 29132)): out.append("ping %s %s:%d -> %s" % (k, h, pt, png(k, h, pt)))
-            c, o = vm.sh("echo PROPS; grep -E '^(server-port|server-portv6|server-name|online-mode)' /ram/butter/worlds/bb/server.properties; echo UDP4; cat /proc/net/udp; echo UDP6; cat /proc/net/udp6; echo PS; ps w | grep -i bedrock | grep -v grep | head -3; echo LOG; docker logs bw-bb 2>&1 | grep -iE 'port|ipv|listen|accept|started|error|warn' | head -20; echo INSPECT; docker inspect -f '{{.HostConfig.NetworkMode}} {{.State.Status}}' bw-bb; echo IPT; iptables -S 2>&1 | head; echo SYSCTL; sysctl net.ipv6.conf.all.disable_ipv6 net.ipv4.conf.all.rp_filter 2>&1; echo IP; ip a | grep inet", 60)
-            extra.append("Bedrock-only diagnostics:\n```\n" + "\n".join(out) + "\n" + o[-3500:] + "\n```")
+            ping = 'const d=require("dgram").createSocket("udp4");const m=Buffer.from("00ffff00fefefefefdfdfdfd12345678","hex");const p=Buffer.concat([Buffer.from([1]),Buffer.alloc(8),m,Buffer.alloc(8)]);d.on("message",b=>{console.log("PONG"+b[0]);process.exit(0)});setInterval(()=>d.send(p,19132,"127.0.0.1"),500);setTimeout(()=>{console.log("NOPONG");process.exit(1)},8000)'
+            for ver in os.environ.get("BEDROCK_VERS", "LATEST").split(","):
+                r = api("a=create&n=bb&type=bedrock&ver=%s" % ver, timeout=900); check("Create Bedrock %s" % ver, r.get("ok"), r)
+                for i in range(40):
+                    if "Server started" in api("a=logs&n=bb").get("logs", ""): break
+                    time.sleep(8)
+                time.sleep(15)
+                pg = vm.sh("node -e '" + ping + "' 2>&1 | tail -1", 30)[1].strip().splitlines()[-1:]
+                check("Bedrock %s answers RakNet ping inside the machine" % ver, pg == ["PONG28"], pg)
+                c, o = vm.sh("P=$(pgrep -f 'bedrock_server' | tail -1); echo PID $P; ls -l /proc/$P/fd 2>&1 | grep -c socket; cat /proc/$P/net/udp6 | cut -c1-90; cat /proc/$P/net/udp | cut -c1-90; echo NETNS; readlink /proc/$P/ns/net /proc/1/ns/net; echo LOG; docker logs bw-bb 2>&1 | cut -c1-200 | tail -45; echo CAP; grep -E 'Cap|Seccomp|NoNewPrivs' /proc/$P/status; echo FLAGS; grep -m1 flags /proc/cpuinfo | tr ' ' '\n' | grep -cE 'avx|sse4'", 60)
+                extra.append("Bedrock %s diagnostics:\n```\n%s\n```" % (ver, o[-5000:]))
+                api("a=delete&n=bb"); time.sleep(6)
             flush_results(); return
         rss = st.get("web_rss_mb", 99); check("Web agent RSS under 30 MB", rss is not None and 0 < rss < 30, "%s MB" % rss)
         check("Status reports engine ok and capacity advice", st.get("engine") == "ok" and "capacity" in st, st.get("engine"))

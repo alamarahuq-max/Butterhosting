@@ -144,7 +144,7 @@ create)
   if [ $T = java ]; then
     case "$M" in ''|*[!0-9]*) M=1024;; esac; [ "$M" -lt 512 ] && M=512; [ "$M" -gt 2048 ] && M=2048
     P=$(nextport tcp 25565); TY=$(echo "$F" | tr 'a-z' 'A-Z'); XA=""
-    if [ "$X" = 1 ]; then BP=$(nextport udp 19132); XA="-p $BP:19132/udp -e MODRINTH_PROJECTS=geyser,floodgate -e MODRINTH_DOWNLOAD_DEPENDENCIES=none"
+    if [ "$X" = 1 ]; then BP=$(nextport udp 19132); XA="-p $BP:19132/udp -e PLUGINS=https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot,https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot"
       mkdir -p "$WORLDS/$N/plugins/Geyser-Spigot"; printf 'bedrock:\n  port: 19132\nremote:\n  auth-type: floodgate\n' > "$WORLDS/$N/plugins/Geyser-Spigot/config.yml"; fi
     docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --label "butterflavor=$F" --label "butterver=$V" --restart unless-stopped \
       -e EULA=TRUE -e TYPE="$TY" -e VERSION="$V" -e MEMORY="${M}M" -p "$P:25565" $XA -v "$WORLDS/$N:/data" "itzg/minecraft-server:$TAG" >/tmp/run.err 2>&1 || { rm -rf "$WORLDS/$N"; if grep -q "no space" /tmp/run.err; then fail "Not enough room in RAM to download this Java runtime. Install ButterOS to a disk, or use a machine with more RAM."; fi; fail "docker run failed: $(tail -c 160 /tmp/run.err | tr '\n"' '  ')"; }

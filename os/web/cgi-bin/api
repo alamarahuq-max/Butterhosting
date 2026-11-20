@@ -133,7 +133,7 @@ create)
     else TAG=java21; fi
     [ "$F" = paper ] && [ "$V" != LATEST ] && [ "$MNR" -lt 8 ] && fail "Paper starts at 1.8. For older versions pick Vanilla."
     [ "$F" = fabric ] && [ "$V" != LATEST ] && [ "$MNR" -lt 14 ] && fail "Fabric starts at 1.14"
-    X=$(q cross); [ "$X" = 1 ] && [ "$F" != paper ] && fail "Phone crossplay needs the Paper software"
+    X=$(q cross); [ -n "$X" ] || X=1; [ "$F" != paper ] && X=0; [ "$V" != LATEST ] && [ "$MNR" -lt 16 ] && X=0
   else
     [ "$V" = LATEST ] && V=1.26.45.1
     [ "$V" = LATEST ] || [ "$V" = PREVIEW ] || printf '%s' "$V" | grep -Eq '^1\.[0-9]+\.[0-9]+(\.[0-9]+)?$' || fail "Bedrock version looks like 1.21.44.01, or LATEST / PREVIEW"

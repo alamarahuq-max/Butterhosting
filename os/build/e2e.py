@@ -147,6 +147,19 @@ def main():
             html = urllib.request.urlopen("http://127.0.0.1:8081/", timeout=10).read().decode()
             check("Local web page serves the UI", "Butter" in html and "Overview" in html)
         except Exception as e: check("Local web page serves the UI", False, e)
+        if os.environ.get("ONLY_BEDROCK"):
+            r = api("a=create&n=bb&type=bedrock", timeout=900); check("Create Bedrock", r.get("ok"), r)
+            for i in range(40):
+                if "Server started" in api("a=logs&n=bb").get("logs", ""): break
+                time.sleep(8)
+            time.sleep(10)
+            ping = 'const d=require("dgram").createSocket("%s");const m=Buffer.from("00ffff00fefefefefdfdfdfd12345678","hex");const p=Buffer.concat([Buffer.from([1]),Buffer.alloc(8),m,Buffer.alloc(8)]);d.on("message",b=>{console.log("PONG"+b[0]);process.exit(0)});d.on("error",e=>{console.log("ERR "+e.message);process.exit(2)});setInterval(()=>d.send(p,PORT,"HOST"),500);setTimeout(()=>{console.log("NOPONG");process.exit(1)},8000)'
+            def png(kind, host, port): return vm.sh("node -e '" + ping.replace("%s", kind).replace("PORT", str(port)).replace("HOST", host) + "' 2>&1 | tail -1", 30)[1].strip().splitlines()[-1:]
+            out = []
+            for k, h, pt in (("udp4", "127.0.0.1", 19132), ("udp6", "::1", 19132), ("udp6", "::1", 29132), ("udp4", "127.0.0.1", 29132)): out.append("ping %s %s:%d -> %s" % (k, h, pt, png(k, h, pt)))
+            c, o = vm.sh("echo PROPS; grep -E '^(server-port|server-portv6|server-name|online-mode)' /ram/butter/worlds/bb/server.properties; echo UDP4; cat /proc/net/udp; echo UDP6; cat /proc/net/udp6; echo PS; ps w | grep -i bedrock | grep -v grep | head -3; echo LOG; docker logs bw-bb 2>&1 | grep -iE 'port|ipv|listen|accept|started|error|warn' | head -20; echo INSPECT; docker inspect -f '{{.HostConfig.NetworkMode}} {{.State.Status}}' bw-bb; echo IPT; iptables -S 2>&1 | head; echo SYSCTL; sysctl net.ipv6.conf.all.disable_ipv6 net.ipv4.conf.all.rp_filter 2>&1; echo IP; ip a | grep inet", 60)
+            extra.append("Bedrock-only diagnostics:\n```\n" + "\n".join(out) + "\n" + o[-3500:] + "\n```")
+            flush_results(); return
         rss = st.get("web_rss_mb", 99); check("Web agent RSS under 30 MB", rss is not None and 0 < rss < 30, "%s MB" % rss)
         check("Status reports engine ok and capacity advice", st.get("engine") == "ok" and "capacity" in st, st.get("engine"))
         # versions, GUI, Wi-Fi

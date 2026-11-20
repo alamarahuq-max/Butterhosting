@@ -154,6 +154,8 @@ def main():
         check("Old Java versions are offered (1.8.9, 1.12.2, 1.16.5)", all(v in vj.get("java", []) for v in ("1.8.9", "1.12.2", "1.16.5")), "")
         c, o = vm.sh("BUTTER_DEMO=1 BUTTER_SNAPSHOT=ansi COLS=110 ROWS=34 node /usr/local/lib/butter/tui.js | sed 's/\\x1b\\[[0-9;]*[mHK]//g' | grep -c -E 'SERVERS|new server|machine'", 60)
         check("Home screen (monospace terminal UI) renders", re.search(r"\n3\s", o + " ") is not None or o.strip().endswith("3"), o.replace("\n", " ")[-200:])
+        c, o = vm.sh("command -v setfont >/dev/null && echo SF\"_\"YES; echo FN\"_\"$(ls /usr/share/consolefonts/ | grep -c -E 'ter-v(22|24|28|32)b')", 20)
+        check("Console font tools and the big Terminus fonts are present (screen is readable on HD displays)", "SF_YES" in o and re.search(r"FN_[1-9]", o), o.replace("\n", " ")[-200:])
         c, o = vm.sh("BUTTER_DEMO=1 BUTTER_SNAPSHOT=ansi COLS=100 ROWS=32 node /usr/local/lib/butter/tui.js | head -3 | wc -l", 30); check("Text HUD fallback renders", o.strip().endswith("3"), o.strip()[-80:])
         c, o = vm.sh("for x in iw wpa_supplicant butter-wifi butter-wifid rfkill dialog udhcpc; do command -v $x >/dev/null && echo OK\"_\"$x || echo MISSING\"_\"$x; done; echo FW\"_\"$(ls /lib/firmware/rtlwifi/ 2>/dev/null | grep -c 8188eufw)", 30)
         check("Wi-Fi tools are in the image (iw, wpa_supplicant, dialog, butter-wifi, hot-plug daemon) and Realtek firmware", "MISSING_" not in o and "OK_iw" in o and "OK_butter-wifid" in o and re.search(r"FW_[1-9]", o), o.replace("\n", " ")[-300:])

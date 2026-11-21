@@ -21,108 +21,40 @@ IFILE=$(sed -n 's/^[[:space:]]*initrd[[:space:]]\+\([^ ]\+\).*/\1/p' "$W/orig-gr
 MODLOOP=$(echo "$KARGS" | tr ' ' '\n' | grep -c '^modloop=' || true)
 echo "kernel=$KFILE initrd=$IFILE"
 
-# 2. GRUB (UEFI + BIOS-grub) menu. Dark/light picture swap is done with an extra menu entry.
-mkdir -p "$W/grub/butter"
-cp "$HERE/boot/bg-dark-1920x1080.png"  "$W/grub/butter/bg-dark.png"
-cp "$HERE/boot/bg-light-1920x1080.png" "$W/grub/butter/bg-light.png"
-for th in dark light; do
-  cp "$HERE"/boot/sel-${th}_*.png "$W/grub/butter/"
-  cat > "$W/grub/butter/theme-$th.txt" <<T
-desktop-image: "bg-$th.png"
-desktop-color: "#000000"
-title-text: ""
-+ boot_menu {
-  left = 41%
-  top = 72%
-  width = 18%
-  height = 17%
-  item_height = 60
-  item_padding = 0
-  item_spacing = 0
-  item_icon_space = 0
-  selected_item_pixmap_style = "sel-${th}_*.png"
-}
-T
-done
-# (the light/dark entry just reloads the menu with the other picture; the choice resets at next boot, which is fine for a boot menu)
+# 2. GRUB (UEFI + BIOS-grub): no menu at all. Plain text console, a few terminal-style lines, boots at once.
+# (hold Shift / press Esc at the GRUB stage to get the old two-entry menu: Live, or Install to this computer)
 cat > "$W/grub.cfg" <<G
-# UEFI: plain GRUB menu (the themed picture menu is BIOS-only for now)
-set timeout=-1
+set timeout=1
+set timeout_style=hidden
 set default=0
-menuentry "ButterOS - Live USB (RAM only, 1-2 servers)" {
+terminal_output console
+echo 'ButterOS: starting (Minecraft hosting only) ...'
+menuentry "ButterOS - live (RAM only)" {
   linux $KFILE $KARGS butter=live
   initrd $IFILE
 }
-menuentry "ButterOS - Download OS (install to this computer)" {
+menuentry "ButterOS - install to this computer" {
   linux $KFILE $KARGS butter=install
   initrd $IFILE
 }
 G
-# a font GRUB can use (small, ships with the grub package: unicode.pf2 is usually in /usr/share/grub)
-ls /usr/share/grub /usr/share/fonts 2>&1 | head -20
-for f in /usr/share/grub/unicode.pf2 /usr/share/grub/unifont.pf2; do [ -f "$f" ] && cp "$f" "$W/grub/butter/unicode.pf2" && break; done
-[ -f "$W/grub/butter/unicode.pf2" ] && echo "grub font: bundled unicode.pf2" || echo "grub font: NOT FOUND"
-
-for d in /usr/lib/grub/x86_64-efi /usr/lib/grub/i386-pc; do
-  [ -d "$d" ] && { mkdir -p "$W/grubmods"; cp -r "$d" "$W/grubmods/$(basename $d)"; echo "grub modules: $d"; }
-done
-# 3. syslinux (BIOS) menu, vesamenu with a background picture
+# 3. syslinux (BIOS): text mode, no picture menu, boots after half a second
 mkdir -p "$W/sys"
-cp "$HERE/boot/bg-dark-800x600.png"  "$W/sys/bg-dark.png"
-cp "$HERE/boot/bg-light-800x600.png" "$W/sys/bg-light.png"
-for f in vesamenu.c32 libcom32.c32 libutil.c32; do
-  for d in /usr/share/syslinux /usr/lib/syslinux/modules/bios; do [ -f "$d/$f" ] && cp "$d/$f" "$W/sys/$f" && break; done
-done
-mk_sys() { # $1 theme  $2 other theme  -> file
-  if [ $1 = dark ]; then SEL="ffffd23f"; else SEL="ff3b34c9"; fi
-  cat > "$3" <<S
-UI vesamenu.c32
-PROMPT 0
-TIMEOUT 0
-MENU RESOLUTION 800 600
-MENU BACKGROUND bg-$1.png
-MENU TITLE
-MENU CLEAR
-MENU MARGIN 0
-MENU ROWS 5
-MENU VSHIFT 21
-MENU HSHIFT 33
-MENU WIDTH 24
-MENU TABMSG
-MENU AUTOBOOT
-MENU HELPMSGROW 24
-MENU COLOR screen   0 #ffffffff #00000000 none
-MENU COLOR border   0 #00000000 #00000000 none
-MENU COLOR title    0 #00000000 #00000000 none
-MENU COLOR unsel    0 #00000000 #00000000 none
-MENU COLOR sel      0 #$SEL #00000000 none
-MENU COLOR hotsel   0 #$SEL #00000000 none
-MENU COLOR hotkey   0 #00000000 #00000000 none
-MENU COLOR hotkey   0 #00000000 #00000000 none
-MENU COLOR tabmsg   0 #00000000 #00000000 none
+cat > "$W/sys/syslinux.cfg" <<S
+PROMPT 1
+TIMEOUT 5
 DEFAULT live
+SAY ButterOS: starting (Minecraft hosting only) ...
+SAY (type 'install' now to install to this computer)
 LABEL live
-  MENU LABEL >
   LINUX $KFILE
   INITRD $IFILE
   APPEND $KARGS butter=live
-MENU SEPARATOR
 LABEL install
-  MENU LABEL >
   LINUX $KFILE
   INITRD $IFILE
   APPEND $KARGS butter=install
-MENU SEPARATOR
-LABEL $2
-  MENU LABEL >
-  KERNEL vesamenu.c32
-  APPEND $2.cfg
 S
-}
-mk_sys dark  light "$W/sys/syslinux.cfg" "Light mode"
-mk_sys light dark  "$W/sys/light.cfg"    "Dark mode"
-cp "$W/sys/syslinux.cfg" "$W/sys/dark.cfg"
-
 # 4. write them into the ISO (keeping the boot records Alpine made)
 set -- -indev "$IN" -outdev "$OUT" -boot_image any replay \
   -map "$W/grub.cfg" /boot/grub/grub.cfg \

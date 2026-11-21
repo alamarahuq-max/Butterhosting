@@ -78,7 +78,7 @@ function home(W, Hh) {
   L.push(ind + rule(inner));
   L.push(ind + (Date.now() < msgT ? c(N.yel, msg) : c(N.mut, "Hosting Minecraft Java and Bedrock, nothing else.")));
   L.push(ind + rule(inner));
-  const keys = [["n", "new server"], ["s", "start/stop"], ["d", "delete"], ["l", "logs"], ["1", "play with friends"], ["w", "wi-fi"], ["i", "install"], ["a", "password"], ["x", "shell"], ["p", "power"]];
+  const keys = [["n", "new server"], ["s", "start/stop"], ["d", "delete"], ["l", "console"], ["k", "cracked"], ["1", "play with friends"], ["w", "wi-fi"], ["i", "install"], ["a", "password"], ["x", "shell"], ["p", "power"]];
   let row = ind, rows = [];
   keys.forEach(([k, t]) => { const chip = bgc(N.chip) + c(N.yel, " " + k + " ") + R0 + " " + t + "  "; if (vlen(row) + vlen(chip) > W - 2) { rows.push(row); row = ind; } row += chip; }); rows.push(row);
   rows.forEach((r) => L.push(r));
@@ -115,7 +115,7 @@ function view(W, Hh) {
   if (screen === "login") L = login(W, Hh); else L = home(W, Hh);
   if (screen === "home") {
     if (modal && modal.t === "new") overlay(L, W, Hh, "NEW SERVER", newBox(), 64);
-    else if (modal && modal.t === "logs") overlay(L, W, Hh, "LOGS  " + modal.name, logs.slice(-(Hh - 10)).map((x) => cut(x.replace(/\x1b\[[0-9;]*m/g, ""), W - 12)).concat(["", c(N.mut, "Esc to close")]), W - 6);
+    else if (modal && modal.t === "logs") overlay(L, W, Hh, "LOGS  " + modal.name, logs.slice(-(Hh - 13)).map((x) => cut(x.replace(/\x1b\[[0-9;]*m/g, ""), W - 12)).concat(["", c(N.mut, cut(modal.out || "", W - 12)), c(N.yel, "> ") + modal.cmd + c(N.yel, "_"), c(N.mut, "type a server command + Enter  |  Esc to close")]), W - 6);
     else if (modal && modal.t === "pw") overlay(L, W, Hh, "PASSWORD for " + users[cu].name, [c(N.mut, "new password (empty = no password)"), "*".repeat(modal.pw.length) + c(N.yel, "\u2588"), "", c(N.mut, "Enter save   Esc cancel")], 50);
   }
   if (power) overlay(L, W, Hh, "POWER", ["", c(N.yel, " y ") + " shut down", c(N.yel, " r ") + " restart", c(N.yel, " l ") + " lock screen", c(N.yel, " esc") + " cancel", ""], 36);
@@ -152,7 +152,7 @@ function key(k) {
     if (k.length === 1 && k >= " " && pw.length < 40) { pw += k; lerr = ""; } return; }
   if (modal) { const m = modal;
     if (m.t === "pw") { if (k === "esc") modal = null; else if (k === "enter") { const us = users[cu]; if (m.pw) { us.salt = crypto.randomBytes(8).toString("hex"); us.hash = hashpw(us.salt, m.pw); } else { delete us.hash; delete us.salt; } try { fs.writeFileSync(USERF, JSON.stringify({ users })); toast(m.pw ? "password saved" : "password removed"); } catch (e) { toast("could not save"); } modal = null; } else if (k === "bs") m.pw = m.pw.slice(0, -1); else if (k.length === 1 && k >= " " && m.pw.length < 40) m.pw += k; return; }
-    if (m.t === "logs") { if (k === "esc" || k === "q") modal = null; return; }
+    if (m.t === "logs") { if (k === "esc") modal = null; else if (k === "enter") { const cm = m.cmd.trim(); if (cm) { m.out = "running..."; m.cmd = ""; api("a=cmd&n=" + encodeURIComponent(m.name) + "&c=" + encodeURIComponent(cm), (j) => { m.out = j ? (j.ok ? String(j.out || "(no output)").split("\n")[0] : j.error) : "no answer"; api("a=logs&n=" + encodeURIComponent(m.name), (l) => { logs = String((l && l.logs) || "").split("\n"); render(); }, 20000); render(); }, 20000); } } else if (k === "bs") m.cmd = m.cmd.slice(0, -1); else if (k.length === 1 && k >= " " && m.cmd.length < 150) m.cmd += k; return; }
     if (k === "esc") modal = null; else if (k === "enter") create();
     else if (k === "up" || k === "btab") m.f = (m.f + 3) % 4; else if (k === "down" || k === "tab") m.f = (m.f + 1) % 4;
     else if (k === "left" || k === "right") { const d = k === "left" ? -1 : 1; if (m.f === 1) { m.type = m.type === "java" ? "bedrock" : "java"; m.vi = 0; } else if (m.f === 2 && m.type === "java") { const o = ["paper", "vanilla", "fabric", "forge"]; m.flavor = o[(o.indexOf(m.flavor) + d + 4) % 4]; } else if (m.f === 3) { const n = m.type === "bedrock" ? (ver ? ver.bedrock.length : 1) : 1 + (ver ? ver.java.length : 0); m.vi = (m.vi + d + n) % n; } }
@@ -161,13 +161,14 @@ function key(k) {
   const s = D.servers[sel];
   if (k === "up") sel = Math.max(0, sel - 1); else if (k === "down") sel = Math.min(Math.max(0, D.servers.length - 1), sel + 1);
   else if (k === "n") openNew(); else if (k === "s" || k === "enter") toggle(s); else if (k === "d" || k === "del") remove(s);
-  else if (k === "l" && s) { modal = { t: "logs", name: s.name }; logs = ["loading..."]; api("a=logs&n=" + encodeURIComponent(s.name), (j) => { logs = String((j && j.logs) || "no log yet").split("\n"); render(); }, 20000); }
+  else if (k === "k" && s) { if (s.type !== "java") toast("cracked mode is for Java servers"); else api("a=cracked&n=" + encodeURIComponent(s.name) + "&v=" + (s.cracked ? 0 : 1), (j) => { toast(j && j.ok ? (j.cracked ? "cracked mode ON, restarting" : "cracked mode OFF, restarting") : (j && j.error) || "failed"); agent(); }, 30000); }
+  else if (k === "l" && s) { modal = { t: "logs", name: s.name, cmd: "", out: "" }; logs = ["loading..."]; api("a=logs&n=" + encodeURIComponent(s.name), (j) => { logs = String((j && j.logs) || "no log yet").split("\n"); render(); }, 20000); }
   else if (k === "1") external("/usr/local/bin/butter-play; printf '\\nPress Enter '; read x");
   else if (k === "w") external("/usr/local/bin/butter-wifi"); else if (k === "i") external("/usr/local/bin/butter-install; printf '\\nPress Enter '; read x");
   else if (k === "a") modal = { t: "pw", pw: "" }; else if (k === "x") external("echo 'ButterOS shell. Type exit to come back.'; /bin/sh -l"); else if (k === "p") power = true; else if (k === "q") { /* stay */ }
 }
 const KEYS = { "\x1b[A": "up", "\x1b[B": "down", "\x1b[C": "right", "\x1b[D": "left", "\x1b[3~": "del", "\x1b[Z": "btab", "\r": "enter", "\n": "enter", "\t": "tab", "\x7f": "bs", "\b": "bs", "\x1b": "esc", "\x1bOP": "f1", "\x1b[[A": "f1" };
-function onData(d) { const s = d.toString("latin1"), k = KEYS[s] || (s.length === 1 ? s : null); if (!k) return; const raw = screen === "login" || (modal && (modal.t === "pw" || (modal.t === "new" && modal.f === 0))) || k.length > 1; key(raw ? k : k.toLowerCase()); render(); }
+function onData(d) { const s = d.toString("latin1"), k = KEYS[s] || (s.length === 1 ? s : null); if (!k) return; const raw = screen === "login" || (modal && (modal.t === "logs" || modal.t === "pw" || (modal.t === "new" && modal.f === 0))) || k.length > 1; key(raw ? k : k.toLowerCase()); render(); }
 let timer = null;
 function render() { process.stdout.write(frame()); }
 function start() { try { process.stdin.setRawMode(true); } catch (e) {} process.stdin.resume(); process.stdin.on("data", onData); process.stdout.write(PAL.map((h, i) => "\x1b]P" + i.toString(16) + h).join("") + R0 + "\x1b[2J\x1b[?25l"); render(); }

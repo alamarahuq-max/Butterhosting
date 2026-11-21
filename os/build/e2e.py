@@ -69,7 +69,7 @@ class VM:
         return 124, self.buf.decode(errors="ignore")
     def boot_to_shell(self, first_enter=True, timeout=300):
         if first_enter:
-            time.sleep(25); self.shot(self.name + "-menu"); self.mon_cmd("sendkey ret")
+            time.sleep(20); self.shot(self.name + "-menu")
         self.sock.send(b"\nstty -echo cols 500 2>/dev/null\n"); t0 = time.time()
         while time.time() - t0 < timeout:
             try: self.sock.send(b"\necho SHELL_READY\n")
@@ -123,7 +123,7 @@ def main():
     vm = VM("live", ["-cdrom", ISO, "-boot", "d", "-drive", "file=/tmp/target.img,if=virtio,format=raw"])
     try:
         ok = vm.boot_to_shell()
-        check("ISO boots (BIOS menu -> Live USB -> shell on serial)", ok)
+        check("ISO boots straight into ButterOS with no boot menu (BIOS, shell on serial)", ok)
         if not ok: vm.shot("live-fail"); flush_results(vm.buf.decode(errors="ignore")[-3000:]); return
         vm.sh("killall dialog 2>/dev/null; true")
         c, o = vm.sh("cat /etc/hostname; uname -r; free -m | sed -n 2p"); extra.append("Idle:\n```\n" + o + "\n```")
@@ -231,6 +231,14 @@ def main():
             except Exception as e: check("Vanilla 1.16.5 answers a real status ping and reports 1.16.5", False, e)
         sv = {x["name"]: x for x in api("a=status").get("servers", [])}; check("Status shows the chosen flavor and version", sv.get("old-java", {}).get("version") == "1.16.5" and sv.get("old-java", {}).get("flavor") == "vanilla", json.dumps(sv.get("old-java")))
         api("a=delete&n=old-java"); time.sleep(8)
+        # console commands, jar upload, cracked mode (Java server "test-java" from earlier)
+        c, o = vm.sh("wget -q -O- 'http://127.0.0.1/cgi-bin/api?a=cmd&n=test-java&c=list'", 40); check("Console: a command typed on the web page runs on the server", '"ok":true' in o and "players" in o, o.strip()[-200:])
+        c, o = vm.sh("head -c 20000 /dev/urandom > /tmp/t.jar; wget -q -O- --post-file=/tmp/t.jar 'http://127.0.0.1/cgi-bin/api?a=upload&n=test-java&f=t-up.jar'; echo; ls -l /ram/butter/worlds/test-java/plugins/ | grep -c t-up.jar", 60); check("Upload: a .jar sent from the web page lands in the server's plugins folder", '"ok":true' in o and o.strip().endswith("1"), o.strip()[-200:])
+        c, o = vm.sh("wget -q -O- 'http://127.0.0.1/cgi-bin/api?a=upload&n=test-java&f=x.txt' --post-data=hi", 20); check("Upload: refuses non-.jar files", '"ok":false' in o, o.strip()[-120:])
+        time.sleep(20); c, o = vm.sh("wget -q -O- 'http://127.0.0.1/cgi-bin/api?a=cracked&n=test-java&v=1'; echo; grep -E '^(online-mode|enforce-secure-profile)' /ram/butter/worlds/test-java/server.properties", 60)
+        check("Cracked mode: turning it on sets online-mode=false", "online-mode=false" in o and '"cracked":true' in o, o.strip()[-200:])
+        time.sleep(15); sv = {x["name"]: x for x in api("a=status").get("servers", [])}.get("test-java", {}); check("Cracked mode: status reports it", sv.get("cracked") is True, sv.get("cracked"))
+        c, o = vm.sh("wget -q -O- 'http://127.0.0.1/cgi-bin/api?a=cracked&n=test-java&v=0'; echo; grep -E '^online-mode' /ram/butter/worlds/test-java/server.properties", 60); check("Cracked mode: turning it off restores online-mode=true", "online-mode=true" in o, o.strip()[-160:])
         # Bedrock x2 (what a 4 GB machine is meant to hold)
         for nm in ("test-bed", "test-bed2"):
             r = api("a=create&n=%s&type=bedrock" % nm, timeout=900); check("Create Bedrock server %s via web API" % nm, r.get("ok"), r)

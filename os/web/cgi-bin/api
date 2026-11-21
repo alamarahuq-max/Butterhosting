@@ -43,8 +43,8 @@ status|"")
       port=$(echo "$po" | tr ',' '\n' | grep -E -- '->25565/tcp|->19132/udp' | grep -E '25565/tcp' | sed -n 's/.*:\([0-9]*\)->.*/\1/p' | head -1); [ -n "$port" ] || port=$(echo "$po" | sed -n 's/.*:\([0-9]*\)->.*/\1/p' | head -1); [ -n "$port" ] || port=$bp
       bport=$(echo "$po" | tr ',' '\n' | grep '/udp' | sed -n 's/.*:\([0-9]*\)->.*/\1/p' | head -1); [ -n "$bbp" ] && bport=$bbp; [ $ty = bedrock ] && bport=$port
       jn=""; [ -f "/run/butter-join-${nm#bw-}" ] && jn=$(cat "/run/butter-join-${nm#bw-}")
-      jq -nc --arg n "${nm#bw-}" --arg c "$nm" --arg s "$st" --arg t "$ty" --argjson r "${ram:-0}" --arg cpu "${cpu:-0}" --argjson p "$pl" --arg port "$port" --arg join "$jn" --arg fl "$fl" --arg vr "$vr" --arg bport "$bport" \
-        '{bedrock_port:($bport|tonumber? // null),flavor:$fl,version:$vr,join:(if $join=="" then null else $join end),name:$n,container:$c,state:$s,type:$t,ram:$r,cpu:($cpu|tonumber? // 0),players:$p,port:($port|tonumber? // null)}'
+      jq -nc --arg n "${nm#bw-}" --arg c "$nm" --arg s "$st" --arg t "$ty" --argjson r "${ram:-0}" --arg cpu "${cpu:-0}" --argjson p "$pl" --arg port "$port" --arg join "$jn" --arg fl "$fl" --arg vr "$vr" --arg bport "$bport" --argjson cr "$(grep -q '^online-mode=false' "$WORLDS/${nm#bw-}/server.properties" 2>/dev/null && echo true || echo false)" \
+        '{cracked:$cr,bedrock_port:($bport|tonumber? // null),flavor:$fl,version:$vr,join:(if $join=="" then null else $join end),name:$n,container:$c,state:$s,type:$t,ram:$r,cpu:($cpu|tonumber? // 0),players:$p,port:($port|tonumber? // null)}'
     done | jq -sc .)
   [ -n "$SRV" ] || SRV='[]'
   SUM=$(echo "$SRV" | jq '[.[].ram]|add // 0')
@@ -107,6 +107,26 @@ plugin)
   F=$(basename "${U%%\?*}" | tr -cd 'A-Za-z0-9._-'); [ -n "$F" ] || fail "bad file name"
   mkdir -p "$WORLDS/$N/$PD" && wget -q -O "$WORLDS/$N/$PD/$F" "$U" && [ -s "$WORLDS/$N/$PD/$F" ] || { rm -f "$WORLDS/$N/$PD/$F"; fail "download failed"; }
   docker restart "$(cname "$N")" >/dev/null 2>&1; out --arg f "$F" '{ok:true,file:$f}' ;;
+cmd)
+  valid "$N" || fail "bad name"; exists "$N" || fail "no such server"
+  C=$(urlq c | tr -d '\r\n' | cut -c1-200); [ -n "$C" ] || fail "type a command"
+  docker inspect -f '{{.State.Running}}' "$(cname "$N")" 2>/dev/null | grep -q true || fail "Start the server first"
+  if isjava "$N"; then o=$(timeout 12 docker exec "$(cname "$N")" rcon-cli "$C" 2>&1); else docker exec "$(cname "$N")" send-command $C >/dev/null 2>&1; sleep 1; o=$(docker logs --tail 4 "$(cname "$N")" 2>&1); fi
+  printf '%s' "$o" | tr -d '\033' | sed 's/\[[0-9;]*m//g' | jq -Rsc '{ok:true,out:.}' ;;
+cracked)
+  valid "$N" || fail "bad name"; exists "$N" || fail "no such server"; isjava "$N" || fail "Cracked mode works on Java servers"
+  V1=$(q v); PF="$WORLDS/$N/server.properties"; [ -f "$PF" ] || fail "Start the server once first"
+  if [ "$V1" = 1 ]; then OM=false; ES=false; else OM=true; ES=true; fi
+  for kv in online-mode=$OM enforce-secure-profile=$ES; do k=${kv%%=*}; if grep -q "^$k=" "$PF"; then sed -i "s/^$k=.*/$kv/" "$PF"; else echo "$kv" >> "$PF"; fi; done
+  docker restart "$(cname "$N")" >/dev/null 2>&1; out --argjson c "$([ "$OM" = false ] && echo true || echo false)" '{ok:true,cracked:$c}' ;;
+upload)
+  valid "$N" || fail "bad name"; exists "$N" || fail "no such server"; isjava "$N" || fail "Uploads work on Java servers"
+  F=$(q f); case "$F" in *.jar) ;; *) fail "Only .jar files";; esac; PD=$(pdir)
+  L=${CONTENT_LENGTH:-0}; [ "$L" -gt 0 ] 2>/dev/null || fail "empty upload"; [ "$L" -le 157286400 ] || fail "File is bigger than 150 MB"
+  [ "$(mb MemAvailable)" -gt $(( L / 1048576 + 150 )) ] || fail "Not enough free memory on this machine for that file"
+  mkdir -p "$WORLDS/$N/$PD"; head -c "$L" > "$WORLDS/$N/$PD/$F.part" 2>/dev/null
+  [ "$(wc -c < "$WORLDS/$N/$PD/$F.part")" -eq "$L" ] || { rm -f "$WORLDS/$N/$PD/$F.part"; fail "Upload was cut off, try again"; }
+  mv "$WORLDS/$N/$PD/$F.part" "$WORLDS/$N/$PD/$F"; docker restart "$(cname "$N")" >/dev/null 2>&1; out --arg f "$F" '{ok:true,file:$f}' ;;
 plugins)
   valid "$N" || fail "bad name"; PD=$(pdir); ls "$WORLDS/$N/$PD" 2>/dev/null | grep '\.jar$' | jq -Rsc 'split("\n")|map(select(length>0))|{ok:true,plugins:.}' ;;
 rmplugin)

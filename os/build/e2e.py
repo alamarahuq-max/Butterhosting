@@ -159,13 +159,13 @@ def main():
             def runjs(a, t=90):
                 try: x = subprocess.run(["node"] + a, cwd="os/build/join", capture_output=True, text=True, timeout=t); return (x.stdout + x.stderr)[-1500:]
                 except Exception as e: return "RUN_ERR %s" % e
-            o = runjs(["java.js", str(25565 + vm.port_off), JV]); check("Java client (premium name) is refused or joins as expected (online-mode on)", "JAVA_" in o, o.strip()[-300:])
+            o = runjs(["java.js", str(25565 + 0), JV]); check("Java client (premium name) is refused or joins as expected (online-mode on)", "JAVA_" in o, o.strip()[-300:])
             c, o2 = vm.sh("wget -q -O- 'http://127.0.0.1/cgi-bin/api?a=cracked&n=jj&v=1'", 90); time.sleep(40)
             for i in range(30):
                 if "Done (" in api("a=logs&n=jj").get("logs", "").split("Starting minecraft server")[-1]: break
                 time.sleep(6)
             time.sleep(10)
-            o = runjs(["java.js", str(25565 + vm.port_off), JV]); check("Java: a cracked client really joins the server and chats", "JAVA_JOINED_OK" in o, o.strip()[-400:])
+            o = runjs(["java.js", str(25565 + 0), JV]); check("Java: a cracked client really joins the server and chats", "JAVA_JOINED_OK" in o, o.strip()[-400:])
             lg = api("a=logs&n=jj").get("logs", ""); check("Server log shows the player joined", "CrackedBob joined the game" in lg, [l for l in lg.splitlines() if "CrackedBob" in l][-3:])
             # Bedrock bridge: switch Geyser to RakNet + offline auth for the test client (real phones use NetherNet + Floodgate)
             c, o3 = vm.sh("cd /ram/butter/worlds/jj/plugins/Geyser-Spigot && sed -i 's/transport: nethernet/transport: raknet/; s/auth-type: floodgate/auth-type: offline/' config.yml && cat config.yml | head -12; docker restart bw-jj >/dev/null; echo RESTARTED", 90); extra.append("Geyser config for test:\n```\n" + o3[-600:] + "\n```")
@@ -173,7 +173,7 @@ def main():
                 if "Done (" in api("a=logs&n=jj").get("logs", "").split("Starting minecraft server")[-1]: break
                 time.sleep(6)
             time.sleep(20)
-            ob = runjs(["bedrock.js", str(19132 + vm.port_off)], 100); check("Bedrock client joins through the Java server's phone bridge (RakNet test path)", "BEDROCK_SPAWNED_OK" in ob, ob.strip()[-500:])
+            ob = runjs(["bedrock.js", str(19132 + 0)], 100); check("Bedrock client joins through the Java server's phone bridge (RakNet test path)", "BEDROCK_SPAWNED_OK" in ob, ob.strip()[-500:])
             lg = api("a=logs&n=jj").get("logs", ""); extra.append("Join log tail:\n```\n" + "\n".join([l[:170] for l in lg.splitlines() if any(k in l for k in ("Geyser", "Bedrock", "joined", "BedrockBob", "CrackedBob", "ERROR", "WARN"))][-25:]) + "\n```")
             flush_results(); return
         if os.environ.get("ONLY_MEM"):

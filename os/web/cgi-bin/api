@@ -117,8 +117,9 @@ cracked)
   valid "$N" || fail "bad name"; exists "$N" || fail "no such server"; isjava "$N" || fail "Cracked mode works on Java servers"
   V1=$(q v); PF="$WORLDS/$N/server.properties"; [ -f "$PF" ] || fail "Start the server once first"
   if [ "$V1" = 1 ]; then OM=false; ES=false; else OM=true; ES=true; fi
+  docker stop -t 25 "$(cname "$N")" >/dev/null 2>&1
   for kv in online-mode=$OM enforce-secure-profile=$ES; do k=${kv%%=*}; if grep -q "^$k=" "$PF"; then sed -i "s/^$k=.*/$kv/" "$PF"; else echo "$kv" >> "$PF"; fi; done
-  docker restart "$(cname "$N")" >/dev/null 2>&1; out --argjson c "$([ "$OM" = false ] && echo true || echo false)" '{ok:true,cracked:$c}' ;;
+  docker start "$(cname "$N")" >/dev/null 2>&1; out --argjson c "$([ "$OM" = false ] && echo true || echo false)" '{ok:true,cracked:$c}' ;;
 upload)
   valid "$N" || fail "bad name"; exists "$N" || fail "no such server"; isjava "$N" || fail "Uploads work on Java servers"
   F=$(q f); case "$F" in *.jar) ;; *) fail "Only .jar files";; esac; PD=$(pdir)

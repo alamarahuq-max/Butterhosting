@@ -19,7 +19,8 @@ if [ -z "$IF" ]; then
       b=$(basename $d); drv=none; for i in $d/*:*; do [ -L "$i/driver" ] && drv=$(basename $(readlink $i/driver)); done
       echo " $(cat $d/idVendor):$(cat $d/idProduct)  $(cat $d/manufacturer 2>/dev/null) $(cat $d/product 2>/dev/null)  driver=$drv"; done
     echo; echo "Kernel messages:"; dmesg 2>/dev/null | grep -iE "usb|firmware|8188|rtl|wlan|wifi|cfg80211" | tail -12; } > $R 2>&1
-  dialog --title "No Wi-Fi adapter found" --msgbox "$(cat $R | cut -c1-70)\n\nIf your adapter is listed above with driver=none, this ButterOS build has no driver for it yet: send this screen (photo) with the adapter name. A network cable works with no setup." 24 76; exit 1
+  H=""; if dmesg 2>/dev/null | grep -q "USB disconnect"; then dmesg | grep -qiE "rtl|8188|wlan" && H="The adapter was seen and then dropped off the USB port by itself. That is almost always power: plug it straight into a USB port on the back of the machine (not a hub, a keyboard, or the front panel) and try again.\n\n"; fi
+  dialog --title "No Wi-Fi adapter found" --msgbox "$H$(cat $R | cut -c1-70)\n\nIf your adapter is listed above with driver=none, this ButterOS build has no driver for it yet: send this screen (photo) with the adapter name. A network cable works with no setup." 24 76; exit 1
 fi
 ip link set "$IF" up 2>/dev/null; rfkill unblock all 2>/dev/null
 dialog --infobox "Scanning for networks on $IF ..." 4 44

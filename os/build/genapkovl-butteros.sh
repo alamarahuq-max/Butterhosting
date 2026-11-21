@@ -59,6 +59,12 @@ ttyS0::respawn:/usr/local/bin/serial-getty
 I
 for s in devfs dmesg mdev hwdrivers modloop; do rc_add $s sysinit; done
 for s in cgroups modules sysctl hostname bootmisc butterwifi networking syslog chronyd butterpersist butterramsync; do rc_add $s boot; done
+cat > "$tmp/etc/init.d/butterslim" <<'SL'
+#!/sbin/openrc-run
+description="Free RAM: remove docker plugins and docs this box never uses (the root filesystem lives in RAM)"
+start() { rm -rf /usr/libexec/docker/cli-plugins /usr/share/man /usr/share/doc /usr/share/bash-completion /usr/share/zsh /usr/share/fish /usr/share/info; return 0; }
+SL
+chmod 755 "$tmp/etc/init.d/butterslim"; rc_add butterslim boot
 for s in docker butterhosting butterfailover butterweb acpid; do rc_add $s default; done
 for s in mount-ro killprocs savecache; do rc_add $s shutdown; done
 tar -c -C "$tmp" . | gzip -9n > "$HOSTNAME.apkovl.tar.gz"

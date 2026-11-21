@@ -123,7 +123,7 @@ upload)
   valid "$N" || fail "bad name"; exists "$N" || fail "no such server"; isjava "$N" || fail "Uploads work on Java servers"
   F=$(q f); case "$F" in *.jar) ;; *) fail "Only .jar files";; esac; PD=$(pdir)
   L=${CONTENT_LENGTH:-0}; [ "$L" -gt 0 ] 2>/dev/null || fail "empty upload"; [ "$L" -le 157286400 ] || fail "File is bigger than 150 MB"
-  [ "$(mb MemAvailable)" -gt $(( L / 1048576 + 150 )) ] || fail "Not enough free memory on this machine for that file"
+  [ "$(mb MemAvailable)" -gt $(( L / 1048576 + 20 )) ] || fail "Not enough free memory on this machine for that file"
   mkdir -p "$WORLDS/$N/$PD"; head -c "$L" > "$WORLDS/$N/$PD/$F.part" 2>/dev/null
   [ "$(wc -c < "$WORLDS/$N/$PD/$F.part")" -eq "$L" ] || { rm -f "$WORLDS/$N/$PD/$F.part"; fail "Upload was cut off, try again"; }
   mv "$WORLDS/$N/$PD/$F.part" "$WORLDS/$N/$PD/$F"; docker restart "$(cname "$N")" >/dev/null 2>&1; out --arg f "$F" '{ok:true,file:$f}' ;;

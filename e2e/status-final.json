@@ -1,0 +1,71 @@
+{
+ "ok": true,
+ "mem": {
+  "total": 3920,
+  "avail": 889,
+  "os": 1977,
+  "servers": 1054,
+  "worlds": 655
+ },
+ "web_rss_mb": 0.5,
+ "limit_web_mb": 30,
+ "temps": [],
+ "cpu_total": 55384,
+ "cpu_idle": 23531,
+ "net_rx": 1247715801,
+ "net_tx": 2364047,
+ "wifi_adapters": 1,
+ "servers": [
+  {
+   "cracked": false,
+   "bedrock_port": 19133,
+   "flavor": "bedrock",
+   "version": "LATEST",
+   "join": null,
+   "name": "test-bed2",
+   "container": "bw-test-bed2",
+   "state": "running",
+   "type": "bedrock",
+   "ram": 528,
+   "cpu": 1.35,
+   "players": null,
+   "port": 19133
+  },
+  {
+   "cracked": false,
+   "bedrock_port": 19132,
+   "flavor": "bedrock",
+   "version": "LATEST",
+   "join": null,
+   "name": "test-bed",
+   "container": "bw-test-bed",
+   "state": "running",
+   "type": "bedrock",
+   "ram": 526,
+   "cpu": 1.21,
+   "players": null,
+   "port": 19132
+  }
+ ],
+ "ip": "10.0.2.15",
+ "temp": null,
+ "uptime": 278.89,
+ "load": "1.35 1.05 0.47",
+ "kernel": "6.12.118-0-lts",
+ "cores": 2,
+ "persist": false,
+ "max_servers": 2,
+ "engine": "ok",
+ "capacity": {
+  "java_need": 1536,
+  "bedrock_need": 700,
+  "keep_free": 300,
+  "java_fits": false,
+  "bedrock_fits": false,
+  "estimate": true
+ },
+ "backup": {
+  "usb": false,
+  "last": null
+ }
+}

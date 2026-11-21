@@ -154,7 +154,7 @@ function key(k) {
 
 // ---- accounts (optional password; default is one account with no password) ----
 const crypto = require("crypto"), USERF = process.env.BUTTER_USERS || "/etc/butter-users.json";
-let users = [{ name: "Claude", role: "Admin" }]; try { const j = JSON.parse(fs.readFileSync(USERF, "utf8")); if (Array.isArray(j.users) && j.users.length) users = j.users; } catch (e) {}
+let users = [{ name: "admin", role: "Admin" }]; try { const j = JSON.parse(fs.readFileSync(USERF, "utf8")); if (Array.isArray(j.users) && j.users.length) users = j.users; } catch (e) {}
 const hashpw = (salt, pw) => crypto.createHash("sha256").update(salt + pw).digest("hex");
 let screen = process.env.BUTTER_NOLOGIN ? "app" : process.env.BUTTER_SCREEN === "picker" ? "picker" : process.env.BUTTER_SCREEN === "login" || process.env.BUTTER_SCREEN === "wrong" ? "login" : users.length > 1 ? "picker" : "login";
 let cu = 0, pw = "", lerr = process.env.BUTTER_SCREEN === "wrong" ? "Wrong password, try again" : "", me = users[0].name;

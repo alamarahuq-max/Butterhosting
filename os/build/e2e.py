@@ -183,6 +183,7 @@ def main():
         c, o = vm.sh("command -v setfont >/dev/null && echo SF\"_\"YES; echo FN\"_\"$(ls /usr/share/consolefonts/ | grep -c -E 'ter-v(22|24|28|32)b')", 20)
         check("Console font tools and the big Terminus fonts are present (screen is readable on HD displays)", "SF_YES" in o and re.search(r"FN_[1-9]", o), o.replace("\n", " ")[-200:])
         c, o = vm.sh("BUTTER_DEMO=1 BUTTER_SNAPSHOT=ansi COLS=100 ROWS=32 node /usr/local/lib/butter/tui.js | head -3 | wc -l", 30); check("Text HUD fallback renders", o.strip().endswith("3"), o.strip()[-80:])
+        c, o = vm.sh("sh -n $(command -v butter-wifi) && echo SYN\"_\"OK; sh -n /usr/lib/butter/load-wifi && echo LW\"_\"OK", 20); check("Wi-Fi tool scripts are valid", "SYN_OK" in o and "LW_OK" in o, o.strip()[-100:])
         c, o = vm.sh("for x in iw wpa_supplicant butter-wifi butter-wifid rfkill dialog udhcpc; do command -v $x >/dev/null && echo OK\"_\"$x || echo MISSING\"_\"$x; done; echo FW\"_\"$(ls /lib/firmware/rtlwifi/ 2>/dev/null | grep -c 8188eufw)", 30)
         check("Wi-Fi tools are in the image (iw, wpa_supplicant, dialog, butter-wifi, hot-plug daemon) and Realtek firmware", "MISSING_" not in o and "OK_iw" in o and "OK_butter-wifid" in o and re.search(r"FW_[1-9]", o), o.replace("\n", " ")[-300:])
         c, o = vm.sh("[ -f /usr/lib/butter/8188eu.ko ] && echo DRV\"_\"FILE; V=$(modinfo -F vermagic /usr/lib/butter/8188eu.ko 2>/dev/null | cut -d' ' -f1); [ -n \"$V\" ] && [ \"$V\" = \"$(uname -r)\" ] && echo DRV\"_\"MATCHES_KERNEL; echo K\"_\"$(uname -r)\"_\"V$V", 30)

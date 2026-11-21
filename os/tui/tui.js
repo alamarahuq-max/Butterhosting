@@ -19,7 +19,7 @@ const cut = (s, n) => (vlen(s) > n ? [...s].slice(0, n - 1).join("") + "~" : s);
 
 // ---- accounts ----
 const USERF = process.env.BUTTER_USERS || "/etc/butter-users.json";
-let users = [{ name: "Claude", role: "Admin" }]; try { const j = JSON.parse(fs.readFileSync(USERF, "utf8")); if (Array.isArray(j.users) && j.users.length) users = j.users; } catch (e) {}
+let users = [{ name: "admin", role: "Admin" }]; try { const j = JSON.parse(fs.readFileSync(USERF, "utf8")); if (Array.isArray(j.users) && j.users.length) users = j.users; } catch (e) {}
 const hashpw = (salt, pw) => crypto.createHash("sha256").update(salt + pw).digest("hex");
 
 // ---- state ----

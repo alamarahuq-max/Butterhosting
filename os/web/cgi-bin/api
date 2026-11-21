@@ -141,6 +141,7 @@ create)
   T=$(q type); M=$(q mem); V=$(q ver); F=$(q flavor); [ -n "$V" ] || V=LATEST; [ -n "$F" ] || F=paper
   valid "$N" || fail "Name: 2-24 letters, numbers or dashes"
   ENG || fail "The container engine is not running"
+  if ! ip route 2>/dev/null | grep -q '^default'; then fail "This machine has no internet yet. Plug in a network cable, or press w on the machine's screen to set up Wi-Fi. The first server downloads about 500 MB."; fi
   exists "$N" && fail "A server with that name already exists"
   [ "$(count)" -ge "$(maxsrv)" ] && fail "Limit reached: $(maxsrv) servers in this mode"
   case "$T" in java) need=$JAVA_NEED;; bedrock) need=$BED_NEED;; *) fail "type must be java or bedrock";; esac

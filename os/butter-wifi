@@ -3,9 +3,23 @@
 command -v iw >/dev/null 2>&1 || { echo "Wi-Fi tools are not in this build."; sleep 3; exit 1; }
 export DIALOGRC=/etc/butter.dialogrc
 modprobe cfg80211 2>/dev/null; [ -x /usr/lib/butter/load-wifi ] && /usr/lib/butter/load-wifi
-IF=$(ls /sys/class/net 2>/dev/null | while read n; do [ -d /sys/class/net/$n/wireless ] || [ -d /sys/class/net/$n/phy80211 ] && echo $n; done | head -1)
+findif() { ls /sys/class/net 2>/dev/null | while read n; do [ -d /sys/class/net/$n/wireless ] || [ -d /sys/class/net/$n/phy80211 ] && echo $n; done | head -1; }
+IF=$(findif)
 if [ -z "$IF" ]; then
-  dialog --msgbox "No Wi-Fi adapter found.\n\nPlug in a USB Wi-Fi adapter (RTL8188EU, RTL8812/8821, MT7601/7612, Atheros AR9271 and most laptop cards work), wait 5 seconds, then try again.\n\nA network cable works with no setup." 14 64; exit 1
+  # a USB adapter may have been plugged in only seconds ago, or its driver is not loaded yet: try everything, then wait
+  dialog --infobox "Looking for a Wi-Fi adapter ...\n\n(USB adapters can take up to 15 seconds)" 6 50
+  for d in /sys/bus/usb/devices/*; do [ -f "$d/modalias" ] && modprobe -b "$(cat $d/modalias)" 2>/dev/null; done
+  for d in /sys/bus/usb/devices/*:*; do [ -f "$d/modalias" ] && modprobe -b "$(cat $d/modalias)" 2>/dev/null; done
+  grep -q '^8188eu ' /proc/modules 2>/dev/null || { [ -f /usr/lib/butter/8188eu.ko ] && insmod /usr/lib/butter/8188eu.ko 2>/dev/null; }
+  i=0; while [ $i -lt 15 ] && [ -z "$IF" ]; do IF=$(findif); [ -n "$IF" ] || sleep 1; i=$((i+1)); done
+fi
+if [ -z "$IF" ]; then
+  R=/run/butter-wifi-report.txt
+  { echo "USB devices seen:"; for d in /sys/bus/usb/devices/[0-9]*-[0-9.]*; do [ -f "$d/idVendor" ] || continue; case "$(basename $d)" in *:*) continue;; esac
+      b=$(basename $d); drv=none; for i in $d/*:*; do [ -L "$i/driver" ] && drv=$(basename $(readlink $i/driver)); done
+      echo " $(cat $d/idVendor):$(cat $d/idProduct)  $(cat $d/manufacturer 2>/dev/null) $(cat $d/product 2>/dev/null)  driver=$drv"; done
+    echo; echo "Kernel messages:"; dmesg 2>/dev/null | grep -iE "usb|firmware|8188|rtl|wlan|wifi|cfg80211" | tail -12; } > $R 2>&1
+  dialog --title "No Wi-Fi adapter found" --msgbox "$(cat $R | cut -c1-70)\n\nIf your adapter is listed above with driver=none, this ButterOS build has no driver for it yet: send this screen (photo) with the adapter name. A network cable works with no setup." 24 76; exit 1
 fi
 ip link set "$IF" up 2>/dev/null; rfkill unblock all 2>/dev/null
 dialog --infobox "Scanning for networks on $IF ..." 4 44

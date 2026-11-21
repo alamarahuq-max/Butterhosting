@@ -29,18 +29,31 @@ awk '/^BSS /{if(s!="")print sig"\t"s; s=""; sig=-100} /signal:/{sig=$2} /SSID:/{
 [ -s /tmp/nets.txt ] || { dialog --msgbox "No networks found. Move closer to the router and try again." 7 56; exit 1; }
 set --; while IFS= read -r a && IFS= read -r b; do set -- "$@" "$a" "$b"; done < /tmp/nets.txt
 SSID=$(dialog --stdout --menu "Pick your Wi-Fi network" 20 64 12 "$@") || exit 0
-PASS=$(dialog --stdout --insecure --passwordbox "Password for $SSID (empty if it is open)" 9 64) || exit 0
+PASS=$(dialog --stdout --insecure --passwordbox "Password for $SSID (empty if it is open)\n(shown as ***; letters are case-sensitive)" 10 64) || exit 0
 mkdir -p /etc/wpa_supplicant
-if [ -n "$PASS" ]; then printf 'ctrl_interface=/run/wpa_supplicant\nupdate_config=1\n' > /etc/wpa_supplicant/wpa_supplicant.conf; wpa_passphrase "$SSID" "$PASS" | grep -v '#psk' >> /etc/wpa_supplicant/wpa_supplicant.conf
+if [ -n "$PASS" ]; then
+  L=$(printf %s "$PASS" | wc -c)
+  [ "$L" -ge 8 ] && [ "$L" -le 63 ] || { dialog --msgbox "A Wi-Fi password must be 8 to 63 characters (you typed $L).\nTry again." 8 56; exit 1; }
+  printf 'ctrl_interface=/run/wpa_supplicant\nupdate_config=1\n' > /etc/wpa_supplicant/wpa_supplicant.conf
+  wpa_passphrase "$SSID" "$PASS" | grep -v '#psk' >> /etc/wpa_supplicant/wpa_supplicant.conf
 else printf 'network={\n ssid="%s"\n key_mgmt=NONE\n}\n' "$SSID" > /etc/wpa_supplicant/wpa_supplicant.conf; fi
+grep -q 'network={' /etc/wpa_supplicant/wpa_supplicant.conf || { dialog --msgbox "Could not save this network (odd characters in the name or password?)." 7 60; exit 1; }
 chmod 600 /etc/wpa_supplicant/wpa_supplicant.conf
-touch /run/butter-wifi.busy; pkill wpa_supplicant 2>/dev/null; pkill -f "udhcpc.*$IF" 2>/dev/null
+touch /run/butter-wifi.busy; pkill wpa_supplicant 2>/dev/null; pkill -f "udhcpc.*$IF" 2>/dev/null; sleep 1
+rm -f /run/wpa_supplicant/"$IF" /tmp/wpa.log; ip addr flush dev "$IF" 2>/dev/null; ip link set "$IF" up 2>/dev/null
 dialog --infobox "Connecting to $SSID ..." 4 44
-wpa_supplicant -B -i "$IF" -c /etc/wpa_supplicant/wpa_supplicant.conf >/dev/null 2>&1
-i=0; while [ $i -lt 20 ]; do iw dev "$IF" link 2>/dev/null | grep -q Connected && break; sleep 1; i=$((i+1)); done
-udhcpc -i "$IF" -q -n -t 6 >/dev/null 2>&1
+wpa_supplicant -B -i "$IF" -c /etc/wpa_supplicant/wpa_supplicant.conf -f /tmp/wpa.log -t >/dev/null 2>&1
+i=0; while [ $i -lt 30 ]; do iw dev "$IF" link 2>/dev/null | grep -q Connected && break; grep -qE "WRONG_KEY|4-Way Handshake failed|pre-shared key may be incorrect" /tmp/wpa.log 2>/dev/null && break; sleep 1; i=$((i+1)); done
+LINKED=0; iw dev "$IF" link 2>/dev/null | grep -q Connected && LINKED=1
+[ $LINKED = 1 ] && { dialog --infobox "Connected. Getting an address from the router ..." 4 54; udhcpc -i "$IF" -q -n -t 8 >/dev/null 2>&1; }
 rm -f /run/butter-wifi.busy
 IP=$(ip -4 -o addr show dev "$IF" 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
 if [ -n "$IP" ]; then
   dialog --msgbox "Connected to $SSID.\n\nThis machine: $IP\nOpen http://$IP on your phone." 9 56
-else dialog --msgbox "Could not connect. Check the password and try again." 7 56; exit 1; fi
+elif [ $LINKED = 1 ]; then
+  dialog --msgbox "Connected to $SSID, but the router did not give this machine an address (DHCP).\nTry again, or restart the router." 9 60; exit 1
+elif grep -qE "WRONG_KEY|4-Way Handshake failed|pre-shared key may be incorrect" /tmp/wpa.log 2>/dev/null; then
+  dialog --msgbox "The router refused the password for $SSID.\nRetype it carefully (case matters)." 8 60; exit 1
+else
+  dialog --title "Could not connect to $SSID" --msgbox "No answer from the router (this is not necessarily the password).\n\n$(tail -6 /tmp/wpa.log 2>/dev/null | cut -c1-72)\n\nMove closer, or check the network is 2.4 GHz (most small USB adapters cannot use 5 GHz)." 17 76; exit 1
+fi

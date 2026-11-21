@@ -149,7 +149,7 @@ def main():
         except Exception as e: check("Local web page serves the UI", False, e)
         if os.environ.get("ONLY_JOIN"):
             import subprocess
-            JV = os.environ.get("JOIN_JAVA", "1.21.4")
+            JV = os.environ.get("JOIN_JAVA", "1.21.1")
             r = api("a=create&n=jj&type=java&flavor=paper&ver=%s&cross=1&mem=1024" % JV, timeout=900); check("Create Paper %s with phone bridge" % JV, r.get("ok"), r)
             for i in range(75):
                 lg = api("a=logs&n=jj").get("logs", "")

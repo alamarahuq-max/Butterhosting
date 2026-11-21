@@ -148,7 +148,7 @@ def main():
             check("Local web page serves the UI", "Butter" in html and "Overview" in html)
         except Exception as e: check("Local web page serves the UI", False, e)
         if os.environ.get("ONLY_MEM"):
-            c, o = vm.sh("free -m; echo CMDLINE; cat /proc/cmdline; echo MOUNTS; mount | grep -E 'loop|tmpfs|overlay|squash| / ' | cut -c1-150; echo DF; df -m | cut -c1-110; echo TOPDIRS; du -xsm /usr /lib /var /opt /etc /root /home /run /tmp /media 2>/dev/null; echo USR; du -xsm /usr/* /usr/local/* 2>/dev/null | sort -rn | head -14; echo LIB; du -xsm /lib/* 2>/dev/null | sort -rn | head -8; echo VAR; du -xsm /var/* 2>/dev/null | sort -rn | head -6; echo MEMINFO; grep -E 'MemTotal|MemFree|MemAvailable|Buffers|^Cached|Shmem|Slab|SReclaimable|AnonPages' /proc/meminfo; echo PS; ps -o rss,args | sort -rn | head -8 | cut -c1-110; ls -la /media/* 2>&1 | head", 90)
+            c, o = vm.sh("du -xsm /lib/firmware/* 2>/dev/null | sort -rn | head -28; echo BIN; du -xsm /usr/bin/* 2>/dev/null | sort -rn | head -14; echo LIBEXEC; du -xsm /usr/libexec/* /usr/libexec/*/* 2>/dev/null | sort -rn | head -10; echo ULIB; du -xsm /usr/lib/* 2>/dev/null | sort -rn | head -8", 90)
             extra.append("Memory diagnostics:\n```\n" + o[-6000:] + "\n```"); flush_results(); return
         if os.environ.get("ONLY_BEDROCK"):
             ping = 'const d=require("dgram").createSocket("udp4");const m=Buffer.from("00ffff00fefefefefdfdfdfd12345678","hex");const p=Buffer.concat([Buffer.from([1]),Buffer.alloc(8),m,Buffer.alloc(8)]);d.on("message",b=>{console.log("PONG"+b[0]);process.exit(0)});setInterval(()=>d.send(p,19132,"127.0.0.1"),500);setTimeout(()=>{console.log("NOPONG");process.exit(1)},8000)'

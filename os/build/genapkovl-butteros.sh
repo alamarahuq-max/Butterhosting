@@ -78,6 +78,14 @@ ttyS0::respawn:/usr/local/bin/serial-getty
 I
 for s in devfs dmesg mdev hwdrivers modloop; do rc_add $s sysinit; done
 for s in cgroups modules sysctl hostname bootmisc butterwifi networking syslog chronyd butterpersist butterramsync; do rc_add $s boot; done
+# NetworkManager only manages a network device once udev has announced it, so switch the hotplug manager from mdev to udev
+cat > "$tmp/etc/init.d/mdev" <<'MD'
+#!/sbin/openrc-run
+description="(replaced by udev on ButterOS)"
+start() { return 0; }
+MD
+chmod 755 "$tmp/etc/init.d/mdev"
+rc_add udev sysinit; rc_add udev-trigger sysinit; rc_add udev-settle sysinit; rc_add udev-postmount default
 rc_add dbus default; rc_add networkmanager default
 cat > "$tmp/etc/init.d/butterslim" <<'SL'
 #!/sbin/openrc-run

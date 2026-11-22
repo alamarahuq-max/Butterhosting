@@ -1,0 +1,17 @@
+#!/bin/sh
+# Loaded instead of rtl8xxxu (see /etc/modprobe.d/butter-wifi.conf).
+# The kernel's own rtl8xxxu driver handles the RTL8188EU chip badly: the adapter resets and falls off the USB port right after it starts.
+# So when an RTL8188EU-family adapter is plugged in, use the separate 8188eu driver instead; for every other chip load rtl8xxxu as usual.
+K=/usr/lib/butter/8188eu.ko; use=0
+if [ -f "$K" ] || [ -n "$GUARD_DRY" ]; then
+  AL=$(modinfo -F alias "$K" 2>/dev/null | grep '^usb:'); [ -n "$GUARD_ALIASES" ] && AL=$GUARD_ALIASES
+  MA=$(cat /sys/bus/usb/devices/*/modalias 2>/dev/null); [ -n "$GUARD_MODALIAS" ] && MA=$GUARD_MODALIAS
+  for al in $AL; do for m in $MA; do case "$m" in $al) use=1;; esac; done; done
+fi
+if [ $use = 1 ]; then
+  [ -n "$GUARD_DRY" ] && { echo USE_8188EU; exit 0; }
+  grep -q '^8188eu ' /proc/modules 2>/dev/null || insmod "$K"
+  exit 0
+fi
+[ -n "$GUARD_DRY" ] && { echo USE_RTL8XXXU; exit 0; }
+exec /sbin/modprobe --ignore-install rtl8xxxu

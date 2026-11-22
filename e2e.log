@@ -1,0 +1,3 @@
+PASS ISO boots straight into ButterOS with no boot menu (BIOS, shell on serial) 
+PASS RAM-only: root is tmpfs/ramfs, nothing mounted from a disk 
+PASS Docker engine runs docker info 2>&1 | grep -E 'Storage Driver|Cgroup|Server Version'; echo __E" | "ND1795358895608__$? |  Server Version: 28.3.3 |  Storage Driver: overlay2 |  Cgroup Driver: cgroupfs |  Cgroup Version: 2 | 

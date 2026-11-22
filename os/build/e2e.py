@@ -134,6 +134,13 @@ def main():
             if vm.sh("docker info >/dev/null 2>&1")[0] == 0: break
             time.sleep(3)
         c, o = vm.sh("docker info 2>&1 | grep -E 'Storage Driver|Cgroup|Server Version'"); check("Docker engine runs", c == 0, o.replace("\n", " | "))
+        if os.environ.get("ONLY_NMTUI"):
+            vm.sh("modprobe mac80211_hwsim radios=1 2>&1; sleep 4; nmcli radio wifi on; nmcli device wifi rescan 2>&1; sleep 3; setfont ter-v22b 2>/dev/null; true", 60)
+            vm.sh("NEWT_COLORS='root=white,black;window=white,black;border=yellow,black;title=yellow,black;button=black,yellow;actbutton=black,white;compactbutton=white,black;listbox=white,black;actlistbox=black,yellow;entry=white,black;textbox=white,black;label=white,black;checkbox=white,black;actcheckbox=black,yellow;helpline=black,yellow' TERM=linux openvt -c 3 -s -f -- nmtui >/dev/null 2>&1 &", 20)
+            time.sleep(6); vm.shot("nmtui-main")
+            vm.mon_cmd("sendkey down"); time.sleep(1); vm.mon_cmd("sendkey ret"); time.sleep(4); vm.shot("nmtui-activate")
+            c, o = vm.sh("nmcli -t device 2>&1 | head; nmcli device wifi list 2>&1 | head -5", 30); extra.append("nmcli:\n```\n" + o[-600:] + "\n```")
+            flush_results(); return
         if os.environ.get("ONLY_NM"):
             c, o = vm.sh("uptime; nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device 2>&1 | head; ip a | grep -E 'inet|state' ; ip route; echo RESOLV; cat /etc/resolv.conf; echo DNS; T0=$(date +%s); nslookup github.com 2>&1 | tail -3; echo DNSSECS $(( $(date +%s)-T0 )); echo CGI; T0=$(date +%s); QUERY_STRING='a=status' REQUEST_METHOD=GET timeout 100 sh /opt/butterweb/cgi-bin/api | head -c 300; echo; echo CGISECS $(( $(date +%s)-T0 )); echo NMLOG; grep -E 'NetworkManager|dhcp' /var/log/messages | cut -c1-200 | tail -30; echo PS; ps -o pid,rss,args | sort -k2 -rn | head -8 | cut -c1-120", 150)
             extra.append("NM diagnostics:\n```\n" + o[-6500:] + "\n```"); flush_results(); return

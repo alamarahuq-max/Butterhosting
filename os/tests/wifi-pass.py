@@ -41,5 +41,6 @@ for pw in PWS:
     res, screen = drive([pw.encode(), b"\r"], pw); ok("askpass (hidden entry) returns %r" % pw, res == pw, (res, screen[-200:]))
 pw = "Sh0w-Me_p@ss!"
 res, screen = drive([pw.encode(), b"\t", b"\t", b"\r", b"\r"], pw)
-ok("Show button reveals the password and it is still returned", res == pw and pw.encode() in screen.split(b"visible now")[-1], (res, screen[-300:]))
+clean = re.sub(rb"\x1b(\[[0-9;?]*[A-Za-z]|\([A-Z0-9])", b"", screen)
+ok("Show button reveals the password and it is still returned", res == pw and b"visible now" in clean and pw.encode() in clean.split(b"visible now")[-1], (res, clean[-300:]))
 sys.exit(1 if fails else 0)

@@ -270,9 +270,10 @@ def main():
         # an old Java version (Vanilla 1.16.5 needs Java 8)
         r = api("a=create&n=old-java&type=java&mem=1024&ver=1.16.5&flavor=vanilla", timeout=900); check("Create Vanilla 1.16.5 server (old Java version)", r.get("ok"), r)
         up = False
-        for i in range(90):
+        for i in range(120):
             lg = api("a=logs&n=old-java").get("logs", "")
             if re.search(r"Done \(", lg): up = True; break
+            time.sleep(5)
         check("Vanilla 1.16.5 finished starting", up, lg[-300:])
         if up:
             try: p = mc_ping(); check("Vanilla 1.16.5 answers a real status ping and reports 1.16.5", p and "1.16.5" in json.dumps(p), json.dumps(p)[:160])

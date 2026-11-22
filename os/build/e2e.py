@@ -134,6 +134,9 @@ def main():
             if vm.sh("docker info >/dev/null 2>&1")[0] == 0: break
             time.sleep(3)
         c, o = vm.sh("docker info 2>&1 | grep -E 'Storage Driver|Cgroup|Server Version'"); check("Docker engine runs", c == 0, o.replace("\n", " | "))
+        if os.environ.get("ONLY_NM"):
+            c, o = vm.sh("uptime; nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device 2>&1 | head; ip a | grep -E 'inet|state' ; ip route; echo RESOLV; cat /etc/resolv.conf; echo DNS; time -p nslookup github.com 2>&1 | tail -3; echo CGI; time -p (QUERY_STRING='a=status' REQUEST_METHOD=GET sh /opt/butterweb/cgi-bin/api | head -c 300); echo; echo NMLOG; grep -E 'NetworkManager|dhcp' /var/log/messages | cut -c1-200 | tail -30; echo PS; ps -o pid,rss,args | sort -k2 -rn | head -8 | cut -c1-120", 150)
+            extra.append("NM diagnostics:\n```\n" + o[-6500:] + "\n```"); flush_results(); return
         # web agent
         st = {}
         for _ in range(30):
@@ -148,9 +151,6 @@ def main():
             html = urllib.request.urlopen("http://127.0.0.1:8081/", timeout=10).read().decode()
             check("Local web page serves the UI", "Butter" in html and "Overview" in html)
         except Exception as e: check("Local web page serves the UI", False, e)
-        if os.environ.get("ONLY_NM"):
-            c, o = vm.sh("uptime; nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device 2>&1 | head; ip a | grep -E 'inet|state' ; ip route; echo RESOLV; cat /etc/resolv.conf; echo DNS; time -p nslookup github.com 2>&1 | tail -3; echo CGI; time -p (QUERY_STRING='a=status' REQUEST_METHOD=GET sh /opt/butterweb/cgi-bin/api | head -c 300); echo; echo NMLOG; grep -E 'NetworkManager|dhcp' /var/log/messages | cut -c1-200 | tail -30; echo PS; ps -o pid,rss,args | sort -k2 -rn | head -8 | cut -c1-120", 150)
-            extra.append("NM diagnostics:\n```\n" + o[-6500:] + "\n```"); flush_results(); return
         if os.environ.get("ONLY_JOIN"):
             JV = os.environ.get("JOIN_JAVA", "1.21.1")
             r = api("a=create&n=jj&type=java&flavor=paper&ver=%s&cross=1&mem=1024" % JV, timeout=900); check("Create Paper %s with phone bridge" % JV, r.get("ok"), r)

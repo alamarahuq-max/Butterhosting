@@ -170,6 +170,11 @@ create)
       NETA="--network host -e SERVER_PORT=$P --label butterport=$P --label butterbport=$BP"
       XA="-e PLUGINS=https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot,https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot"
       mkdir -p "$WORLDS/$N/plugins/Geyser-Spigot"; printf 'bedrock:\n  address: 0.0.0.0\n  port: %s\n  transport: nethernet\nremote:\n  auth-type: floodgate\n' "$BP" > "$WORLDS/$N/plugins/Geyser-Spigot/config.yml"; fi
+    # RAM-only machines keep images in RAM: free runtimes no server uses before pulling a different one
+    if ! docker image inspect "itzg/minecraft-server:$TAG" >/dev/null 2>&1; then
+      docker image prune -af >/dev/null 2>&1
+      docker builder prune -af >/dev/null 2>&1
+    fi
     docker run -d --name "$(cname "$N")" --label butterhosting=1 --label butterlocal=1 --label "butterflavor=$F" --label "butterver=$V" --restart unless-stopped \
       -e EULA=TRUE -e TYPE="$TY" -e VERSION="$V" -e MEMORY="${M}M" $NETA $XA -v "$WORLDS/$N:/data" "itzg/minecraft-server:$TAG" >/tmp/run.err 2>&1 || { rm -rf "$WORLDS/$N"; if grep -q "no space" /tmp/run.err; then fail "Not enough room in RAM to download this Java runtime. Install ButterOS to a disk, or use a machine with more RAM."; fi; fail "docker run failed: $(tail -c 160 /tmp/run.err | tr '\n"' '  ')"; }
   else

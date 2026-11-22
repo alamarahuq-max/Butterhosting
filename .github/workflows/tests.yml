@@ -1,11 +1,18 @@
 name: Tests
 on:
   push:
-    paths: ["hosting-api/**", "api/**", ".github/workflows/tests.yml"]
+    paths: ["os/wifi-*", "os/butter-wifi", "os/tests/**", "hosting-api/**", "api/**", ".github/workflows/tests.yml"]
   workflow_dispatch:
 permissions:
   contents: write
 jobs:
+  wifi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq dialog wpasupplicant >/dev/null
+      - name: Wi-Fi password handling (special characters, Show/Hide)
+        run: python3 os/tests/wifi-pass.py
   api:
     runs-on: ubuntu-latest
     steps:

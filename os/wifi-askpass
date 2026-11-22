@@ -1,0 +1,13 @@
+#!/bin/sh
+# wifi-askpass SSID: asks for the Wi-Fi password and prints it on stdout. Hidden (***) by default; the Show button reveals it, Hide hides it again.
+SSID=$1; PASS=""; SHOW=0
+export DIALOGRC=${DIALOGRC:-/etc/butter.dialogrc}
+while :; do
+  if [ $SHOW = 0 ]; then
+    PASS=$(dialog --stdout --insecure --extra-button --extra-label "Show" --passwordbox "Password for $SSID (empty if it is open)\n(shown as ***; letters are case-sensitive; press Show to see it)" 11 66 "$PASS"); RC=$?
+  else
+    PASS=$(dialog --stdout --extra-button --extra-label "Hide" --inputbox "Password for $SSID  (visible now)" 9 66 "$PASS"); RC=$?
+  fi
+  case $RC in 0) break;; 3) SHOW=$((1-SHOW));; *) exit 1;; esac
+done
+printf %s "$PASS"

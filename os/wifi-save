@@ -1,0 +1,12 @@
+#!/bin/sh
+# wifi-save SSID [PASSWORD]: writes /etc/wpa_supplicant/wpa_supplicant.conf. The password goes to wpa_passphrase as an argument
+# (no shell re-parsing), so $ ` " ' \ ! & ; # % and spaces all survive. Only the hashed key is stored.
+SSID=$1; PASS=$2; OUT=${WPA_CONF:-/etc/wpa_supplicant/wpa_supplicant.conf}
+mkdir -p "$(dirname "$OUT")"
+if [ -n "$PASS" ]; then
+  printf 'ctrl_interface=/run/wpa_supplicant\nupdate_config=1\n' > "$OUT"
+  wpa_passphrase "$SSID" "$PASS" 2>/dev/null | grep -v '^[[:space:]]*#psk' >> "$OUT"
+else
+  printf 'network={\n\tssid="%s"\n\tkey_mgmt=NONE\n}\n' "$SSID" > "$OUT"
+fi
+chmod 600 "$OUT"; grep -q 'network={' "$OUT"

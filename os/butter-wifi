@@ -29,15 +29,13 @@ awk '/^BSS /{if(s!="")print sig"\t"s; s=""; sig=-100} /signal:/{sig=$2} /SSID:/{
 [ -s /tmp/nets.txt ] || { dialog --msgbox "No networks found. Move closer to the router and try again." 7 56; exit 1; }
 set --; while IFS= read -r a && IFS= read -r b; do set -- "$@" "$a" "$b"; done < /tmp/nets.txt
 SSID=$(dialog --stdout --menu "Pick your Wi-Fi network" 20 64 12 "$@") || exit 0
-PASS=$(dialog --stdout --insecure --passwordbox "Password for $SSID (empty if it is open)\n(shown as ***; letters are case-sensitive)" 10 64) || exit 0
+PASS=$(/usr/lib/butter/wifi-askpass "$SSID") || exit 0
 mkdir -p /etc/wpa_supplicant
 if [ -n "$PASS" ]; then
   L=$(printf %s "$PASS" | wc -c)
   [ "$L" -ge 8 ] && [ "$L" -le 63 ] || { dialog --msgbox "A Wi-Fi password must be 8 to 63 characters (you typed $L).\nTry again." 8 56; exit 1; }
-  printf 'ctrl_interface=/run/wpa_supplicant\nupdate_config=1\n' > /etc/wpa_supplicant/wpa_supplicant.conf
-  wpa_passphrase "$SSID" "$PASS" | grep -v '#psk' >> /etc/wpa_supplicant/wpa_supplicant.conf
-else printf 'network={\n ssid="%s"\n key_mgmt=NONE\n}\n' "$SSID" > /etc/wpa_supplicant/wpa_supplicant.conf; fi
-grep -q 'network={' /etc/wpa_supplicant/wpa_supplicant.conf || { dialog --msgbox "Could not save this network (odd characters in the name or password?)." 7 60; exit 1; }
+fi
+/usr/lib/butter/wifi-save "$SSID" "$PASS" || { dialog --msgbox "Could not save this network (odd characters in the name?)." 7 60; exit 1; }
 chmod 600 /etc/wpa_supplicant/wpa_supplicant.conf
 touch /run/butter-wifi.busy; pkill wpa_supplicant 2>/dev/null; pkill -f "udhcpc.*$IF" 2>/dev/null; sleep 1
 rm -f /run/wpa_supplicant/"$IF" /tmp/wpa.log; ip addr flush dev "$IF" 2>/dev/null; ip link set "$IF" up 2>/dev/null

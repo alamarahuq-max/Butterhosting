@@ -135,7 +135,7 @@ def main():
             time.sleep(3)
         c, o = vm.sh("docker info 2>&1 | grep -E 'Storage Driver|Cgroup|Server Version'"); check("Docker engine runs", c == 0, o.replace("\n", " | "))
         if os.environ.get("ONLY_NM"):
-            c, o = vm.sh("uptime; nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device 2>&1 | head; ip a | grep -E 'inet|state' ; ip route; echo RESOLV; cat /etc/resolv.conf; echo DNS; time -p nslookup github.com 2>&1 | tail -3; echo CGI; time -p (QUERY_STRING='a=status' REQUEST_METHOD=GET sh /opt/butterweb/cgi-bin/api | head -c 300); echo; echo NMLOG; grep -E 'NetworkManager|dhcp' /var/log/messages | cut -c1-200 | tail -30; echo PS; ps -o pid,rss,args | sort -k2 -rn | head -8 | cut -c1-120", 150)
+            c, o = vm.sh("uptime; nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device 2>&1 | head; ip a | grep -E 'inet|state' ; ip route; echo RESOLV; cat /etc/resolv.conf; echo DNS; T0=$(date +%s); nslookup github.com 2>&1 | tail -3; echo DNSSECS $(( $(date +%s)-T0 )); echo CGI; T0=$(date +%s); QUERY_STRING='a=status' REQUEST_METHOD=GET timeout 100 sh /opt/butterweb/cgi-bin/api | head -c 300; echo; echo CGISECS $(( $(date +%s)-T0 )); echo NMLOG; grep -E 'NetworkManager|dhcp' /var/log/messages | cut -c1-200 | tail -30; echo PS; ps -o pid,rss,args | sort -k2 -rn | head -8 | cut -c1-120", 150)
             extra.append("NM diagnostics:\n```\n" + o[-6500:] + "\n```"); flush_results(); return
         # web agent
         st = {}

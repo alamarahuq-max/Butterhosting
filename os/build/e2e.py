@@ -126,6 +126,7 @@ def main():
         check("ISO boots straight into ButterOS with no boot menu (BIOS, shell on serial)", ok)
         if not ok: vm.shot("live-fail"); flush_results(vm.buf.decode(errors="ignore")[-3000:]); return
         vm.sh("killall dialog 2>/dev/null; true")
+        vm.sh("for i in $(seq 1 40); do ip route | grep -q default && break; sleep 2; done; true", 120)
         c, o = vm.sh("cat /etc/hostname; uname -r; free -m | sed -n 2p"); extra.append("Idle:\n```\n" + o + "\n```")
         check("RAM-only: root is tmpfs/ramfs, nothing mounted from a disk", vm.sh("mount | grep -E '^(tmpfs|rootfs|none) on / '")[0] == 0)
         # docker
@@ -210,7 +211,9 @@ def main():
         c, o = vm.sh("modinfo -F alias /usr/lib/butter/8188eu.ko | grep -c '^usb:'; cat /etc/modprobe.d/butter-wifi.conf; GUARD_DRY=1 GUARD_MODALIAS='usb:v0BDAp8179d0200dc00dsc00dp00icFFiscFFipFFin00' sh /usr/lib/butter/rtl8xxxu-guard; GUARD_DRY=1 GUARD_MODALIAS='usb:v0BDAp8178d0200dc00dsc00dp00icFFiscFFipFFin00' sh /usr/lib/butter/rtl8xxxu-guard; modprobe -n -v rtl8xxxu 2>&1 | head -2", 30)
         check("RTL8188EU adapters are steered to the separate 8188eu driver, other chips keep rtl8xxxu", "USE_8188EU" in o and "USE_RTL8XXXU" in o and "rtl8xxxu-guard" in o, o.strip()[-300:])
         c, o = vm.sh("sh -n $(command -v butter-wifi) && echo SYN\"_\"OK; sh -n /usr/lib/butter/load-wifi && echo LW\"_\"OK", 20); check("Wi-Fi tool scripts are valid", "SYN_OK" in o and "LW_OK" in o, o.strip()[-100:])
-        c, o = vm.sh("for x in iw wpa_supplicant butter-wifi butter-wifid rfkill dialog udhcpc; do command -v $x >/dev/null && echo OK\"_\"$x || echo MISSING\"_\"$x; done; echo FW\"_\"$(ls /lib/firmware/rtlwifi/ 2>/dev/null | grep -c 8188eufw)", 30)
+        c, o = vm.sh("for i in $(seq 1 30); do ip route | grep -q default && break; sleep 2; done; rc-service networkmanager status 2>&1 | head -1; nmcli -t -f STATE general 2>&1; nmcli -t -f DEVICE,TYPE,STATE device 2>&1 | head -5; ip route | head -2", 90)
+        check("NetworkManager runs the cable connection (gets an address and a route)", "connected" in o and "default" in o, o.strip()[-260:])
+        c, o = vm.sh("for x in iw wpa_supplicant butter-wifi butter-wifid rfkill dialog udhcpc nmcli nmtui; do command -v $x >/dev/null && echo OK\"_\"$x || echo MISSING\"_\"$x; done; echo FW\"_\"$(ls /lib/firmware/rtlwifi/ 2>/dev/null | grep -c 8188eufw)", 30)
         check("Wi-Fi tools are in the image (iw, wpa_supplicant, dialog, butter-wifi, hot-plug daemon) and Realtek firmware", "MISSING_" not in o and "OK_iw" in o and "OK_butter-wifid" in o and re.search(r"FW_[1-9]", o), o.replace("\n", " ")[-300:])
         c, o = vm.sh("[ -f /usr/lib/butter/8188eu.ko ] && echo DRV\"_\"FILE; V=$(modinfo -F vermagic /usr/lib/butter/8188eu.ko 2>/dev/null | cut -d' ' -f1); [ -n \"$V\" ] && [ \"$V\" = \"$(uname -r)\" ] && echo DRV\"_\"MATCHES_KERNEL; echo K\"_\"$(uname -r)\"_\"V$V", 30)
         check("RTL8188EU driver is shipped and built for this exact kernel", "DRV_FILE" in o and "DRV_MATCHES_KERNEL" in o, o.replace("\n", " ")[-200:])

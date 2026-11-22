@@ -16,10 +16,7 @@ while :; do
     i=${n##*/}; [ -d "$n/wireless" ] || [ -d "$n/phy80211" ] || continue
     if ! grep -qxF "iface:$i" "$SEEN" 2>/dev/null; then echo "iface:$i" >> "$SEEN"; log "wifi adapter ready: $i"; echo "$i" > /run/butter-wifi.new; fi
     ip link set "$i" up 2>/dev/null
-    if [ ! -e /run/butter-wifi.busy ] && [ -s /etc/wpa_supplicant/wpa_supplicant.conf ] && ! pgrep -f "wpa_supplicant.* -i $i" >/dev/null; then
-      log "connecting $i to the saved network"; wpa_supplicant -B -i "$i" -c /etc/wpa_supplicant/wpa_supplicant.conf >/dev/null 2>&1
-      ( sleep 8; udhcpc -i "$i" -q -n -t 5 >/dev/null 2>&1 ) &
-    fi
+    : # connecting is NetworkManager's job
   done
   sleep 3
 done

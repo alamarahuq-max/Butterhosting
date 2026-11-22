@@ -8,7 +8,22 @@ rc_add() { mkdir -p "$tmp/etc/runlevels/$2"; ln -sf "/etc/init.d/$1" "$tmp/etc/r
 
 mkdir -p "$tmp/etc/apk" "$tmp/etc/init.d" "$tmp/etc/docker" "$tmp/etc/network" "$tmp/usr/local/bin" "$tmp/opt/butterhosting"
 echo "butter-box" > "$tmp/etc/hostname"
-printf 'auto lo\niface lo inet loopback\n\nauto eth0\niface eth0 inet dhcp\n' > "$tmp/etc/network/interfaces"
+printf 'auto lo\niface lo inet loopback\n' > "$tmp/etc/network/interfaces"   # NetworkManager runs the cable and Wi-Fi
+mkdir -p "$tmp/etc/NetworkManager"
+cat > "$tmp/etc/NetworkManager/NetworkManager.conf" <<'NM'
+[main]
+dhcp=internal
+plugins=keyfile
+
+[keyfile]
+unmanaged-devices=interface-name:docker0;interface-name:veth*;interface-name:br-*;interface-name:lo
+
+[device]
+wifi.scan-rand-mac-address=no
+
+[connection]
+wifi.powersave=2
+NM
 
 # packages that must be installed at boot (they are on the ISO)
 cat > "$tmp/etc/apk/world" <<W
@@ -63,6 +78,7 @@ ttyS0::respawn:/usr/local/bin/serial-getty
 I
 for s in devfs dmesg mdev hwdrivers modloop; do rc_add $s sysinit; done
 for s in cgroups modules sysctl hostname bootmisc butterwifi networking syslog chronyd butterpersist butterramsync; do rc_add $s boot; done
+rc_add dbus default; rc_add networkmanager default
 cat > "$tmp/etc/init.d/butterslim" <<'SL'
 #!/sbin/openrc-run
 description="Free RAM: remove docker plugins and docs this box never uses (the root filesystem lives in RAM)"

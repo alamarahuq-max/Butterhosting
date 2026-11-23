@@ -1,0 +1,32 @@
+#!/bin/sh
+# Starts a server by itself on boot, when the host launcher (butter-run) asked for it.
+# The launcher passes the request through the virtual machine's DMI "serial number":
+#   butter;persist;auto;flavor=paper;ver=LATEST;mem=1536;name=minecraft;share=internet
+PATH=/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin:/usr/bin:/bin; export PATH
+CFG=$(cat /sys/class/dmi/id/product_serial 2>/dev/null)
+case "$CFG" in butter\;*) ;; *) exit 0;; esac
+AUTO=0; FLAVOR=paper; VER=LATEST; MEM=1536; NAME=minecraft; SHARE=internet; TYPE=java
+OLDIFS=$IFS; IFS=';'; set -- $CFG; IFS=$OLDIFS; shift
+for t; do case "$t" in
+  auto) AUTO=1;; flavor=*) FLAVOR=${t#flavor=};; ver=*) VER=${t#ver=};; mem=*) MEM=${t#mem=};;
+  name=*) NAME=${t#name=};; share=*) SHARE=${t#share=};; type=*) TYPE=${t#type=};; esac; done
+[ "$AUTO" = 1 ] || exit 0
+LOG=/run/butter-auto.log; : > "$LOG"
+say() { echo "butter-autostart: $*" | tee -a "$LOG" >/dev/console 2>/dev/null; }
+api() { wget -q -T 900 -O- "http://127.0.0.1/cgi-bin/api?$1" 2>/dev/null; }
+# wait for the web agent, the container engine and the internet
+for i in $(seq 1 300); do api a=ping | grep -q '"ok":true' && docker info >/dev/null 2>&1 && ip route | grep -q '^default' && break; sleep 2; done
+if docker inspect "bw-$NAME" >/dev/null 2>&1; then
+  say "server $NAME already exists (kept from last time)"; docker start "bw-$NAME" >/dev/null 2>&1
+else
+  say "creating $TYPE server $NAME ($FLAVOR $VER). The first one downloads about 500 MB."
+  R=""; for i in 1 2 3; do
+    R=$(api "a=create&n=$NAME&type=$TYPE&mem=$MEM&ver=$VER&flavor=$FLAVOR&share=$SHARE")
+    echo "$R" | grep -q '"ok":true' && break
+    echo "$R" > "$LOG.err"; say "attempt $i failed: $(echo "$R" | jq -r .error 2>/dev/null)"; sleep 20
+  done
+  echo "$R" | grep -q '"ok":true' || { say "could not create the server"; exit 1; }
+fi
+for i in $(seq 1 240); do api "a=logs&n=$NAME" | grep -q 'Done (' && break; sleep 5; done
+say "server $NAME is up"
+touch /run/butter-auto-ready

@@ -6,6 +6,12 @@ start() {
   mkdir -p /media/butter /etc/docker
   mdev -s 2>/dev/null || true
   sleep 2
+  # launched by butter-run with a blank virtual disk: format it once so worlds and images survive restarts
+  if grep -q ';persist' /sys/class/dmi/id/product_serial 2>/dev/null && ! blkid -L BUTTER >/dev/null 2>&1; then
+    for d in /dev/vda /dev/vdb /dev/vdc; do
+      [ -b "$d" ] && [ -z "$(blkid "$d" 2>/dev/null)" ] && [ -z "$(ls /sys/block/${d#/dev/}/ 2>/dev/null | grep "^${d#/dev/}[0-9]")" ] && { mkfs.ext4 -q -F -L BUTTER "$d" && break; }
+    done
+  fi
   dev="$(blkid -L BUTTER 2>/dev/null || true)"
   if [ -n "$dev" ] && mount "$dev" /media/butter 2>/dev/null; then
     mkdir -p /media/butter/docker /media/butter/butter-backup

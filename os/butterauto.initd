@@ -1,0 +1,9 @@
+#!/sbin/openrc-run
+description="ButterOS: start a server by itself when the host launcher asked for it"
+depend() { need docker butterweb net; after butterhosting; }
+start() {
+  ebegin "Auto-starting the requested server (if any)"
+  start-stop-daemon --start --background --make-pidfile --pidfile /run/butterauto.pid --exec /usr/local/bin/butter-autostart
+  eend 0
+}
+stop() { start-stop-daemon --stop --pidfile /run/butterauto.pid 2>/dev/null; return 0; }

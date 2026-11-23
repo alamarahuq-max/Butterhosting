@@ -50,6 +50,8 @@ install -m 755 "$SRC/os/butterhosting.initd"   "$tmp/etc/init.d/butterhosting"
 install -m 755 "$SRC/os/butterramsync.initd"   "$tmp/etc/init.d/butterramsync"
 install -m 755 "$SRC/os/butterpersist.initd"   "$tmp/etc/init.d/butterpersist"
 install -m 755 "$SRC/os/butterweb.initd"       "$tmp/etc/init.d/butterweb"
+install -m 755 "$SRC/os/butterauto.initd"      "$tmp/etc/init.d/butterauto"
+install -m 755 "$SRC/os/butter-autostart"      "$tmp/usr/local/bin/butter-autostart"
 install -m 755 "$SRC/os/butterfailover.initd"  "$tmp/etc/init.d/butterfailover"
 [ -x /home/build/cloudflared ] && { mkdir -p "$tmp/usr/bin"; install -m 755 /home/build/cloudflared "$tmp/usr/bin/cloudflared"; }
 install -m 755 "$SRC/os/butter-play"           "$tmp/usr/local/bin/butter-play"
@@ -93,6 +95,6 @@ description="Free RAM: remove docker plugins and docs this box never uses (the r
 start() { rm -rf /usr/libexec/docker/cli-plugins /usr/share/man /usr/share/doc /usr/share/bash-completion /usr/share/zsh /usr/share/fish /usr/share/info; return 0; }
 SL
 chmod 755 "$tmp/etc/init.d/butterslim"; rc_add butterslim boot
-for s in docker butterhosting butterfailover butterweb acpid; do rc_add $s default; done
+for s in docker butterhosting butterfailover butterweb butterauto acpid; do rc_add $s default; done
 for s in mount-ro killprocs savecache; do rc_add $s shutdown; done
 tar -c -C "$tmp" . | gzip -9n > "$HOSTNAME.apkovl.tar.gz"

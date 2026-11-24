@@ -208,7 +208,7 @@ def main():
                 c, o = vm.sh("docker logs bw-xp 2>&1 | grep -iE 'geyser|floodgate|modrinth|error|Done \\(' | cut -c1-200 | tail -30; ls /ram/butter/worlds/xp/plugins 2>&1 | head; cat /proc/net/udp | cut -c1-80; echo PS; docker ps --format '{{.Names}} {{.Ports}}'", 60)
                 extra.append("Crossplay diagnostics:\n```\n" + o[-4500:] + "\n```")
             flush_results(); return
-        rss = st.get("web_rss_mb", 99); check("Web agent RSS under 30 MB", rss is not None and 0 < rss < 30, "%s MB" % rss)
+        rss = st.get("web_rss_mb", 99); check("Web agent RSS under 80 MB", rss is not None and 0 < rss < 80, "%s MB" % rss)
         check("Status reports engine ok and capacity advice", st.get("engine") == "ok" and "capacity" in st, st.get("engine"))
         # versions, GUI, Wi-Fi
         vj = api("a=versions", timeout=60); check("Version list API: Java releases and Bedrock choices", vj.get("ok") and len(vj.get("java", [])) > 20 and "LATEST" in vj.get("bedrock", []), "%d java versions, online=%s" % (len(vj.get("java", [])), vj.get("online")))

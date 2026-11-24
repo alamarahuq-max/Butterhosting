@@ -292,6 +292,10 @@ async function handle(req, res) {
     return json(req, res, 200, await FO.handback());
   }
   if (FO.standby()) return json(req, res, 503, { error: "This machine is on standby", standby: true });
+  if (parts[0] === "node" && m === "POST" && (parts[1] === "enroll" || parts[1] === "heartbeat")) { // paid-host network: machines running ButterOS / the Butter app
+    let b; try { b = await readJson(req); } catch (e) { return json(req, res, 400, { error: e.message }); }
+    const r = await NODES[parts[1]](b); const { code, ...rest } = r; return json(req, res, code, rest);
+  }
 
   /* Discord OAuth2 (authorization code flow, scope identify) */
   if (parts[0] === "auth" && parts[1] === "discord" && !parts[2]) {
@@ -474,6 +478,7 @@ async function handle(req, res) {
 for (const s of Object.values(db.servers)) if (s.state === "creating") { s.state = "error"; s.error = "Interrupted, delete and create again"; }
 saveDb();
 
+const NODES = require("./nodes")(require("./failover")._fsStore(path.join(DATA_DIR, "nodes")));
 const FO = require("./failover")({ env, dataDir: DATA_DIR, worldsDir: WORLD_DIR, getDb: () => db, setDb: (d) => { db = d; saveDb(); }, dk, provision });
 try { const kf = path.join(DATA_DIR, "internal.key"); if (!fs.existsSync(kf)) fs.writeFileSync(kf, crypto.randomBytes(24).toString("hex"), { mode: 0o600 }); } catch {}
 
@@ -488,4 +493,4 @@ if (require.main === module) {
       console.log(`  redirect : ${BACKEND_URL}/auth/discord/callback  <- add this in the Discord developer portal`);
     });
 }
-module.exports = { handle, FO };
+module.exports = { handle, FO, NODES };

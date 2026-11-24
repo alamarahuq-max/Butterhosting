@@ -60,7 +60,8 @@ printf '#!/bin/sh\ncase "$1" in play) shift; exec /usr/local/bin/butter-play "$@
 install -m 755 "$SRC/os/butter-install"        "$tmp/usr/local/bin/butter-install"
 install -m 644 "$SRC/os/butter.dialogrc" "$tmp/etc/butter.dialogrc"
 install -m 755 "$SRC/os/serial-getty"          "$tmp/usr/local/bin/serial-getty"
-mkdir -p "$tmp/opt/butterweb"; cp -r "$SRC/os/web"/. "$tmp/opt/butterweb/"; chmod +x "$tmp/opt/butterweb/cgi-bin/api"
+mkdir -p "$tmp/opt/butterweb"; cp -r "$SRC/os/web"/. "$tmp/opt/butterweb/"; rm -rf "$tmp/opt/butterweb/cgi-bin" "$tmp/opt/butterweb/httpd.conf"
+mkdir -p "$tmp/opt/butter/app"; cp -r "$SRC/app/agent.js" "$SRC/app/lib" "$tmp/opt/butter/app/"
 printf 'overlay\nbr_netfilter\nveth\nnf_conntrack\nnf_nat\nxt_MASQUERADE\nxt_conntrack\niptable_nat\niptable_filter\nmousedev\nusbhid\nhid_generic\npsmouse\nevdev\ncfg80211\n' > "$tmp/etc/modules"
 mkdir -p "$tmp/opt/butterhosting/hosting-api" && cp -r "$SRC/hosting-api"/. "$tmp/opt/butterhosting/hosting-api/"
 rm -rf "$tmp/opt/butterhosting/hosting-api/data" "$tmp/opt/butterhosting/data" 2>/dev/null || true

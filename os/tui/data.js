@@ -2,10 +2,12 @@
 const fs = require("fs"), http = require("http");
 const H = { cpu: [], mem: [], temp: [], rx: [], tx: [] };
 const D = { cores: 1, load: "0 0 0", memTotal: 1, memUsed: 0, memAvail: 0, cpu: 0, temp: null, tempLabel: "", rx: 0, tx: 0, rxTotal: 0, txTotal: 0, ip: "", up: 0, servers: [], persist: false, engine: "...", web: 0, wifi: 0 };
-let prevCpu = null, prevNet = null, prevT = Date.now();
+const APP = !!process.env.BUTTER_APP, PORT = +process.env.BUTTER_PORT || (APP ? 8080 : 80), HAS_PROC = fs.existsSync("/proc/stat");
+let prevCpu = null, prevNet = null, prevT = Date.now(), busy = 0;
 const push = (a, v) => { a.push(v); if (a.length > 240) a.shift(); };
 function local() {
   const now = Date.now(), dt = Math.max(0.2, (now - prevT) / 1000); prevT = now;
+  if (!HAS_PROC) return localPortable(dt);
   try {
     const l = fs.readFileSync("/proc/stat", "utf8").split("\n")[0].trim().split(/\s+/).slice(1).map(Number);
     const tot = l.reduce((a, b) => a + b, 0), idle = l[3] + (l[4] || 0);
@@ -24,10 +26,26 @@ function local() {
     if (!D.agentOk || !D.ip) { const ni = require("os").networkInterfaces(); for (const k in ni) for (const a of ni[k]) if (a.family === "IPv4" && !a.internal && !/^(docker|br-|veth)/.test(k)) D.ip = a.address; }
   } catch (e) {}
 }
+// macOS / Windows (no /proc): the same numbers from the os module. Network speed is not available there, so it stays 0.
+function localPortable(dt) {
+  const os = require("os");
+  try {
+    let tot = 0, idle = 0; os.cpus().forEach((c) => { for (const k in c.times) tot += c.times[k]; idle += c.times.idle; });
+    if (prevCpu) { const dtot = tot - prevCpu[0], did = idle - prevCpu[1]; D.cpu = dtot > 0 ? Math.max(0, Math.min(100, 100 * (1 - did / dtot))) : 0; }
+    prevCpu = [tot, idle]; push(H.cpu, D.cpu);
+    D.memTotal = os.totalmem() / 1048576; D.memAvail = os.freemem() / 1048576; D.memUsed = D.memTotal - D.memAvail; push(H.mem, 100 * D.memUsed / D.memTotal);
+    D.load = os.loadavg().map((x) => x.toFixed(2)).join(" "); D.up = os.uptime(); D.temp = null; push(H.rx, 0); push(H.tx, 0);
+    D.cores = os.cpus().length || 1;
+    if (!D.agentOk || !D.ip) { const ni = os.networkInterfaces(); for (const k in ni) for (const a of ni[k]) if (a.family === "IPv4" && !a.internal && !/^(docker|br-|veth|vEthernet|VirtualBox|vmnet|utun)/i.test(k) && !/^169\.254\./.test(a.address)) D.ip = a.address; }
+  } catch (e) {}
+}
 function agent() {
-  const r = http.get({ host: "127.0.0.1", port: 80, path: "/cgi-bin/api?a=status", timeout: 25000 }, (res) => {
-    let b = ""; res.on("data", (c) => (b += c)); res.on("end", () => { try { const j = JSON.parse(b); if (j.ok) { D.servers = j.servers || []; D.ip = j.ip || ""; D.persist = j.persist; D.engine = j.engine; D.web = j.web_rss_mb; D.wifi = j.wifi_adapters || 0; D.agentOk = true; } } catch (e) {} });
-  }); r.on("error", () => {}); r.on("timeout", () => r.destroy());
+  if (APP && busy && Date.now() - busy < 30000) return; // app mode: never pile up slow status calls
+  busy = Date.now();
+  const r = http.get({ host: "127.0.0.1", port: PORT, path: "/cgi-bin/api?a=status", timeout: 25000 }, (res) => {
+    let b = ""; res.on("data", (c) => (b += c)); res.on("end", () => { busy = 0; try { const j = JSON.parse(b); if (j.ok) { D.servers = j.servers || []; D.ip = j.ip || ""; D.persist = j.persist; D.engine = j.engine; D.web = j.web_rss_mb; D.wifi = j.wifi_adapters || 0; D.agentOk = true; D.agentDown = false;
+      D.docker = j.docker || null; D.platform = j.platform || ""; D.commercial = j.commercial || null; D.machine = j.machine_name || ""; D.setupDone = j.setup_done; D.hostCpu = j.cpu; } } catch (e) {} });
+  }); r.on("error", () => { busy = 0; D.agentDown = true; }); r.on("timeout", () => { busy = 0; D.agentDown = true; r.destroy(); });
 }
 function demo() {
   D.cores = 4; D.memTotal = 3920; D.ip = "192.168.1.20"; D.persist = true; D.engine = "ok"; D.web = 0.7; D.up = 2543;
@@ -40,8 +58,14 @@ function demo() {
 
 
 function api(q, cb, timeout) {
-  const r = http.get({ host: "127.0.0.1", port: 80, path: "/cgi-bin/api?" + q, timeout: timeout || 8000 }, (res) => { let b = ""; res.on("data", (c) => (b += c)); res.on("end", () => { try { cb(JSON.parse(b)); } catch (e) { cb({ ok: false, error: "bad answer" }); } }); });
+  const r = http.get({ host: "127.0.0.1", port: PORT, path: "/cgi-bin/api?" + q, timeout: timeout || 8000 }, (res) => { let b = ""; res.on("data", (c) => (b += c)); res.on("end", () => { try { cb(JSON.parse(b)); } catch (e) { cb({ ok: false, error: "bad answer" }); } }); });
   r.on("error", () => cb({ ok: false, error: "cannot reach the machine" })); r.on("timeout", () => { r.destroy(); cb({ ok: false, error: "timed out" }); });
+}
+// POST a JSON body to the agent (used by the commercial settings)
+function apiPost(q, obj, cb, timeout) {
+  const data = JSON.stringify(obj || {});
+  const r = http.request({ host: "127.0.0.1", port: PORT, method: "POST", path: "/cgi-bin/api?" + q, timeout: timeout || 60000, headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) } }, (res) => { let b = ""; res.on("data", (c) => (b += c)); res.on("end", () => { try { cb(JSON.parse(b)); } catch (e) { cb({ ok: false, error: "bad answer" }); } }); });
+  r.on("error", () => cb({ ok: false, error: "cannot reach the machine" })); r.on("timeout", () => { r.destroy(); cb({ ok: false, error: "timed out" }); }); r.end(data);
 }
 // ---- themes: 16 colours each (0 background, 3/11 butter, 5/13 pink, 6/14 cyan, 2/10 ok, 1/9 bad, 7 text, 8 dim, 15 bright) ----
 const THEMES = {
@@ -50,4 +74,4 @@ const THEMES = {
   "AMBER CRT":   ["120800","ff5a1f","c8c000","ff9d00","8a4b00","c46a00","e8a33a","e6b155","6e4a1a","ff8a50","e0d800","ffc04d","b36a10","e08a2a","ffd28a","fff1d0"],
   "SUNSET":      ["14081f","ff3d6e","57f2a3","ff8a3d","6a3df5","ff3d81","a855f7","e6d3f5","5f4a7a","ff7a95","8dffc3","ffc371","9b7dff","ff7aa8","c9a0ff","ffffff"],
 };
-module.exports = { H, D, local, agent, demo, push, api, THEMES };
+module.exports = { H, D, local, agent, demo, push, api, apiPost, THEMES, APP, PORT };

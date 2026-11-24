@@ -62,24 +62,6 @@ jobs:
           (cd out && python3 -m http.server 8000 >/dev/null 2>&1 &)
           NODE_PATH=$PWD/node_modules timeout 5400 python3 os/build/e2e.py out/ButterOS.iso e2e 2>&1 | tee e2e.log || true
           cat e2e/results.md || true
-      - name: One-command launcher test (butter-run.sh runs the ISO as a VM, auto-creates a server)
-        if: always()
-        run: |
-          [ -f out/ButterOS.iso ] || { echo "no ISO"; exit 0; }
-          mkdir -p launch; export BUTTER_HOME=$PWD/launch
-          ok1=FAIL; ok2=FAIL
-          timeout 2400 bash os/run/butter-run.sh --iso out/ButterOS.iso --ci --name launchtest 2>&1 | tee launch/run1.log
-          grep -q CI_READY launch/run1.log && ok1=PASS
-          # same command again: the world and the downloaded software must still be there, and it starts faster
-          s=$(date +%s)
-          timeout 1200 bash os/run/butter-run.sh --iso out/ButterOS.iso --ci --name launchtest 2>&1 | tee launch/run2.log
-          grep -q CI_READY launch/run2.log && ok2=PASS
-          echo "- $ok1 **butter-run.sh: first run downloads, boots, creates a server, prints join addresses**" > launch/results.md
-          echo "- $ok2 **butter-run.sh: second run reuses the saved disk ($(( $(date +%s) - s )) s)**" >> launch/results.md
-          cat launch/results.md
-      - name: Add launcher scripts to the release files
-        if: always()
-        run: mkdir -p out && cp os/run/butter-run.sh os/run/butter-run.ps1 out/
       - uses: actions/upload-artifact@v4
         if: always()
         continue-on-error: true
@@ -100,8 +82,8 @@ jobs:
           git config --global user.name "butter-ci"; git config --global user.email "ci@users.noreply.github.com"
           if [ -f out/ButterOS.iso ]; then
             gh release delete latest-iso -y --cleanup-tag 2>/dev/null || true
-            gh release create latest-iso $(ls out/ButterOS.iso out/ButterOS.iso.sha256 out/butter-grubx64.efi out/butter-dualboot-linux.sh out/install-windows.ps1 out/butter-run.sh out/butter-run.ps1 2>/dev/null) --title "ButterOS ISO (latest build)" --notes "Built by GitHub Actions run ${{ github.run_id }}. Flash with balenaEtcher or Rufus (DD mode)."
+            gh release create latest-iso $(ls out/ButterOS.iso out/ButterOS.iso.sha256 out/butter-grubx64.efi out/butter-dualboot-linux.sh out/install-windows.ps1 2>/dev/null) --title "ButterOS ISO (latest build)" --notes "Built by GitHub Actions run ${{ github.run_id }}. Flash with balenaEtcher or Rufus (DD mode)."
           fi
-          d=$(mktemp -d); cp -r shots "$d/" 2>/dev/null || true; cp -r e2e "$d/" 2>/dev/null || true; cp -r launch "$d/" 2>/dev/null || true; cp e2e.log "$d/" 2>/dev/null || true; cp build.log "$d/" 2>/dev/null || true; cp -r out/diag "$d/" 2>/dev/null || true
+          d=$(mktemp -d); cp -r shots "$d/" 2>/dev/null || true; cp -r e2e "$d/" 2>/dev/null || true; cp e2e.log "$d/" 2>/dev/null || true; cp build.log "$d/" 2>/dev/null || true; cp -r out/diag "$d/" 2>/dev/null || true
           cd "$d"; git init -q -b ci-shots; git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
           git add -A; git commit -qm "build ${{ github.run_id }} screenshots"; git push -f origin ci-shots

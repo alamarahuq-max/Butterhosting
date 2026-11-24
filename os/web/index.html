@@ -1,103 +1,22 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Butter Os</title>
+<!doctype html><html lang="en" data-theme="butter"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Butter Os</title>
 <link rel="icon" href="logo.svg">
-<style>
-@font-face{font-family:NType;src:url(ntype82.woff2) format("woff2")}
-:root{--bg:#0F0D26;--card:#191640;--line:#2a2660;--fg:#F4F1FF;--dim:#a8a3d6;--y:#FFD23F;--ind:#9D94FF;--ok:#6FE0A8;--warn:#ff9f43;--bad:#ff6b6b}
-:root.light{--bg:#f5f4f8;--card:#fff;--line:#dcd9ee;--fg:#1d1b2e;--dim:#5d5a7a;--ind:#5b50e6}
-*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,"DejaVu Sans Mono","Cascadia Mono",Menlo,Consolas,"Liberation Mono",monospace}button,input,select,textarea{font-family:inherit}
-.h,h1,h2,h3{font-family:inherit;font-weight:700}
-.app{display:grid;grid-template-columns:210px 1fr;min-height:100vh}
-nav{border-right:1px solid var(--line);padding:16px;display:flex;flex-direction:column;gap:6px}
-.brand{display:flex;align-items:center;gap:6px;font:700 22px ui-monospace,"DejaVu Sans Mono",Menlo,Consolas,monospace;margin-bottom:16px}.brand img{height:22px}
-nav a{padding:10px 12px;border-radius:10px;color:var(--dim);text-decoration:none;cursor:pointer}
-nav a.on{background:var(--y);color:#1d1a3a;font-weight:600}
-.me{margin-top:auto;border:1px solid var(--line);border-radius:12px;padding:12px;font-size:12.5px;color:var(--dim)}.me b{display:block;font-size:24px;color:var(--ok)}
-main{padding:22px 26px;min-width:0}
-header{display:flex;align-items:center;gap:10px;margin-bottom:18px}header h1{font-size:34px;margin:0;flex:1}
-.pill{border:1px solid var(--line);border-radius:99px;padding:6px 12px;font-size:13px;color:var(--dim);background:transparent;cursor:pointer;color:var(--fg)}
-.grid{display:grid;gap:14px}.g4{grid-template-columns:repeat(4,1fr)}.g2{grid-template-columns:1.2fr 1fr}
-@media(max-width:900px){.app{grid-template-columns:1fr}nav{flex-direction:row;flex-wrap:wrap;border:0}.me{display:none}.g4,.g2{grid-template-columns:1fr 1fr}}
-.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;min-width:0}
-.card h3{margin:0 0 10px;font-size:22px}.k{color:var(--dim);font-size:13px}.big{font-size:32px;font-weight:600}.big small{font-size:14px;color:var(--dim);font-weight:400}
-.bar{display:flex;height:22px;border-radius:7px;overflow:hidden;background:var(--bg);border:1px solid var(--line)}.bar i{display:block;height:100%}
-.leg{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:12.5px;color:var(--dim)}.leg b{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px}
-.say{border:1px solid var(--ind);border-radius:12px;padding:12px;background:rgba(157,148,255,.08)}
-table{width:100%;border-collapse:collapse}th{text-align:left;color:var(--dim);font-weight:400;font-size:12.5px;padding:6px 8px;border-bottom:1px solid var(--line)}td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
-.st{border:1px solid var(--ok);color:var(--ok);border-radius:99px;padding:2px 10px;font-size:12px}.st.off{border-color:var(--dim);color:var(--dim)}.st.busy{border-color:var(--warn);color:var(--warn)}
-button.b,.b{border:0;border-radius:9px;padding:7px 12px;cursor:pointer;font:inherit;background:var(--line);color:var(--fg)}button.p{background:var(--y);color:#1d1a3a;font-weight:600}button.d{background:transparent;color:var(--bad);border:1px solid var(--bad)}
-input,select{background:var(--bg);border:1px solid var(--line);color:var(--fg);border-radius:9px;padding:8px 10px;font:inherit}
-pre{background:#07061a;color:#d9d6ff;border-radius:10px;padding:12px;max-height:260px;overflow:auto;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.msg{margin:8px 0;color:var(--warn)}
-#add{background:var(--y);color:#1d1a3a;font-weight:700;border:0;font-size:18px;line-height:1;padding:7px 14px}
-.modal{position:fixed;inset:0;background:rgba(7,6,26,.7);display:flex;align-items:center;justify-content:center;z-index:9}.modal[hidden]{display:none}.modal .card{width:min(460px,92vw)}
-.fld{display:block;margin:10px 0 4px}.opt{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:8px;cursor:pointer}.opt input{margin-top:4px}
-.chip{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:99px;padding:3px 6px 3px 12px;margin:3px 6px 3px 0}.chip button{padding:3px 9px;font-size:12px}
-</style></head><body><div class="app">
-<nav><div class="brand">Butter <img src="logo.svg" alt=""> Os</div>
-<a data-p="overview">Overview</a><a data-p="servers">Servers</a><a data-p="local">Local</a><a data-p="backup">Backup</a><a data-p="network">Network</a><a data-p="system">System</a>
-<div class="me">This page is served by<b id="rss">-</b><span id="lim">of RAM (limit 30 MB)</span></div></nav>
-<main><header><h1 id="title">Overview</h1><span class="pill" id="host">-</span><span class="pill" id="up">-</span><button class="pill" id="theme">Light</button><button class="pill" id="add" title="New server">+</button></header><div class="modal" id="modal" hidden><div class="card"><h3>New server</h3><label class="fld k">Name</label><input id="mn" placeholder="my-world" maxlength="24" style="width:100%"><label class="fld k">Game</label><select id="mt" style="width:100%"><option value="java">Minecraft Java (Paper)</option><option value="bedrock">Minecraft Bedrock</option></select><label class="fld k">Software and version</label><div class="row"><select id="mf"><option value="paper">Paper</option><option value="vanilla">Vanilla</option><option value="fabric">Fabric</option><option value="forge">Forge</option></select><input id="mv" list="mvl" placeholder="latest" style="flex:1"><datalist id="mvl"></datalist></div><label class="fld k" id="mml">Memory (MB)</label><input id="mm" type="number" value="1024" min="512" max="2048" step="256" style="width:100%"><label class="opt"><input type="radio" name="acc" value="lan" checked><span><b>This network only</b><div class="k">Friends on your Wi-Fi join with the address shown.</div></span></label><label class="opt" id="optnet"><input type="radio" name="acc" value="internet"><span><b>Free internet link</b><div class="k">Anyone with the link can join from anywhere. Java only. The link changes if the server restarts.</div></span></label><div class="msg" id="mmsg"></div><div class="row" style="margin-top:12px"><button class="b p" id="mgo">Create</button><button class="b" id="mx">Cancel</button></div></div></div><div id="view"></div></main></div>
-<script>
-const $=s=>document.querySelector(s);let S=null,page=(location.hash||"#overview").slice(1),openLog=null;
-const gb=m=>m>=1024?(m/1024).toFixed(1)+" GB":Math.round(m)+" MB";
-const api=async(q)=>{try{const r=await fetch("/cgi-bin/api?"+q,{cache:"no-store"});return await r.json()}catch(e){return{ok:false,error:"cannot reach the machine"}}};
-function fmtUp(s){s=Math.floor(s);const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return "up "+(d?d+"d ":"")+(h?h+"h ":"")+m+"m"}
-function advice(){const c=S.capacity,f=S.mem.avail;const j=c.java_fits,b=c.bedrock_fits;
- return `${gb(f)} free. A Java server needs about ${gb(c.java_need)} (estimate), so ${j?"it fits":"<b>not safely</b>"}. A Bedrock server needs about ${gb(c.bedrock_need)} (estimate)${b?" and fits":", which also does <b>not</b> fit safely"}. ${S.persist?"":"Live USB mode allows "+S.max_servers+" servers."}`}
-function memBar(){const m=S.mem,t=m.total,cols=["#9D94FF","#FFD23F","#6FE0A8","#4b43d6"];
- const seg=[["OS",m.os,cols[0]],["Servers",m.servers,cols[1]],["Worlds in RAM",m.worlds,cols[2]]];
- const free=Math.max(0,m.avail);return `<div class="bar">${seg.map(s=>`<i style="width:${s[1]/t*100}%;background:${s[2]}"></i>`).join("")}</div><div class="leg">${seg.map(s=>`<span><b style="background:${s[2]}"></b>${s[0]} ${gb(s[1])}</span>`).join("")}<span><b style="background:var(--line)"></b>Free ${gb(free)}</span></div>`}
-function srvRows(c){if(!S.servers.length)return `<tr><td colspan=7 class="k">No servers yet. Make one on the Servers page.</td></tr>`;
- return S.servers.map(s=>{const on=s.state==="running";if(c)return `<tr><td><b>${s.name}</b><div class="k">${s.type==="java"?"Java":"Bedrock"}</div></td><td><span class="st ${on?"":"off"}">${s.state}</span></td><td>${on?gb(s.ram):"-"}</td></tr>`;return `<tr><td><b>${s.name}</b><div class="k">${s.type==="java"?"Java":"Bedrock"}</div></td><td><span class="st ${on?"":s.state==="restarting"||s.state==="created"?"busy":"off"}">${s.state}</span></td><td>${s.players==null?"-":s.players}</td><td>${on?gb(s.ram):"-"}</td><td>${on?s.cpu+"%":"-"}</td><td>${s.port?(S.ip||"")+":"+s.port+(s.type==="bedrock"?" (UDP)":""):"-"}${s.join?`<div class="k">internet: <b>${s.join}</b></div>`:""}</td><td class="row">${on?`<button class="b" data-a="stop" data-n="${s.name}">Stop</button><button class="b" data-a="restart" data-n="${s.name}">Restart</button>`:`<button class="b p" data-a="start" data-n="${s.name}">Start</button>`}<button class="b" data-a="logs" data-n="${s.name}">Log</button><button class="b d" data-a="delete" data-n="${s.name}">Delete</button></td></tr>`}).join("")}
-const head=`<thead><tr><th>Name</th><th>State</th><th>Players</th><th>Memory</th><th>CPU</th><th>Join address</th><th></th></tr></thead>`;
-function render(){if(!S)return;$("#title").textContent={overview:"Overview",servers:"Servers",local:"Local",backup:"Backup",network:"Network",system:"System"}[page]||"Overview";
- document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on",a.dataset.p===page));
- $("#host").textContent="butter-box · "+(S.ip||"no network");$("#up").textContent=fmtUp(S.uptime);$("#rss").textContent=S.web_rss_mb+" MB";
- const run=S.servers.filter(s=>s.state==="running"),pl=S.servers.reduce((a,s)=>a+(s.players||0),0),m=S.mem;
- let h="";
- if(page==="overview")h=`<div class="grid g4"><div class="card"><div class="k">Servers running</div><div class="big">${run.length} <small>/ ${S.servers.length}</small></div><div class="k">${S.persist?"USB volume found":"live mode allows "+S.max_servers}</div></div>
- <div class="card"><div class="k">Players online</div><div class="big">${pl}</div><div class="k">Java servers only</div></div>
- <div class="card"><div class="k">Memory used</div><div class="big">${((m.total-m.avail)/1024).toFixed(1)} <small>GB of ${(m.total/1024).toFixed(1)}</small></div><div class="k">${gb(m.avail)} free</div></div>
- <div class="card"><div class="k">CPU load</div><div class="big">${S.load.split(" ")[0]}</div><div class="k">${S.cores} cores${S.temp!=null?" · "+S.temp+" °C":""}</div></div></div>
- <div class="grid g2" style="margin-top:14px"><div class="card"><h3>Where the memory goes</h3>${memBar()}<h3 style="margin-top:18px">Can I add another?</h3><div class="say">${advice()}</div></div>
- <div class="card"><h3>Servers</h3><table><thead><tr><th>Name</th><th>State</th><th>Memory</th></tr></thead><tbody>${srvRows(1)}</tbody></table><p class="k">Backup: ${S.backup.usb?(S.backup.last?"last "+S.backup.last:"waiting for first backup"):"no BUTTER volume, nothing is saved at power off"}</p></div></div>`;
- else if(page==="servers")h=`<div class="card"><h3>Servers</h3><table>${head}<tbody>${srvRows()}</tbody></table><div class="say" style="margin-top:12px">${advice()}</div></div>
- <div class="card" style="margin-top:14px"><h3>New server</h3><div class="row"><input id="nn" placeholder="name" maxlength="24"><select id="nt"><option value="java">Minecraft Java (Paper)</option><option value="bedrock">Minecraft Bedrock</option></select><input id="nm" type="number" value="1024" min="512" max="2048" step="256" title="Java memory in MB" style="width:110px"><button class="b p" id="mk">Create</button></div><div class="msg" id="mkmsg"></div></div>
- <div class="card" style="margin-top:14px" ${openLog?"":"hidden"}><h3>Log: ${openLog||""}</h3><pre id="logbox">…</pre><div class="row" style="margin-top:8px"><input id="cmdin" data-keep placeholder="console: type a command (say hi, op Name, whitelist add Name…) and press Enter" style="flex:1;min-width:200px" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="b p" data-a="cmd" data-n="${openLog||""}">Send</button></div><pre id="cmdout" class="k"></pre></div>`;
- else if(page==="local")h=`<div class="card"><h3>Local</h3><p class="k">Manage the servers running on this machine: players, plugins and sharing. Only people on this network can open this page.</p></div>`+(S.servers.length?S.servers.map(s=>`<div class="card" style="margin-top:14px"><h3>${s.name} <span class="st ${s.state==="running"?"":"off"}">${s.state}</span></h3><div class="k">${s.type==="java"?"Java (Paper)":"Bedrock"} · network ${S.ip}:${s.port||"?"}${s.join?" · internet <b>"+s.join+"</b>":""}</div>
- ${s.type==="java"?`${s.type==="java"&&s.bedrock_port?`<p class="k" style="margin-top:8px">Phones &amp; consoles (Bedrock): add server <b>${S.ip}</b> port <b>${s.bedrock_port}</b></p>`:""}<div class="row" style="margin-top:10px">${s.join?`<button class="b" data-a="unshare" data-n="${s.name}">Turn off internet link</button>`:`<button class="b p" data-a="share" data-n="${s.name}" ${s.state==="running"?"":"disabled"}>Get a free internet link</button>`}</div>
- <h3 style="margin-top:16px;font-size:18px">Players</h3><div id="pl-${s.name}" class="k">${s.state==="running"?"loading...":"Start the server to see players."}</div>
- <div class="row" style="margin-top:10px"><label class="k"><input type="checkbox" data-a="cracked" data-n="${s.name}" ${s.cracked?"checked":""}> Cracked mode: let players without a paid Minecraft account join (turns off Mojang login checks; anyone can pretend to be anyone, so use with a whitelist)</label></div><h3 style="margin-top:16px;font-size:18px">Mods &amp; plugins</h3><div id="pg-${s.name}" class="k">loading...</div><div class="row" style="margin-top:8px"><input id="pu-${s.name}" placeholder="direct .jar link (Modrinth, Hangar, GitHub)" style="flex:1;min-width:200px"><button class="b p" data-a="plugin" data-n="${s.name}">Add</button></div><div class="row" style="margin-top:8px"><label class="b p" style="cursor:pointer">Upload .jar from this device<input type="file" accept=".jar" multiple data-up="${s.name}" hidden></label><span class="k" id="upm-${s.name}"></span></div>`:`<p class="k">Bedrock servers share by local network only.</p>`}</div>`).join(""):`<div class="card" style="margin-top:14px">No servers yet. Press + to make one.</div>`); else if(page==="backup")h=`<div class="card"><h3>Backup</h3><div class="big" style="color:${S.persist?"var(--ok)":"var(--warn)"}">${S.persist?"USB volume found":"No BUTTER volume"}</div><p>${S.persist?"Worlds are copied to the USB every 5 minutes and when you shut down. A sudden power cut can lose up to 5 minutes.":"Everything is in RAM only and will be lost at power off. Make an ext4 partition labelled BUTTER on your USB stick and reboot."}</p><p class="k">Last backup: ${S.backup.last||"none yet"}</p><p class="k">Worlds in RAM: ${gb(m.worlds)}</p></div>`;
- else if(page==="network")h=`<div class="card"><h3>Network</h3><p>Address of this machine: <b>${S.ip||"no network"}</b></p><p>This page: <b>http://${S.ip||"…"}</b> (local network only)</p>${S.servers.map(s=>`<p>${s.name}: <b>${S.ip}:${s.port||"?"}</b> ${s.type==="bedrock"?"(UDP, Bedrock)":"(Java)"}${s.type==="java"&&s.bedrock_port?` &middot; phones &amp; consoles: <b>${S.ip}:${s.bedrock_port}</b> (TCP+UDP)`:""}</p>`).join("")||"<p class=k>No servers yet.</p>"}<p class="k">To let friends outside your home join, forward the port in your router, or use the free join link from the ButterHosting dashboard.</p></div>`;
- else h=`<div class="card"><h3>System</h3><p class="k">Kernel</p><p>${S.kernel}</p><p class="k">Container engine</p><p>${S.engine}</p><p class="k">Load</p><p>${S.load}</p><p class="k">Temperature</p><p>${S.temp==null?"not available":S.temp+" °C"}</p><p class="k">Memory</p><p>${gb(m.total)} total · web agent ${S.web_rss_mb} MB (limit ${S.limit_web_mb} MB)</p></div>`;
- if(!((page==="servers"||page==="local")&&document.activeElement&&document.activeElement.tagName==="INPUT"))$("#view").innerHTML=h;
- if(page==="servers"&&openLog)logs();if(page==="local")fillLocal();}
-function fillV(){const v=window.VL;if(!v||!v.ok)return;const b=$("#mt").value==="bedrock";$("#mf").style.display=b?"none":"";$("#mvl").innerHTML=(b?v.bedrock:["LATEST"].concat(v.java)).map(x=>`<option value="${x}">`).join("")}
-document.addEventListener("change",e=>{if(e.target.id==="mt"){$("#mv").value="";fillV()}});
-async function fillLocal(){for(const s of S.servers.filter(x=>x.type==="java")){
- if(s.state==="running"){const r=await api("a=players&n="+s.name),e=document.getElementById("pl-"+s.name);if(e)e.innerHTML=r.ok?(r.players.length?r.players.map(p=>`<span class="chip">${p}<button class="b" data-a="kick" data-n="${s.name}" data-p="${p}">Kick</button><button class="b" data-a="op" data-n="${s.name}" data-p="${p}">Op</button><button class="b d" data-a="ban" data-n="${s.name}" data-p="${p}">Ban</button></span>`).join(""):"Nobody is online."):r.error}
- const g=await api("a=plugins&n="+s.name),f=document.getElementById("pg-"+s.name);if(f)f.innerHTML=g.ok&&g.plugins.length?g.plugins.map(x=>`<span class="chip">${x}<button class="b d" data-a="rmplugin" data-n="${s.name}" data-f="${x}">Remove</button></span>`).join(""):"No plugins yet."}}
-async function logs(){const r=await api("a=logs&n="+openLog);const b=$("#logbox");if(b)b.textContent=r.ok?r.logs:r.error}
-async function tick(){const r=await api("a=status");if(r.ok){S=r;const f=document.activeElement;if(f&&f.dataset&&f.dataset.keep)return;render()}}
-document.addEventListener("change",e=>{if(e.target.id==='mt'){const j=e.target.value==='java';$('#optnet').style.display=j?'':'none';$('#mm').style.display=$('#mml').style.display=j?'':'none';if(!j)document.querySelector('input[name=acc][value=lan]').checked=true}});
-async function sendCmd(n){const i=$("#cmdin"),c=i.value.trim();if(!c)return;i.value="";const o=$("#cmdout");o.textContent="> "+c;const r=await api("a=cmd&n="+n+"&c="+encodeURIComponent(c));o.textContent="> "+c+"\n"+(r.ok?(r.out||"(no output)"):r.error);logs()}
-document.addEventListener("keydown",e=>{if(e.target.id==="cmdin"&&e.key==="Enter"&&openLog){e.preventDefault();sendCmd(openLog)}});
-document.addEventListener("change",async e=>{const t=e.target;if(t.dataset&&t.dataset.up){const n=t.dataset.up,m=document.getElementById("upm-"+n);for(const f of t.files){m.textContent="Uploading "+f.name+"...";try{const r=await (await fetch("/cgi-bin/api?a=upload&n="+n+"&f="+encodeURIComponent(f.name.replace(/[^A-Za-z0-9._-]/g,"_")),{method:"POST",body:f})).json();m.textContent=r.ok?"Added "+r.file+". The server is restarting.":r.error}catch(x){m.textContent="Upload failed"}}t.value="";tick()}
- if(t.dataset&&t.dataset.a==="cracked"){const r=await api(`a=cracked&n=${t.dataset.n}&v=${t.checked?1:0}`);if(!r.ok){alert(r.error);t.checked=!t.checked}else alert((r.cracked?"Cracked mode ON":"Cracked mode OFF")+". The server is restarting.");tick()}});
-document.addEventListener("click",async e=>{const t=e.target;
- if(t.dataset.a==="cmd"){sendCmd(t.dataset.n);return}
- if(t.dataset.a==="cracked")return;
- if(t.dataset.p){page=t.dataset.p;location.hash=page;render();return}
- if(t.id==="theme"){document.documentElement.classList.toggle("light");const l=document.documentElement.classList.contains("light");t.textContent=l?"Dark":"Light";try{localStorage.setItem("bt",l?"l":"d")}catch(e){}return}
- if(t.id==="mk"){const n=$("#nn").value.trim().toLowerCase(),ty=$("#nt").value,mm=$("#nm").value;$("#mkmsg").textContent="Creating... the first server downloads about 500 MB, this can take a few minutes.";const r=await api(`a=create&n=${encodeURIComponent(n)}&type=${ty}&mem=${mm}`);$("#mkmsg").textContent=r.ok?"Created. It is starting.":r.error;tick();return}
- if(t.id==="add"){$("#modal").hidden=false;if(!window.VL)api("a=versions").then(v=>{window.VL=v;fillV()});else fillV();return}if(t.id==="mx"||t.id==="modal"){$("#modal").hidden=true;return}
- if(t.id==="mgo"){const n=$("#mn").value.trim().toLowerCase(),ty=$("#mt").value,mm=$("#mm").value,ac=document.querySelector("input[name=acc]:checked").value;$("#mmsg").textContent="Creating... the first server downloads about 500 MB, this can take a few minutes.";const r=await api(`a=create&n=${encodeURIComponent(n)}&type=${ty}&mem=${mm}&share=${ac}&ver=${encodeURIComponent($("#mv").value.trim()||"LATEST")}&flavor=${$("#mf").value}`);if(r.ok){$("#modal").hidden=true;$("#mn").value="";$("#mmsg").textContent="";page="servers";location.hash=page}else $("#mmsg").textContent=r.error;tick();return}
- if(t.dataset.a==="plugin"){const u=document.getElementById("pu-"+t.dataset.n).value.trim();t.textContent="Adding...";const r=await api(`a=plugin&n=${t.dataset.n}&url=${encodeURIComponent(u)}`);t.textContent="Add";if(!r.ok)alert(r.error);else alert("Added "+r.file+". The server is restarting.");tick();return}
- if(t.dataset.a&&t.dataset.p){const r=await api(`a=${t.dataset.a}&n=${t.dataset.n}&p=${encodeURIComponent(t.dataset.p)}`);if(!r.ok)alert(r.error);tick();return}
- if(t.dataset.a==="rmplugin"){const r=await api(`a=rmplugin&n=${t.dataset.n}&f=${encodeURIComponent(t.dataset.f)}`);if(!r.ok)alert(r.error);tick();return}
- if(t.dataset.a==="share"||t.dataset.a==="unshare"){t.textContent="Working...";const r=await api(`a=${t.dataset.a}&n=${t.dataset.n}`);if(!r.ok)alert(r.error);tick();return}
- if(t.dataset.a){const a=t.dataset.n&&t.dataset.a,n=t.dataset.n;if(a==="logs"){openLog=n;render();return}
-  if(a==="delete"&&!confirm("Delete "+n+" and its world?"))return;const r=await api(`a=${a}&n=${n}`);if(!r.ok)alert(r.error);tick()}});
-try{if(localStorage.getItem("bt")==="l"){document.documentElement.classList.add("light");$("#theme").textContent="Dark"}}catch(e){}
-tick();setInterval(tick,4000);
-</script></body></html>
+<script>try{var t=localStorage.getItem("bt-theme"),o=localStorage.getItem("bt");if(!t&&o)t=o==="l"?"daylight":"butter";if(t)document.documentElement.dataset.theme=t;if(localStorage.getItem("bt-dino")!=="0")document.documentElement.classList.add("dino")}catch(e){document.documentElement.classList.add("dino")}</script>
+<link rel="stylesheet" href="app.css"><link rel="stylesheet" href="cursors.css">
+</head><body>
+<a class="skip" href="#view">Skip to content</a>
+<div class="app" id="app">
+<nav id="nav" aria-label="Main"><div class="brand">Butter <img src="logo.svg" alt=""> Os</div>
+<a data-p="overview" href="#overview"><svg class="ic" aria-hidden="true"><use href="#i-nest"/></svg><span>Overview</span></a>
+<a data-p="servers" href="#servers"><svg class="ic" aria-hidden="true"><use href="#i-server"/></svg><span>Servers</span></a>
+<a data-p="local" href="#local"><svg class="ic" aria-hidden="true"><use href="#i-footprint"/></svg><span>Local</span></a>
+<a data-p="backup" href="#backup"><svg class="ic" aria-hidden="true"><use href="#i-fossil"/></svg><span>Backup</span></a>
+<a data-p="network" href="#network"><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg><span>Network</span></a>
+<a data-p="system" href="#system"><svg class="ic" aria-hidden="true"><use href="#i-volcano"/></svg><span>System</span></a>
+<a data-p="settings" href="#settings"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg><span>Settings</span></a>
+<div class="me" id="me">This page is served by<b id="rss">-</b><span id="lim">of RAM (limit 30 MB)</span></div></nav>
+<main id="main"><header><h1 id="title">Overview</h1><span class="pill" id="host">-</span><span class="pill" id="up">-</span><button class="pill" id="theme" type="button" title="Change theme"><svg class="ic" aria-hidden="true"><use href="#i-palette"/></svg><span id="themename">Theme</span></button><button class="pill" id="add" type="button" title="New server" aria-label="New server"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg></button></header>
+<div id="view" tabindex="-1"><p class="k">Loading...</p></div></main></div>
+<div id="wizard" hidden></div><div id="toasts" role="status" aria-live="polite"></div>
+<noscript><p style="padding:20px">Butter Os needs JavaScript to show its pages.</p></noscript>
+<script src="icons.js"></script><script src="core.js"></script><script src="pages.js"></script><script src="server.js"></script><script src="wizard.js"></script><script>B.start()</script>
+</body></html>

@@ -1,0 +1,394 @@
+#!/usr/bin/env node
+"use strict";
+// butter: the Butter app launcher for Linux, macOS and Windows. Runs Minecraft servers in Docker, with the same terminal screen,
+// web page and servers as ButterOS. No dependencies, Node 18+. Run `butter --help`.
+const fs = require("fs"), path = require("path"), os = require("os"), http = require("http"), cp = require("child_process"), readline = require("readline");
+
+if (+process.versions.node.split(".")[0] < 18) { console.error("Butter needs Node.js 18 or newer (this is " + process.version + "). Install the current LTS from https://nodejs.org"); process.exit(1); }
+
+const WIN = process.platform === "win32", MAC = process.platform === "darwin";
+const ROOT = path.resolve(__dirname, "..", ".."); // folder that holds app/ and os/
+const AGENT = path.join(ROOT, "app", "agent.js"), TUI = path.join(ROOT, "os", "tui", "tui.js");
+const HOME = process.env.BUTTER_HOME || path.join(os.homedir(), ".butter");
+const LOG = path.join(HOME, "agent.log"), PIDF = path.join(HOME, "agent.pid");
+const RAW = "https://raw.githubusercontent.com/alamarahuq-max/Butterhosting/main/app/";
+const NAME_RE = /^[a-z0-9][a-z0-9-]{1,23}$/, WALLET_RE = /^0x[0-9a-fA-F]{40}$/;
+const TTY = !!(process.stdout.isTTY && !process.env.NO_COLOR);
+const col = (n, s) => (TTY ? "\x1b[" + n + "m" + s + "\x1b[0m" : s), yel = (s) => col("33;1", s), grn = (s) => col(32, s), red = (s) => col(31, s), dim = (s) => col(2, s), bold = (s) => col(1, s);
+const say = (s) => console.log(s === undefined ? "" : s);
+const die = (s, code) => { console.error(red("Error: ") + s); process.exit(code || 1); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const version = () => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, "app", "package.json"), "utf8")).version; } catch (e) { return "dev"; } };
+
+// ---------- arguments ----------
+const BOOL = new Set(["yes", "y", "bedrock", "stop", "purge", "install", "follow", "f", "no-wait", "if-needed", "servers", "all", "help", "h", "version", "v", "no-open", "no-cross"]);
+function parse(argv) {
+  const pos = [], o = {};
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a.startsWith("--") || (a.length === 2 && a[0] === "-")) {
+      let k = a.replace(/^-+/, ""), v;
+      const eq = k.indexOf("="); if (eq > 0) { v = k.slice(eq + 1); k = k.slice(0, eq); }
+      else if (!BOOL.has(k)) { v = argv[i + 1]; if (v === undefined || (v.startsWith("--") && v.length > 2)) die("--" + k + " needs a value. See: butter --help"); i++; }
+      o[k] = v === undefined ? true : v;
+    } else pos.push(a);
+  }
+  return { pos, o };
+}
+
+// ---------- agent: start, stop, talk ----------
+function readPid() { try { return JSON.parse(fs.readFileSync(PIDF, "utf8")); } catch (e) { return null; } }
+function alive(pid) { try { process.kill(pid, 0); return true; } catch (e) { return e.code === "EPERM"; } }
+function getPort() { if (process.env.BUTTER_PORT) return +process.env.BUTTER_PORT || 8080; const p = readPid(); if (p && p.port && alive(p.pid)) return p.port; return 8080; }
+const base = () => "http://localhost:" + getPort();
+function call(q, o = {}) {
+  return new Promise((resolve) => {
+    const data = o.body === undefined ? null : JSON.stringify(o.body);
+    const r = http.request({ host: "127.0.0.1", port: o.port || getPort(), method: data ? "POST" : "GET", path: "/cgi-bin/api?" + q, timeout: o.timeout || 20000, headers: data ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) } : {} }, (res) => {
+      let b = ""; res.on("data", (c) => (b += c)); res.on("end", () => { try { resolve(JSON.parse(b)); } catch (e) { resolve({ ok: false, error: "The agent gave an answer I could not read." }); } });
+    });
+    r.on("error", () => resolve({ ok: false, down: true, error: "The Butter agent is not running. Start it with: butter start" })); r.on("timeout", () => { r.destroy(); resolve({ ok: false, error: "The agent did not answer in time." }); });
+    if (data) r.write(data); r.end();
+  });
+}
+const enc = encodeURIComponent;
+async function up() { const r = await call("a=ping", { timeout: 2500 }); return !!(r && r.ok); }
+function tail(file, n) { try { return fs.readFileSync(file, "utf8").split("\n").filter(Boolean).slice(-n).join("\n"); } catch (e) { return ""; } }
+async function ensureAgent(quiet) {
+  if (await up()) return getPort();
+  if (!fs.existsSync(AGENT)) die("Butter's program files are missing (" + AGENT + "). Run the installer again.");
+  const port = process.env.BUTTER_PORT ? +process.env.BUTTER_PORT : 8080;
+  fs.mkdirSync(HOME, { recursive: true });
+  try { if (fs.statSync(LOG).size > 2e6) fs.renameSync(LOG, LOG + ".old"); } catch (e) {}
+  const out = fs.openSync(LOG, "a"); let exited = false;
+  const child = cp.spawn(process.execPath, [AGENT], { detached: true, stdio: ["ignore", out, out], windowsHide: true, env: { ...process.env, BUTTER_PORT: String(port) } });
+  child.on("exit", () => { exited = true; }); child.on("error", () => { exited = true; });
+  try { fs.writeFileSync(PIDF, JSON.stringify({ pid: child.pid, port, started: Date.now() })); } catch (e) {}
+  if (!quiet) process.stdout.write("Starting the Butter agent");
+  for (let i = 0; i < 60; i++) {
+    await sleep(250); if (!quiet && i % 4 === 3) process.stdout.write(".");
+    if (await call("a=ping", { port, timeout: 1500 }).then((r) => r.ok)) { child.unref(); if (!quiet) say(" ok"); return port; }
+    if (exited) break;
+  }
+  if (!quiet) say("");
+  const t = tail(LOG, 6);
+  die(/in use/i.test(t) ? "Port " + port + " is used by another program. Pick another one, for example: BUTTER_PORT=8081 butter" : "The agent did not start.\n" + (t ? dim(t) : "") + "\nFull log: " + LOG);
+}
+async function stopAgent(servers) {
+  const p = readPid(); let was = await up();
+  if (was && servers) { const st = await call("a=status", { timeout: 60000 }); for (const s of (st.servers || [])) if (s.state === "running") { say("Stopping server " + s.name + "..."); await call("a=stop&n=" + enc(s.name), { timeout: 90000 }); } }
+  if (p && alive(p.pid)) { try { process.kill(p.pid); } catch (e) {} for (let i = 0; i < 40 && alive(p.pid); i++) await sleep(150); if (alive(p.pid) && !WIN) { try { process.kill(p.pid, "SIGKILL"); } catch (e) {} } }
+  try { fs.rmSync(PIDF); } catch (e) {}
+  for (let i = 0; i < 20 && (await up()); i++) await sleep(150);
+  return was;
+}
+
+// ---------- small helpers ----------
+function openBrowser(u) {
+  try { let c = "xdg-open", a = [u]; if (WIN) { c = "cmd"; a = ["/c", "start", "", u]; } else if (MAC) c = "open";
+    const p = cp.spawn(c, a, { stdio: "ignore", detached: true, windowsHide: true }); p.on("error", () => say("Could not open a browser. Open this address yourself: " + u)); p.unref(); return true; } catch (e) { say("Could not open a browser. Open this address yourself: " + u); return false; }
+}
+let rl = null;
+const interactive = (o) => !o.yes && !o.y && process.stdin.isTTY && process.stdout.isTTY;
+function ask(q, def) {
+  if (!rl) rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((res) => rl.question(q + (def !== undefined && def !== "" ? " " + dim("[" + def + "]") : "") + " ", (a) => { a = a.trim(); res(a === "" && def !== undefined ? String(def) : a); }));
+}
+async function yesno(q, def, o) { if (!interactive(o)) return def; const a = (await ask(q + (def ? " (Y/n)" : " (y/N)"))).toLowerCase(); return a === "" ? def : a[0] === "y"; }
+const closeAsk = () => { if (rl) { rl.close(); rl = null; } };
+function sh(cmd, args, o) { const r = cp.spawnSync(cmd, args, { stdio: "inherit", windowsHide: true, ...o }); return r.error ? -1 : r.status; }
+function have(cmd) { const r = cp.spawnSync(WIN ? "where" : "sh", WIN ? [cmd] : ["-c", "command -v " + cmd], { stdio: "ignore", windowsHide: true }); return r.status === 0; }
+const isWSL = () => { try { return process.platform === "linux" && /microsoft/i.test(fs.readFileSync("/proc/version", "utf8")); } catch (e) { return false; } };
+
+// ---------- docker ----------
+function dockerLocal() { // works without the agent
+  const v = cp.spawnSync("docker", ["--version"], { encoding: "utf8", windowsHide: true, timeout: 10000 });
+  if (v.error || v.status !== 0) return { installed: false, running: false, version: "", why: "" };
+  const i = cp.spawnSync("docker", ["info", "--format", "{{.ServerVersion}}"], { encoding: "utf8", windowsHide: true, timeout: 20000 });
+  const ver = (v.stdout.match(/version ([\d.]+)/) || [])[1] || "";
+  return { installed: true, running: i.status === 0 && !!(i.stdout || "").trim(), version: ver, why: (i.stderr || "").trim() };
+}
+function dockerHint(d) {
+  if (!d.installed) return WIN ? "Install it:  winget install -e --id Docker.DockerDesktop   (or run: butter docker --install)" : MAC ? "Install it:  brew install --cask docker   (or run: butter docker --install), then open Docker once." : "Install it:  butter docker --install   (uses Docker's official installer and asks for your password)";
+  if (/permission denied/i.test(d.why)) return "Docker is running but your user may not use it yet. Log out and in again, or run: sudo usermod -aG docker $USER";
+  return WIN || MAC ? "Open Docker Desktop and wait until it says it is running." : "Start it:  sudo systemctl start docker   (or: sudo service docker start)";
+}
+async function cmdDocker(o) {
+  let d = dockerLocal();
+  if (d.running) { say(grn("Docker is installed and running") + " (version " + d.version + ")."); return 0; }
+  if (d.installed) { say(red("Docker is installed (" + d.version + ") but not running.")); say(dockerHint(d)); return 1; }
+  say(red("Docker is not installed.") + " Butter runs every Minecraft server in Docker.");
+  if (isWSL()) { say("This is WSL. Install Docker Desktop on Windows and turn on its WSL integration (Settings > Resources > WSL integration), or run the Windows installer."); return 1; }
+  if (!o.install) { say(dockerHint(d)); return 1; }
+  if (WIN) { say("Running: winget install -e --id Docker.DockerDesktop"); const c = sh("winget", ["install", "-e", "--id", "Docker.DockerDesktop", "--accept-package-agreements", "--accept-source-agreements"]); say(c === 0 ? "Installed. Restart Windows if asked, open Docker Desktop once, then run butter again. WSL 2 / virtualization must be on in the BIOS." : red("winget could not install it. Get Docker Desktop from https://www.docker.com/products/docker-desktop/")); return c === 0 ? 0 : 1; }
+  if (MAC) { if (!have("brew")) { say("Homebrew is not installed. Get Docker Desktop from https://www.docker.com/products/docker-desktop/ and open it once."); return 1; }
+    say("Running: brew install --cask docker"); const c = sh("brew", ["install", "--cask", "docker"]); say(c === 0 ? "Installed. Open the Docker app once and wait until it says it is running." : red("brew could not install Docker.")); return c === 0 ? 0 : 1; }
+  say("This will download Docker's official installer (https://get.docker.com) and run it with sudo, because installing Docker needs root. sudo may ask for your password.");
+  if (!(await yesno("Continue?", false, o))) { say("Skipped. Run `butter docker --install --yes` when you are ready."); return 1; }
+  const dl = have("curl") ? "curl -fsSL https://get.docker.com" : "wget -qO- https://get.docker.com";
+  let c = sh("sh", ["-c", dl + " | sudo sh"]); if (c !== 0) { say(red("The Docker installer failed.")); return 1; }
+  say("Adding you to the docker group (sudo usermod -aG docker " + os.userInfo().username + ")");
+  sh("sudo", ["usermod", "-aG", "docker", os.userInfo().username]);
+  if (have("systemctl")) sh("sudo", ["systemctl", "enable", "--now", "docker"]); else if (have("service")) sh("sudo", ["service", "docker", "start"]);
+  say("Docker is installed. Log out and in again (or run: newgrp docker) so your user can use it without sudo."); return 0;
+}
+
+// ---------- servers ----------
+const sleepMsg = (s) => process.stdout.write(s);
+async function getStatus() { return call("a=status", { timeout: 60000 }); }
+function joinLines(s, lan) {
+  const L = []; const lanip = lan || "";
+  if (s.type === "bedrock") { L.push(["Bedrock, this computer", "localhost:" + s.port + "  (UDP)"]); if (lanip) L.push(["Bedrock, same network", lanip + ":" + s.port + "  (UDP)"]); L.push(["Internet", "needs a UDP port forward on your router for " + s.port + " (no relay for Bedrock)"]); return L; }
+  L.push(["Java, this computer", "localhost:" + s.port]); if (lanip) L.push(["Java, same network", lanip + ":" + s.port]);
+  L.push(["Java, over the internet", s.join ? s.join + "   (free relay, changes if you restart)" : "(opens a few seconds after start; see: butter play " + s.name + ")"]);
+  if (s.bedrock_port) { L.push(["Bedrock, same network", (lanip || "localhost") + ":" + s.bedrock_port + "  (UDP, crossplay)"]); L.push(["Bedrock, internet", "needs a UDP port forward on your router for " + s.bedrock_port]); }
+  return L;
+}
+function printJoin(s, lan) { const L = joinLines(s, lan), w = Math.max(...L.map((x) => x[0].length)); say(""); say(bold("Join " + s.name + ":")); L.forEach(([a, b]) => say("  " + a.padEnd(w + 2) + (/^(localhost|[\d.]+:|bore)/.test(b) ? yel(b) : b))); say(""); }
+async function waitReady(n, secs) {
+  const t0 = Date.now(); let last = "";
+  while ((Date.now() - t0) / 1000 < secs) {
+    const l = await call("a=logs&n=" + enc(n), { timeout: 20000 }); const txt = String((l && l.logs) || "");
+    if (/Done \(|Server started\.|Done!/.test(txt)) { if (TTY) process.stdout.write("\r\x1b[K"); return true; }
+    const st = await getStatus(); const s = (st.servers || []).find((x) => x.name === n);
+    if (s && /exited|dead/.test(s.state)) { if (TTY) process.stdout.write("\r\x1b[K"); say(red("The server stopped. See: butter logs " + n)); return false; }
+    const line = (txt.trim().split("\n").pop() || "starting").replace(/\x1b\[[0-9;]*m/g, "").slice(0, 70);
+    if (TTY) process.stdout.write("\r\x1b[K" + dim("  starting... " + line)); else if (line !== last) { say("  " + line); last = line; }
+    await sleep(3000);
+  }
+  if (TTY) process.stdout.write("\r\x1b[K"); return false;
+}
+async function needDocker() {
+  const r = await call("a=docker", { timeout: 40000 });
+  if (!r.ok) die(r.error);
+  if (!r.running) die((r.installed ? "Docker is not running." : "Docker is not installed.") + "\n" + dockerHint({ installed: r.installed, why: "" }));
+  return r;
+}
+async function createServer(n, opt) {
+  const q = ["a=create", "n=" + enc(n), "type=" + (opt.type || "java")];
+  if (opt.mem) q.push("mem=" + enc(opt.mem)); if (opt.version) q.push("ver=" + enc(opt.version)); if (opt.flavor) q.push("flavor=" + enc(opt.flavor)); if (opt.cross !== undefined) q.push("cross=" + opt.cross); if (opt.share) q.push("share=" + enc(opt.share));
+  say("Creating " + bold(n) + " (the first start downloads the game, a few minutes)...");
+  return call(q.join("&"), { timeout: 15 * 60000 });
+}
+async function cmdCreate(pos, o) {
+  const n = pos[0]; if (!n) die("Give the server a name: butter create <name> [--flavor paper|vanilla|fabric|forge] [--version 1.21.4] [--mem 1536] [--bedrock]");
+  if (!NAME_RE.test(n)) die("A server name uses lowercase letters, numbers and dashes, 2 to 24 characters (starting with a letter or number).");
+  await ensureAgent(true); await needDocker();
+  const r = await createServer(n, { type: o.bedrock || o.type === "bedrock" ? "bedrock" : "java", flavor: o.flavor, version: o.version || o.ver, mem: o.mem, cross: o["no-cross"] ? 0 : o.cross, share: o.share });
+  if (!r.ok) die(r.error);
+  const st = await getStatus(); const s = (st.servers || []).find((x) => x.name === n) || { name: n, port: r.port, join: r.join, type: o.bedrock ? "bedrock" : "java" };
+  if (r.join) s.join = r.join; say(grn("Created ") + n + ". It is starting now."); printJoin(s, st.ip);
+  say("Watch it start:  butter logs " + n + "      Open the console:  butter"); return 0;
+}
+async function cmdPlay(pos, o) {
+  await ensureAgent(true); await needDocker();
+  const n = pos[0] || "play-" + new Date().toTimeString().slice(0, 5).replace(":", "");
+  if (!NAME_RE.test(n)) die("A server name uses lowercase letters, numbers and dashes, 2 to 24 characters.");
+  if (o.stop) { await call("a=unshare&n=" + enc(n)); const r = await call("a=stop&n=" + enc(n), { timeout: 90000 }); if (!r.ok) die(r.error); say("Stopped " + n + "."); return 0; }
+  let st = await getStatus(), s = (st.servers || []).find((x) => x.name === n);
+  if (!s) { const r = await createServer(n, { type: o.bedrock ? "bedrock" : "java", mem: o.mem, share: "internet" }); if (!r.ok) die(r.error); st = await getStatus(); s = (st.servers || []).find((x) => x.name === n) || { name: n, port: r.port, type: o.bedrock ? "bedrock" : "java" }; if (r.join) s.join = r.join; }
+  else { if (s.state !== "running") { say("Starting " + n + "..."); const r = await call("a=start&n=" + enc(n), { timeout: 90000 }); if (!r.ok) die(r.error); }
+    if (s.type === "java" && !s.join) { const r = await call("a=share&n=" + enc(n), { timeout: 60000 }); if (r.ok && r.join) s.join = r.join; } }
+  printJoin(s, st.ip);
+  if (!o["no-wait"]) { say("Waiting for it to finish starting (Ctrl+C is safe, it keeps going)..."); const ready = await waitReady(n, 240); say(ready ? grn("Ready. Friends can join now.") : "Still starting. Check: butter logs " + n); }
+  return 0;
+}
+
+// ---------- status / logs ----------
+async function cmdStatus() {
+  const is = await up();
+  say(bold("Butter app") + " " + version() + "   " + dim(os.platform() + " " + os.arch() + ", node " + process.version));
+  say("Agent     " + (is ? grn("running") + "  " + base() + (readPid() ? dim("  (pid " + readPid().pid + ")") : "") : red("not running") + "  (start it: butter start)"));
+  if (!is) { const d = dockerLocal(); say("Docker    " + (d.running ? grn("running " + d.version) : red(d.installed ? "installed, not running" : "not installed"))); if (!d.running) say("          " + dockerHint(d)); return 1; }
+  const s = await getStatus(); if (!s.ok) { say(red(s.error)); return 1; }
+  const d = s.docker || {};
+  say("Docker    " + (d.running ? grn("running " + (d.version || "")) : red(d.installed ? "installed, not running" : "not installed")));
+  if (!d.running) say("          " + dockerHint({ installed: d.installed, why: "" }));
+  say("Machine   " + (s.machine_name || os.hostname()) + (s.ip ? "  " + s.ip : "") + dim("   cpu " + Math.round(s.cpu || 0) + "%  memory " + Math.round((s.mem.total - s.mem.avail)) + "/" + s.mem.total + " MB"));
+  say("Hosting   " + (s.commercial && s.commercial.enabled ? grn("commercial, " + s.commercial.state) : "personal (commercial hosting off)"));
+  say("Web page  " + base());
+  const L = s.servers || []; say(""); if (!L.length) say("No servers yet. Make one:  butter create myworld"); else {
+    say(dim("NAME".padEnd(18) + "KIND".padEnd(22) + "STATE".padEnd(12) + "PLAYERS".padEnd(9) + "ADDRESS"));
+    L.forEach((x) => say(x.name.padEnd(18) + ((x.type === "bedrock" ? "bedrock" : (x.flavor || "java")) + " " + String(x.version || "").toLowerCase()).padEnd(22) + (x.state === "running" ? grn(x.state.padEnd(12)) : x.state.padEnd(12)) + String(x.players == null ? "-" : x.players).padEnd(9) + (x.join || (x.port ? "localhost:" + x.port : "-")))); }
+  return 0;
+}
+async function cmdLogs(pos, o) {
+  if (!pos[0]) { if (!fs.existsSync(LOG)) { say("No agent log yet (" + LOG + ")."); return 0; }
+    say(tail(LOG, 60)); if (o.follow || o.f) { let pos0 = fs.statSync(LOG).size; fs.watchFile(LOG, { interval: 500 }, (cur) => { if (cur.size < pos0) pos0 = 0; const fd = fs.openSync(LOG, "r"), b = Buffer.alloc(cur.size - pos0); fs.readSync(fd, b, 0, b.length, pos0); fs.closeSync(fd); pos0 = cur.size; process.stdout.write(b); }); await new Promise(() => {}); } return 0; }
+  if (!(await up())) die("The Butter agent is not running. Start it with: butter start");
+  let seen = null;
+  for (;;) {
+    const r = await call("a=logs&n=" + enc(pos[0]), { timeout: 30000 }); if (!r.ok) die(r.error);
+    const lines = String(r.logs || "").replace(/\x1b\[[0-9;]*m/g, "").split("\n").filter((l) => l !== "");
+    if (seen === null) { lines.slice(-100).forEach((l) => say(l)); } else { let k = lines.length; const lastSeen = seen; for (let i = lines.length - 1; i >= 0; i--) if (lines[i] === lastSeen) { k = i + 1; break; } if (k === lines.length && lines[lines.length - 1] !== lastSeen) k = Math.max(0, lines.length - 20); lines.slice(k).forEach((l) => say(l)); }
+    if (lines.length) seen = lines[lines.length - 1]; if (!(o.follow || o.f)) return 0; await sleep(2000);
+  }
+}
+
+// ---------- commercial ----------
+async function cmdCommercial(pos, o) {
+  const sub = pos[0];
+  if (sub && !["on", "off", "status"].includes(sub)) die("Use: butter commercial on|off [--wallet 0x...] [--ram MB] [--servers N]");
+  await ensureAgent(true);
+  if (!sub || sub === "status") { const r = await call("a=commercial"); if (!r.ok) die(r.error); printCommercial(r); return 0; }
+  const b = { enabled: sub === "on" };
+  if (o.wallet !== undefined) { if (o.wallet && !WALLET_RE.test(String(o.wallet))) die("The wallet must look like 0x followed by 40 letters or numbers (a USDC address on an EVM chain)."); b.wallet = o.wallet === true ? "" : o.wallet; }
+  if (o.ram !== undefined) b.ram_share_mb = +o.ram; if (o.servers !== undefined && o.servers !== true) b.max_servers = +o.servers;
+  if (sub === "on") say("Turning on commercial hosting: this machine will register with the ButterHosting network and run other people's Minecraft servers (proof of concept).");
+  const r = await call("a=setcommercial", { body: b, timeout: 120000 });
+  if (!r.ok) { console.error(red("Could not turn commercial hosting " + sub + ": ") + r.error); return 1; }
+  if (sub === "on" && (r.state === "error" || r.state === "offline" || r.error)) {
+    console.error(red("Commercial hosting is switched on, but this machine could not reach the ButterHosting network: ") + (r.error || r.state));
+    console.error("It will keep retrying every minute. Check your internet connection, or switch it off with: butter commercial off"); return 1; }
+  printCommercial(r); return 0;
+}
+function printCommercial(r) {
+  say("Commercial hosting  " + (r.enabled ? grn("on") + " (" + r.state + ")" : "off")); if (r.node_id) say("Node                " + r.node_id);
+  say("Wallet              " + (r.wallet || dim("(none set; add one with --wallet 0x...)"))); say("Shares              " + r.ram_share_mb + " MB RAM, up to " + r.max_servers + " customer servers");
+  say("Earned / owed       $" + (+r.earned_usd || 0).toFixed(2) + " / $" + (+r.pending_usd || 0).toFixed(2)); if ((r.hosted || []).length) say("Hosting now         " + r.hosted.map((h) => h.name).join(", ")); if (r.error) say("Last problem        " + red(r.error));
+}
+
+// ---------- setup wizard ----------
+async function cmdSetup(o) {
+  const cfg0 = await (async () => { await ensureAgent(true); return (await call("a=config")).config || {}; })();
+  if (o["if-needed"] && cfg0.setup_done) return 0;
+  const inter = interactive(o);
+  say(""); say(yel("  Butter app setup")); say(dim("  Host Minecraft Java and Bedrock servers on this computer. Takes about a minute.")); say("");
+  // 1. Docker
+  let d = await call("a=docker", { timeout: 40000 });
+  say("1. Docker  " + (d.running ? grn("running " + d.version) : red(d.installed ? "installed, not running" : "not installed")));
+  while (!d.running) {
+    say("   " + dockerHint({ installed: d.installed, why: "" }));
+    if (!inter) { say("   Continuing without Docker. Servers cannot start until it works."); break; }
+    if (!d.installed && !isWSL() && (await yesno("   Install Docker now?", true, o))) { await cmdDocker({ install: true, yes: false }); }
+    const a = (await ask("   Press Enter once Docker is running, or type skip:")).toLowerCase();
+    if (a === "skip") break; d = await call("a=docker", { timeout: 40000 }); say("   Docker " + (d.running ? grn("running " + d.version) : red(d.installed ? "installed, not running" : "not installed")));
+  }
+  // 2. name
+  const hi = (await call("a=hostinfo")) || {};
+  let name = cfg0.machine_name || os.hostname().slice(0, 24);
+  if (inter) name = await ask("2. Name this machine:", name); else say("2. Machine name: " + name);
+  // 3. mode
+  let commercial = false, wallet = "", ram = 2048, srvs = 2;
+  if (inter) {
+    say("3. How will you use it?"); say("     1) Personal: servers for me and my friends  (default)"); say("     2) Personal, and also host servers for other people for pay (commercial, proof of concept)");
+    commercial = (await ask("   Choose 1 or 2:", "1")) === "2";
+    if (commercial) { for (;;) { wallet = await ask("   Wallet address for payouts (USDC on an EVM chain, 0x..., Enter to add later):", ""); if (!wallet || WALLET_RE.test(wallet)) break; say(red("   That does not look like a wallet address (0x and 40 letters/numbers).")); }
+      const maxRam = Math.max(1024, (hi.mem_total_mb || 4096) - 1536); ram = Math.min(maxRam, +(await ask("   How much RAM to share, in MB:", Math.min(maxRam, 2048))) || 2048); srvs = +(await ask("   Most customer servers at once:", 2)) || 2; }
+  } else say("3. Mode: personal");
+  // 4. first server
+  let made = null;
+  const mem0 = Math.max(1024, Math.min(4096, Math.floor(((hi.mem_total_mb || 6144) / 4) / 256) * 256));
+  const existing = ((await getStatus()).servers || []);
+  if (d.running && !existing.length && (!inter || (await yesno("4. Create your first server now?", true, o)))) {
+    let sn = "survival", flavor = "paper", ver = "LATEST", mem = Math.min(cfg0.default_mem || 1536, mem0 > 1536 ? 1536 : mem0), type = "java";
+    if (inter) {
+      const k = (await ask("   Java (1) or Bedrock (2)?", "1")) === "2" ? "bedrock" : "java"; type = k;
+      for (;;) { sn = (await ask("   Server name:", sn)).toLowerCase(); if (NAME_RE.test(sn)) break; say(red("   Use lowercase letters, numbers and dashes, 2 to 24 characters.")); }
+      if (type === "java") { flavor = (await ask("   Software: paper (plugins), vanilla, fabric or forge:", flavor)).toLowerCase(); const v = await ask("   Minecraft version (LATEST or e.g. 1.21.4):", "LATEST"); ver = v.toUpperCase() === "LATEST" ? "LATEST" : v; }
+      mem = +(await ask("   Memory in MB (this computer has " + (hi.mem_total_mb || "?") + "):", mem)) || mem;
+    }
+    const r = await createServer(sn, { type, flavor, version: ver === "LATEST" ? undefined : ver, mem });
+    if (!r.ok) say(red("   Could not create it: " + r.error) + "\n   You can try again later with: butter create " + sn);
+    else { made = sn; const st = await getStatus(); const s = (st.servers || []).find((x) => x.name === sn) || { name: sn, port: r.port, type }; if (r.join) s.join = r.join; printJoin(s, st.ip);
+      say("   Waiting for the first start (the game downloads once). Press Ctrl+C to skip, it keeps starting in the background."); const rd = await waitReady(sn, 300); say(rd ? grn("   It is running. Friends can join with the addresses above.") : "   Still starting. Check: butter logs " + sn); }
+  } else if (!d.running) say("4. First server: skipped (needs Docker). Later: butter create <name>");
+  else if (existing.length) say("4. First server: you already have " + existing.length + ".");
+  // 5. save
+  const sc = await call("a=setconfig", { body: { setup_done: true, machine_name: name, default_mem: made ? undefined : undefined }, timeout: 20000 }); if (!sc.ok) say(red("Could not save settings: " + sc.error));
+  if (commercial) { const r = await call("a=setcommercial", { body: { enabled: true, wallet, ram_share_mb: ram, max_servers: srvs }, timeout: 120000 }); if (!r.ok) say(red("Commercial hosting: " + r.error)); else if (r.error || r.state === "error") say(red("Commercial hosting could not reach the network yet: " + (r.error || r.state)) + "\n   It keeps retrying. Check later with: butter commercial"); else say(grn("Commercial hosting is on (" + r.state + ").")); }
+  closeAsk(); say(""); say(grn("Setup finished.")); say("  butter           open the terminal screen"); say("  butter web       open the web page (" + base() + ")"); say("  butter --help    all commands"); say("");
+  return 0;
+}
+
+// ---------- terminal screen ----------
+async function cmdTui(o) {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) die("The terminal screen needs a real terminal. In scripts use:  butter status   (or butter --help)");
+  await ensureAgent(false);
+  const cfg = (await call("a=config")).config || {};
+  if (!cfg.setup_done) { if (await yesno("First time here. Run the quick setup now?", true, {})) { await cmdSetup({}); } else await call("a=setconfig", { body: { setup_done: true } }); closeAsk(); }
+  const env = { ...process.env, BUTTER_APP: "1", BUTTER_PORT: String(getPort()), BUTTER_BIN: __filename, BUTTER_HOME: HOME };
+  const r = cp.spawnSync(process.execPath, [TUI], { stdio: "inherit", env, windowsHide: false });
+  if (r.status === 3) die("The terminal screen could not start (needs a real terminal). Use `butter web` for the web page instead.");
+  if (r.error) die(String(r.error.message)); say("The agent keeps running in the background (web page: " + base() + "). Stop it with: butter stop"); return r.status || 0;
+}
+
+// ---------- update / uninstall ----------
+async function cmdUpdate() {
+  const was = await up(); if (was) { say("Stopping the agent for the update (servers keep running)..."); await stopAgent(false); }
+  let c;
+  if (WIN) c = sh("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "$env:BUTTER_UPDATE='1'; irm " + RAW + "install.ps1 | iex"]);
+  else c = sh("sh", ["-c", (have("curl") ? "curl -fsSL " + RAW + "install.sh" : "wget -qO- " + RAW + "install.sh") + " | bash -s -- --update"]);
+  if (c !== 0) say(red("The update did not finish.") + " Your servers and worlds were not touched.");
+  if (was) { const n = cp.spawnSync(process.execPath, [__filename, "start"], { stdio: "inherit" }); }
+  return c === 0 ? 0 : 1;
+}
+async function cmdUninstall(o) {
+  const wrapper = WIN ? path.join(process.env.LOCALAPPDATA || "", "Butter", "bin", "butter.cmd") : path.join(os.homedir(), ".local", "bin", "butter");
+  const mine = path.basename(ROOT) === "app" ? false : (path.dirname(ROOT) === HOME || path.basename(ROOT) === "app");
+  const appRoot = ROOT; const removable = (path.basename(appRoot) === "app" && (path.dirname(appRoot) === HOME || path.basename(path.dirname(appRoot)) === "Butter")) || path.basename(path.dirname(appRoot)) === ".butter" || false;
+  say("This removes the butter command and the app files" + (o.purge ? bold(" AND all your servers, worlds and settings") : ", but keeps your servers and worlds") + ".");
+  if (!removable) say(dim("(This copy of Butter runs from " + ROOT + ", which is not an installed copy, so those files stay.)"));
+  if (!(await yesno("Continue?", false, o))) { say("Cancelled."); return 0; }
+  if (o.purge && interactive(o)) { const t = await ask('Type "delete" to confirm deleting all worlds:'); if (t !== "delete") { say("Cancelled."); return 0; } }
+  await stopAgent(!!o.purge); closeAsk();
+  if (o.purge) { const ids = cp.spawnSync("docker", ["ps", "-aq", "--filter", "label=butterhosting=1"], { encoding: "utf8", windowsHide: true }); const l = (ids.stdout || "").split(/\s+/).filter(Boolean); if (l.length) { say("Removing " + l.length + " server container(s)..."); sh("docker", ["rm", "-f"].concat(l)); } }
+  try { if (fs.existsSync(wrapper) && /Butter app launcher/.test(fs.readFileSync(wrapper, "utf8"))) { fs.rmSync(wrapper); say("Removed " + wrapper); } } catch (e) {}
+  if (WIN) cp.spawnSync("powershell", ["-NoProfile", "-Command", "$d=Join-Path $env:LOCALAPPDATA 'Butter\\bin'; $p=[Environment]::GetEnvironmentVariable('Path','User'); if($p){[Environment]::SetEnvironmentVariable('Path',(($p -split ';' | Where-Object {$_ -and $_ -ne $d}) -join ';'),'User')}"], { stdio: "ignore", windowsHide: true });
+  if (o.purge) { try { fs.rmSync(HOME, { recursive: true, force: true }); say("Removed " + HOME); } catch (e) { say("Could not remove " + HOME + ": " + e.message); } }
+  else { for (const p of [path.join(HOME, "node"), path.join(HOME, "agent.log"), path.join(HOME, "agent.log.old"), PIDF]) { try { fs.rmSync(p, { recursive: true, force: true }); } catch (e) {} } }
+  if (removable) { try { fs.rmSync(appRoot.endsWith("app") && path.basename(path.dirname(appRoot)) === "Butter" ? appRoot : appRoot, { recursive: true, force: true }); say("Removed " + appRoot); } catch (e) { say("Could not remove " + appRoot + ": " + e.message); } }
+  say("Done. Docker itself was not removed." + (o.purge ? "" : " Your servers are still in Docker (bw-<name>) with their worlds in " + HOME + ". To delete everything too: butter uninstall --purge")); return 0;
+}
+
+// ---------- help ----------
+function help() {
+  say(`${yel("butter")} ${version()}: host Minecraft servers on this computer with Docker. Terminal screen, web page, same servers as ButterOS.
+
+${bold("Usage")}  butter [command]
+
+  (no command)            start the agent in the background and open the terminal screen
+  web                     start the agent, print the web page address and open it in your browser
+  start | stop | restart  the background agent (servers keep running; stop --servers also stops them)
+  status                  agent, Docker, servers and their join addresses
+  logs [server] [-f]      agent log, or a server's console log (-f follows)
+  setup                   first-run wizard: Docker check, machine name, personal or commercial, first server
+  create <name> [--flavor paper|vanilla|fabric|forge] [--version 1.21.4] [--mem 1536] [--bedrock]
+  play [name] [--bedrock] [--mem MB] [--stop]    create-if-missing, start, print join addresses
+  commercial [on|off] [--wallet 0x..] [--ram MB] [--servers N]    host other people's servers for pay (proof of concept)
+  docker [--install]      check Docker, or install it (asks first)
+  update                  download the newest Butter from GitHub
+  uninstall [--purge]     remove Butter (--purge also deletes servers and worlds)
+  agent                   run the agent in the foreground (for debugging)
+  --help, --version
+
+${bold("Environment")}  BUTTER_PORT (default 8080)  BUTTER_BIND (default 127.0.0.1)  BUTTER_HOME (default ${path.join("~", ".butter")})
+Data lives in ${HOME}. Agent log: ${LOG}`);
+}
+
+// ---------- main ----------
+(async () => {
+  const { pos, o } = parse(process.argv.slice(2)); const cmd = pos.shift();
+  if (o.help || o.h || cmd === "help") return help();
+  if (o.version || o.v || cmd === "version") return say(version());
+  let code = 0;
+  switch (cmd) {
+    case undefined: case "tui": code = await cmdTui(o); break;
+    case "web": { const port = await ensureAgent(false); const u = "http://localhost:" + port; say("Butter web page: " + yel(u)); if (!o["no-open"]) openBrowser(u); break; }
+    case "start": { if (await up()) say("The agent is already running at " + base()); else { await ensureAgent(false); say("Web page: " + base()); } break; }
+    case "stop": { const was = await stopAgent(!!o.servers); say(was ? "Agent stopped." + (o.servers ? "" : " Your Minecraft servers keep running in Docker (butter stop --servers stops them too).") : "The agent was not running."); break; }
+    case "restart": { await stopAgent(false); await ensureAgent(false); say("Web page: " + base()); break; }
+    case "status": code = await cmdStatus(); break;
+    case "logs": code = await cmdLogs(pos, o); break;
+    case "setup": code = await cmdSetup(o); break;
+    case "create": code = await cmdCreate(pos, o); break;
+    case "play": code = await cmdPlay(pos, o); break;
+    case "commercial": code = await cmdCommercial(pos, o); break;
+    case "docker": code = await cmdDocker(o); break;
+    case "update": code = await cmdUpdate(); break;
+    case "uninstall": code = await cmdUninstall(o); break;
+    case "agent": { if (!fs.existsSync(AGENT)) die("agent.js is missing: " + AGENT); require(AGENT).start(); return; }
+    default: console.error("Unknown command: " + cmd + "\n"); help(); code = 2;
+  }
+  closeAsk(); process.exit(code);
+})().catch((e) => { closeAsk(); console.error(red("Error: ") + (e && e.message ? e.message : e)); process.exit(1); });

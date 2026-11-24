@@ -26,7 +26,7 @@ jobs:
       - name: Relay (Vercel function) routing
         run: cd hosting-api && node relay.test.js
       - name: Payout ledger test
-        run: cd hosting-api && node payouts.test.js
+        run: cd hosting-api && node payouts.test.js && node nodes.test.js
       - name: Live GitHub registry store
         env:
           REGISTRY_REPO: ${{ github.repository }}

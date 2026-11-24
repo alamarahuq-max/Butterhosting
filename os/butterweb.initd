@@ -1,11 +1,12 @@
 #!/sbin/openrc-run
 name="butterweb"
-description="ButterOS local web page (busybox httpd, LAN only)"
+description="ButterOS web page and local API (Node agent, local network only)"
 depend() { need net; }
 start() {
-  ebegin "Starting the local web page on port 80"
-  start-stop-daemon --start --background --make-pidfile --pidfile /run/butterweb.pid \
-    --exec /bin/busybox-extras -- httpd -f -p 80 -h /opt/butterweb -c /opt/butterweb/httpd.conf
+  ebegin "Starting the web page and agent on port 80"
+  BUTTER_OS=1 BUTTER_WEB=/opt/butterweb BUTTER_PORT=80 BUTTER_BIND=0.0.0.0 \
+  start-stop-daemon --start --background --make-pidfile --pidfile /run/butterweb.pid --stdout /var/log/butterweb.log --stderr /var/log/butterweb.log \
+    --exec /usr/bin/node -- /opt/butter/app/agent.js
   eend $?
 }
-stop() { ebegin "Stopping the local web page"; start-stop-daemon --stop --pidfile /run/butterweb.pid; eend $?; }
+stop() { ebegin "Stopping the web page"; start-stop-daemon --stop --pidfile /run/butterweb.pid; eend $?; }

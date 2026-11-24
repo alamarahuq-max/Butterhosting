@@ -10,14 +10,6 @@ A small RAM-only Linux (Alpine + Docker) that does one thing: host Minecraft ser
 
 Built and tested by CI (`.github/workflows/build-iso.yml`): the ISO is booted in a VM, a Java server is created and pinged, and the installer is run. The latest results are in the `ci-shots` branch (`e2e/results.md`).
 
-## One command, no dual-boot (runs ButterOS as a virtual machine)
-Downloads ButterOS once, starts it in QEMU (installed for you if missing), creates a server by itself and prints how to join. Worlds and downloaded server software are kept in a 24 GB (sparse) disk file between runs.
-- **Linux / macOS:** `curl -fsSL https://raw.githubusercontent.com/alamarahuq-max/Butterhosting/main/os/run/butter-run.sh | bash`
-  Options after `bash -s --`: `--flavor vanilla --version 1.16.5 --mem 1024 --name old --no-persist --no-share --window --reset`
-- **Windows (PowerShell):** `irm https://raw.githubusercontent.com/alamarahuq-max/Butterhosting/main/os/run/butter-run.ps1 | iex`
-  Options are environment variables set first, e.g. `$env:BUTTER_FLAVOR='vanilla'; $env:BUTTER_VERSION='1.16.5'; irm ... | iex`
-- Needs about 4 GB of free RAM. Fast with KVM (Linux), HVF (Intel Mac) or the Windows Hypervisor Platform; otherwise it falls back to slow software mode. CI tests the Linux script (first run and second run); the Windows script is NOT tested on real Windows yet.
-
 ## Dual-boot (no partition)
 ButterOS can start from one ISO file on a disk you already use, next to Windows or Linux. The boot code reads the file straight off the disk (ext4, xfs, NTFS, exFAT, FAT) and runs from RAM.
 - **Linux (tested in CI on a virtual BIOS + ext4 disk):** `sudo sh butter-dualboot-linux.sh` (add `--iso ButterOS.iso` if you already downloaded it, `--remove` to undo). Needs GRUB, ext4 or xfs (not LVM, not encrypted), Secure Boot off.

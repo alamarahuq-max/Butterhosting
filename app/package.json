@@ -1,0 +1,1 @@
+{ "name": "butter-app", "version": "0.1.0", "private": true, "description": "Butter: host Minecraft servers with Docker. Terminal screen, web page, same servers as ButterOS.", "bin": { "butter": "bin/butter" }, "engines": { "node": ">=18" }, "license": "UNLICENSED" }

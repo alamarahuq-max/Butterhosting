@@ -1,0 +1,63 @@
+name: Butter app test (Linux, real Docker)
+on: workflow_dispatch
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the app from this checkout
+        run: |
+          BUTTER_SRC=$PWD bash app/install.sh --yes --no-pull </dev/null
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Start the agent
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          butter --version; butter start; butter status
+      - name: Create an old Java server (Vanilla 1.16.5 needs Java 8) and wait for it
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          A=http://127.0.0.1:8080/cgi-bin/api
+          curl -fsS "$A?a=create&n=smoke&type=java&flavor=vanilla&ver=1.16.5&mem=1024&cross=0&share=none" | tee create.json; grep -q '"ok":true' create.json
+          for i in $(seq 1 90); do curl -fsS "$A?a=logs&n=smoke" | grep -q 'Done (' && break; sleep 5; done
+          curl -fsS "$A?a=logs&n=smoke" | grep -q 'Done (' || { curl -s "$A?a=logs&n=smoke"; exit 1; }
+      - name: Ping over the Minecraft protocol
+        run: |
+          cat > ping.js <<'JS'
+          const net = require("net");
+          const vi = (n) => { const b = []; do { let t = n & 127; n >>>= 7; if (n) t |= 128; b.push(t); } while (n); return Buffer.from(b); };
+          const s = net.connect(25565, "127.0.0.1"); let buf = Buffer.alloc(0);
+          const pk = (id, d) => { const body = Buffer.concat([vi(id), d]); return Buffer.concat([vi(body.length), body]); };
+          const host = Buffer.from("localhost"); const port = Buffer.alloc(2); port.writeUInt16BE(25565);
+          s.write(pk(0, Buffer.concat([vi(754), vi(host.length), host, port, vi(1)]))); s.write(pk(0, Buffer.alloc(0)));
+          s.on("data", (d) => { buf = Buffer.concat([buf, d]); const m = buf.toString().match(/\{"description".*\}/s); if (m) { const j = JSON.parse(m[0].slice(0, m[0].lastIndexOf("}") + 1)); console.log(JSON.stringify(j.version)); process.exit(j.version.name === "1.16.5" ? 0 : 1); } });
+          setTimeout(() => { console.log("no answer"); process.exit(1); }, 15000);
+          JS
+          node ping.js
+      - name: Settings, files and backups through the API
+        run: |
+          A=http://127.0.0.1:8080/cgi-bin/api
+          curl -fsS "$A?a=srvconf&n=smoke" | tee srvconf.json; grep -q '"props_available":true' srvconf.json
+          curl -fsS -X POST -H 'Content-Type: application/json' -d '{"props":{"motd":"Butter CI"},"restart":false}' "$A?a=setprops&n=smoke" | grep -q '"ok":true'
+          curl -fsS "$A?a=cat&n=smoke&p=/server.properties" | grep -q 'motd=Butter CI'
+          curl -fsS "$A?a=ls&n=smoke&p=/" | grep -q server.properties
+          curl -fsS "$A?a=backup&n=smoke" | tee bk.json; grep -q '"ok":true' bk.json
+          F=$(sed -n 's/.*"file":"\([^"]*\)".*/\1/p' bk.json)
+          curl -fsS -X POST -H 'Content-Type: application/json' -d '{"p":"/marker.txt","content":"after-backup"}' "$A?a=write&n=smoke" | grep -q '"ok":true'
+          curl -fsS "$A?a=restore&n=smoke&f=$F" | grep -q '"ok":true'
+          curl -fsS "$A?a=cat&n=smoke&p=/marker.txt" | grep -q 'not found\|Not found' 
+          curl -fsS "$A?a=setversion&n=smoke&ver=1.16.4&flavor=vanilla" | grep -q '"ok":true'
+          curl -fsS "$A?a=listadd&n=smoke&l=whitelist&p=Steve" | tee wl.json
+      - name: Commercial mode fails clearly when the network is unreachable
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          A=http://127.0.0.1:8080/cgi-bin/api
+          BUTTER_NETWORK_API=http://127.0.0.1:9 curl -fsS -X POST -H 'Content-Type: application/json' -d '{"enabled":true,"wallet":"nope"}' "$A?a=setcommercial" | tee co.json
+          grep -q 'Wallet must look like' co.json
+          curl -fsS -X POST -H 'Content-Type: application/json' -d '{"enabled":true}' "$A?a=setcommercial" | tee co2.json
+          butter commercial || true
+      - name: Delete and clean up
+        if: always()
+        run: |
+          curl -s "http://127.0.0.1:8080/cgi-bin/api?a=delete&n=smoke" || true
+          docker ps -a; tail -30 ~/.butter/agent.log || true

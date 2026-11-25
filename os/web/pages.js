@@ -2,7 +2,7 @@
 /* Butter web UI: Overview, Servers, Local, Backup, Network, System, Settings pages and shared server blocks. */
 const P = B.pages;
 const dockerNote = () => { const d = B.S.docker || {}; return d.installed && d.running ? "" : `<div class="notice warn">${ic("warn")}<div><b>${d.installed ? "Docker is installed but not running." : "Docker is not installed."}</b> Servers run inside Docker. <a href="#setup">Run setup</a> or open <a href="#settings">Settings</a> to see how to fix it.</div></div>`; };
-const empty = (t, sub, act) => `<div class="empty"><svg class="mascot" aria-hidden="true" viewBox="0 0 64 64"><use href="#i-dino"/></svg><p><b>${t}</b></p>${sub ? `<p class="k">${sub}</p>` : ""}${act || ""}</div>`;
+const empty = (t, sub, act) => `<div class="empty"><p><b>${t}</b></p>${sub ? `<p class="k">${sub}</p>` : ""}${act || ""}</div>`;
 B.empty = empty;
 const jt = (s) => (s.type === "java" ? { paper: "Paper", vanilla: "Vanilla", fabric: "Fabric", forge: "Forge" }[s.flavor] || "Java" : "Bedrock") + (s.version && s.version !== "LATEST" ? " " + s.version : "");
 B.jt = jt;
@@ -51,6 +51,23 @@ document.addEventListener("change", async (e) => {
   }
 });
 
+/* ---------- world slots (Minecraft world-select look) + hotbar memory meter ---------- */
+const PIX = { paper: ["#f4e9b8", "#ffd23f", "#c9a227"], vanilla: ["#7cbf4f", "#5a9a35", "#8b5a2b"], fabric: ["#d9c4a0", "#b89b6b", "#7a6a4a"], forge: ["#8a8f98", "#5f646e", "#e5762f"], bedrock: ["#6b6f78", "#4a4d55", "#2f3138"] };
+const hash = (str) => { let h = 2166136261; for (const c of str) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+const avatar = (s) => { const pal = PIX[s.type === "bedrock" ? "bedrock" : s.flavor] || PIX.paper; let h = hash(s.name + s.flavor), r = "";
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { h = Math.imul(h ^ (h >>> 15), 2246822519) >>> 0; const top = y < 3, c = top ? pal[(h >> 9) % 2] : (h % 7 === 0 ? pal[2] : pal[1]); r += `<rect x="${x}" y="${y}" width="1" height="1" fill="${c}"/>`; }
+  return `<svg class="avatar" viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true">${r}</svg>`; };
+B.avatar = avatar;
+const hotbar = () => { const m = B.S.mem, N = 20, os = Math.round(m.os / m.total * N), sv = Math.max(m.servers > 0 ? 1 : 0, Math.round(m.servers / m.total * N));
+  return `<div class="hotbar" role="img" aria-label="Memory: system ${gb(m.os)}, servers ${gb(m.servers)}, free ${gb(Math.max(0, m.avail))}">${Array.from({ length: N }, (_, i) => `<i class="${i < os ? "os" : i < os + sv ? "sv" : ""}"></i>`).join("")}</div>`; };
+const slot = (s) => { const on = s.state === "running", a = addrList(s)[0];
+  return `<article class="slot${on ? " on" : ""}"><a class="sav" href="#server/${s.name}" aria-label="Open ${esc(s.name)}">${avatar(s)}</a>
+  <div class="smain"><a class="sname" href="#server/${s.name}">${esc(s.name)}</a><div class="smeta">${stBadge(s.state)}<span>${esc(jt(s))}</span>${s.players != null ? `<span>${ic("footprint")}${s.players}${s.max_players ? "/" + s.max_players : ""}</span>` : ""}${on ? `<span>${gb(s.ram)}${s.mem_limit ? " of " + gb(s.mem_limit) : ""}</span>` : ""}</div>
+  ${a ? `<div class="saddr"><code>${esc(a.v)}</code><button class="btn sm" type="button" data-do="copy" data-v="${esc(a.v)}" aria-label="Copy address">${ic("copy")}</button></div>` : ""}</div>
+  <div class="sacts">${ctlBtns(s)}<a class="btn" href="#server/${s.name}">${ic("gear")}Manage</a></div></article>`; };
+const slots = (add) => `<div class="slots">${B.S.servers.length ? B.S.servers.map(slot).join("") : ""}${add ? `<button class="slot add" type="button" data-do="newsrv"><span class="sav">${ic("egg", "big-ic")}</span><span class="smain"><b class="sname">${B.S.servers.length ? "Add another server" : "Hatch your first server"}</b><span class="smeta"><span>Java, Bedrock, phones</span></span></span></button>` : ""}</div>`;
+B.slots = slots;
+
 /* ---------- Overview ---------- */
 const memBar = () => { const m = B.S.mem, t = m.total, seg = [["OS", m.os, "var(--ind)"], ["Servers", m.servers, "var(--y)"], ["Worlds in RAM", m.worlds, "var(--ok)"]];
   return `<div class="bar" role="img" aria-label="Memory use">${seg.map((s) => `<i style="width:${s[1] / t * 100}%;background:${s[2]}"></i>`).join("")}</div><div class="leg">${seg.map((s) => `<span><b style="background:${s[2]}"></b>${s[0]} ${gb(s[1])}</span>`).join("")}<span><b style="background:var(--line2)"></b>Free ${gb(Math.max(0, m.avail))}</span></div>`; };
@@ -62,13 +79,11 @@ P.overview = {
   live(force) {
     if (!force && B.typing()) return; const S = B.S, m = S.mem, run = S.servers.filter((s) => s.state === "running"), pl = S.servers.reduce((a, s) => a + (s.players || 0), 0);
     const used = m.total - m.avail, cpu = typeof S.cpu === "number" ? S.cpu : Math.min(100, (parseFloat(S.load) || 0) / (S.cores || 1) * 100);
-    B.setView(`${dockerNote()}<div class="grid g4">
- <div class="card stat">${ic("heartbeat", "big-ic")}<div><div class="k">Servers running</div><div class="big">${run.length} <small>/ ${S.servers.length}</small></div><div class="k">${S.persist ? "USB volume found" : "live mode allows " + S.max_servers}</div></div></div>
- <div class="card stat">${ic("footprint", "big-ic")}<div><div class="k">Players online</div><div class="big">${pl}</div><div class="k">Java servers only</div></div></div>
- <div class="card stat">${ring(used / m.total * 100, Math.round(used / m.total * 100) + "%", "Memory used", "var(--y)")}<div><div class="k">Memory used</div><div class="big">${(used / 1024).toFixed(1)} <small>GB of ${(m.total / 1024).toFixed(1)}</small></div><div class="k">${gb(m.avail)} free</div></div></div>
- <div class="card stat">${ring(cpu, Math.round(cpu) + "%", "CPU", "var(--ind)")}<div><div class="k">CPU load</div><div class="big">${esc(S.load.split(" ")[0])}</div><div class="k">${S.cores} cores${S.temp != null ? " · " + S.temp + " °C" : ""}</div></div></div></div>
- <div class="grid g2" style="margin-top:14px"><div class="card"><h3>${ic("volcano")}Where the memory goes</h3>${memBar()}<h3 style="margin-top:18px">${ic("egg")}Can I add another?</h3><div class="say">${advice()}</div></div>
- <div class="card"><h3>${ic("server")}Servers</h3><table class="rt"><thead><tr><th>Name</th><th>State</th><th>Memory</th></tr></thead><tbody>${miniRows()}</tbody></table><p class="k" style="margin-bottom:0">${ic("fossil")}Backup: ${S.backup && S.backup.usb ? (S.backup.last ? "last " + esc(S.backup.last) : "waiting for first backup") : S.persist ? "worlds are stored on this machine" : "no BUTTER volume, nothing is saved at power off"}</p></div></div>`, force);
+    B.setView(`${dockerNote()}
+ <section class="machine" aria-label="This machine"><div class="mhead"><div><span class="mnum">${run.length}</span><span class="k"> of ${S.servers.length} running</span></div><div><span class="mnum">${pl}</span><span class="k"> playing</span></div><div><span class="mnum">${Math.round(cpu)}%</span><span class="k"> CPU${S.temp != null ? " · " + S.temp + "°C" : ""}</span></div></div>
+ <div class="mmem"><div class="row between"><span>Memory</span><span class="k">${gb(used)} used of ${gb(m.total)}</span></div>${hotbar()}<div class="hleg"><span><b class="os"></b>System ${gb(m.os)}</span><span><b class="sv"></b>Servers ${gb(m.servers)}</span><span><b></b>Free ${gb(Math.max(0, m.avail))}</span></div></div></section>
+ <h2 class="sec">Worlds</h2>${slots(true)}
+ <p class="adv k">${advice()}</p>`, force);
   } };
 
 /* ---------- Servers ---------- */
@@ -78,7 +93,7 @@ B.ACT.newsrv = () => B.newDialog();
 P.servers = {
   show() { this.live(true); },
   live(force) { if (!force && B.typing()) return;
-    B.setView(`${dockerNote()}<div class="card"><div class="row between"><h3>${ic("server")}Servers</h3><button class="btn p" data-do="newsrv">${ic("egg")}New server</button></div><table class="rt"><thead><tr><th>Name</th><th>State</th><th>Players</th><th>Memory</th><th>CPU</th><th>Join address</th><th></th></tr></thead><tbody>${srvRows()}</tbody></table><div class="say" style="margin-top:12px">${advice()}</div></div>`, force); } };
+    B.setView(`${dockerNote()}<div class="row between"><h2 class="sec" style="margin:0">All worlds</h2></div>${slots(true)}<p class="adv k">${advice()}</p>`, force); } };
 
 /* ---------- Local (players, plugins, sharing, per server) ---------- */
 P.local = {
@@ -140,7 +155,7 @@ P.settings = {
 <section class="card"><h3>${ic("heartbeat")}Docker</h3><div id="s-dock">${this.dock()}</div><div class="row" style="margin-top:10px"><button class="btn" data-do="recheck">${ic("restart")}Re-check</button></div></section>
 <section class="card" id="s-co"><h3>${ic("coin")}Host commercially for ButterHosting</h3>${B.coNote}<div style="margin-top:12px">${B.coForm({ enabled: !!ccfg.enabled || CO.enabled, ram_share_mb: CO.ram_share_mb || ccfg.ram_share_mb || 2048, max_servers: CO.max_servers || ccfg.max_servers || 2, wallet: CO.wallet || ccfg.wallet || "" })}</div><div class="row" style="margin-top:12px"><button class="btn p" data-do="saveCo">${ic("save")}Save</button></div><div id="co-stat" style="margin-top:12px">${B.coStatus(CO)}</div></section>
 <section class="card"><h3>${ic("egg")}Setup</h3><p class="k" style="margin-top:0">Walk through the first-run guide again: name, machine check, mode and a first server.</p><a class="btn" href="#setup">${ic("play")}Run setup again</a></section>
-<section class="card"><h3>${ic("info")}About</h3><div class="about"><svg class="mascot" aria-hidden="true" viewBox="0 0 64 64"><use href="#i-dino"/></svg><div><b>Butter</b> ${B.S.app ? "app" : "Os"}<div class="k">Minecraft server hosting for your own machine. ${esc(B.S.platform || "")}${B.DK && B.DK.version ? " · Docker " + esc(B.DK.version) : ""}</div><div class="k">Part of ButterHosting.</div></div></div></section>
+<section class="card"><h3>${ic("info")}About</h3><div class="about"><div><b>Butter</b> ${B.S.app ? "app" : "Os"}<div class="k">Minecraft server hosting for your own machine. ${esc(B.S.platform || "")}${B.DK && B.DK.version ? " · Docker " + esc(B.DK.version) : ""}</div><div class="k">Part of ButterHosting.</div></div></div></section>
 </div></div>`, true);
   },
   dock() { const d = B.DK || {}; return `<dl class="kv"><dt>Installed</dt><dd>${d.installed ? `${ic("check")}yes` : `${ic("warn")}no`}</dd><dt>Running</dt><dd>${d.running ? `${ic("check")}yes` : `${ic("warn")}no`}</dd>${d.version ? `<dt>Version</dt><dd>${esc(d.version)}</dd>` : ""}</dl>` + (!d.installed && d.install_hint ? `<p class="k">Install Docker:</p><pre id="s-hint" class="sel">${esc(d.install_hint)}</pre><button class="btn sm" data-do="copyid" data-id="s-hint">${ic("copy")}Copy</button>` : d.installed && !d.running ? `<p class="k">Start Docker Desktop (or the docker service), then press Re-check.</p>` : ""); },

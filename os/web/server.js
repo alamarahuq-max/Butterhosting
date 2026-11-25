@@ -225,7 +225,7 @@ B.ACT.del = async (t) => { const n = t.dataset.n; if (!(await ask({ title: "Dele
 /* ---------- page shell ---------- */
 async function reload() { const r = await api("a=srvconf&n=" + D.n); if (r.ok) { D.conf = r.conf || {}; D.props = r.props || {}; D.propsOk = !!r.props_available; } return r; }
 const headHtml = () => { const s = srv(); if (!s) return ""; const a = addrList(s)[0];
-  return `<div class="shead"><div class="sh-main"><a class="btn sm" href="#servers" aria-label="Back to servers">${ic("back")}Servers</a><span class="sh-name">${ic("dino")}<b>${esc(s.name)}</b></span>${stBadge(s.state)}<span class="k">${esc(B.jt(s))}</span>${a ? `<code>${esc(a.v)}</code><button class="btn sm" data-do="copy" data-v="${esc(a.v)}" aria-label="Copy address">${ic("copy")}</button>` : ""}</div><div class="row">${B.ctlBtns(s)}</div></div>`; };
+  return `<div class="shead"><div class="sh-main"><a class="btn sm" href="#servers" aria-label="Back to servers">${ic("back")}Servers</a><span class="sh-name"><b>${esc(s.name)}</b></span>${stBadge(s.state)}<span class="k">${esc(B.jt(s))}</span>${a ? `<code>${esc(a.v)}</code><button class="btn sm" data-do="copy" data-v="${esc(a.v)}" aria-label="Copy address">${ic("copy")}</button>` : ""}</div><div class="row">${B.ctlBtns(s)}</div></div>`; };
 const tabsHtml = () => `<div class="tabs" role="tablist" aria-label="Server sections">${TABS().map((t) => `<a role="tab" href="#server/${D.n}/${t[0]}" aria-selected="${B.cur.t === t[0]}" ${B.cur.t === t[0] ? 'class="on"' : ""}>${ic(t[2])}<span>${t[1]}</span></a>`).join("")}</div>`;
 async function TAB() {
   const t = TABS().some((x) => x[0] === B.cur.t) ? B.cur.t : "overview", tok = ++D.tok; if (D.n !== B.cur.n) return;

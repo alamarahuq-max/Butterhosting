@@ -2,7 +2,7 @@
    One <symbol> sprite, used as <svg class="ic"><use href="#i-egg"/></svg>. Colours follow currentColor. */
 (function () {
   var S = 'stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"';
-  var F = 'fill="currentColor" fill-opacity=".2"';
+  var F = 'fill="none"';
   var gear = (function () { // 8-tooth gear outline built at load, so the file stays small
     var p = "", n = 8, ro = 9.2, ri = 7.2;
     for (var i = 0; i < n * 2; i++) {
@@ -62,6 +62,21 @@
     chip: '<rect x="6" y="6" width="12" height="12" rx="2.500" ' + F + ' ' + S + '/><rect x="9.500" y="9.500" width="5" height="5" rx="1" ' + S + ' fill="none"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3" ' + S + ' fill="none"/>',
     disk: '<ellipse cx="12" cy="6.500" rx="8" ry="3" ' + F + ' ' + S + '/><path d="M4 6.500v11c0 1.700 3.600 3 8 3s8-1.300 8-3v-11M4 12c0 1.700 3.600 3 8 3s8-1.300 8-3" ' + S + ' fill="none"/>'
   };
+  // plain, widely recognised outline icons (replace the old dino-flavoured ones)
+  var P = function (d) { return '<path d="' + d + '" ' + S + ' fill="none"/>'; };
+  I.nest = P("M3 11l9-7.5 9 7.5M5.5 9.5V20h13V9.5M10 20v-6h4v6");
+  I.egg = P("M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9");
+  I.footprint = '<circle cx="9" cy="8" r="3.2" ' + S + ' fill="none"/>' + P("M3 20c.5-3.600 3-5.500 6-5.500s5.500 1.900 6 5.500") + '<circle cx="17" cy="9" r="2.600" ' + S + ' fill="none"/>' + P("M17 14.200c2.400.2 3.900 1.800 4.300 4.300");
+  I.bone = I.folder;
+  I.fossil = '<rect x="3" y="4" width="18" height="5" rx="1.500" ' + S + ' fill="none"/>' + P("M5 9v9.500A1.500 1.500 0 0 0 6.500 20h11a1.500 1.500 0 0 0 1.500-1.500V9M10 13h4");
+  I.volcano = P("M4 7h10M18 7h2M4 17h4M12 17h8") + '<circle cx="16" cy="7" r="2" ' + S + ' fill="none"/><circle cx="10" cy="17" r="2" ' + S + ' fill="none"/>';
+  I.fern = P("M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4");
+  I.meteor = I.warn;
+  I.claw = P("M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3M16 8l4 4-4 4M20 12H10");
+  I.fang = '<circle cx="12" cy="12" r="9" ' + S + ' fill="none"/>' + P("M5.600 5.600l12.800 12.800");
+  I.crown = P("M4 18l-1-10 5 4 4-7 4 7 5-4-1 10zM5 21h14");
+  I.heartbeat = P("M3 12h4l3-8 4 16 3-8h4");
+  I.coin = '<circle cx="12" cy="12" r="9" ' + S + ' fill="none"/>' + P("M14.500 9.500c-.4-1-1.300-1.500-2.500-1.500-1.500 0-2.500.8-2.500 2s1 1.600 2.500 2 2.500.8 2.500 2-1 2-2.500 2c-1.300 0-2.200-.6-2.600-1.600M12 6.500V8M12 16v1.500");
   // friendly mascot: own geometric design, colours via --d1 (body) / --d2 (belly+plates) so it follows the theme
   var mascot = '<symbol id="i-dino" viewBox="0 0 64 64"><path d="M6 46c6 2 9-3 11-8l2 8z" fill="var(--d2,#2fa36b)" stroke="var(--dino-line,#14122b)" stroke-width="2.600" stroke-linejoin="round"/>' +
     '<path d="M24 14l3-6 3 5 3-6 3 6 3-5 3 6z" fill="var(--d2,#2fa36b)" stroke="var(--dino-line,#14122b)" stroke-width="2.200" stroke-linejoin="round" transform="translate(-6 8) scale(.9)"/>' +

@@ -1,0 +1,94 @@
+{
+ "ok": true,
+ "mem": {
+  "total": 3920,
+  "avail": 914,
+  "os": 1953,
+  "servers": 1053,
+  "worlds": 0
+ },
+ "servers": [
+  {
+   "name": "test-bed2",
+   "container": "bw-test-bed2",
+   "state": "running",
+   "type": "bedrock",
+   "flavor": "bedrock",
+   "version": "LATEST",
+   "port": 19133,
+   "bedrock_port": 19133,
+   "join": null,
+   "cracked": false,
+   "players": null,
+   "ram": 527,
+   "cpu": 1.32,
+   "motd": "",
+   "max_players": 10,
+   "auto_restart": true,
+   "mem_limit": 1536,
+   "commercial": false,
+   "owner": ""
+  },
+  {
+   "name": "test-bed",
+   "container": "bw-test-bed",
+   "state": "running",
+   "type": "bedrock",
+   "flavor": "bedrock",
+   "version": "LATEST",
+   "port": 19132,
+   "bedrock_port": 19132,
+   "join": null,
+   "cracked": false,
+   "players": null,
+   "ram": 526,
+   "cpu": 1.27,
+   "motd": "",
+   "max_players": 10,
+   "auto_restart": true,
+   "mem_limit": 1536,
+   "commercial": false,
+   "owner": ""
+  }
+ ],
+ "ip": "10.0.2.15",
+ "temps": [],
+ "temp": null,
+ "cpu": 10.578279266572633,
+ "net_rx": 275.37437603993345,
+ "net_tx": 1552.967276760954,
+ "uptime": 349,
+ "load": "2.89 2.38 1.08",
+ "cores": 2,
+ "kernel": "6.12.119-0-lts",
+ "persist": false,
+ "max_servers": 2,
+ "engine": "ok",
+ "platform": "linux-os",
+ "app": false,
+ "docker": {
+  "installed": true,
+  "running": true,
+  "version": "28.3.3"
+ },
+ "setup_done": false,
+ "machine_name": "butter-box",
+ "commercial": {
+  "enabled": false,
+  "state": "off"
+ },
+ "capacity": {
+  "java_need": 1536,
+  "bedrock_need": 700,
+  "keep_free": 300,
+  "java_fits": false,
+  "bedrock_fits": false,
+  "estimate": true
+ },
+ "backup": {
+  "usb": false,
+  "last": null
+ },
+ "web_rss_mb": 76,
+ "limit_web_mb": 80
+}

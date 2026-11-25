@@ -1,0 +1,301 @@
+Unable to find image 'alpine:3.22' locally
+3.22: Pulling from library/alpine
+710f3da1112f: Pulling fs layer
+710f3da1112f: Download complete
+41efde5237a6: Download complete
+f270d3a86df5: Download complete
+710f3da1112f: Pull complete
+Digest: sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f
+Status: Downloaded newer image for alpine:3.22
+== packages for the build
+== build user + signing key
+== aports (profile scripts), branch 3.22-stable
+Cloning into '/home/build/aports'...
+fatal: unable to access 'https://gitlab.alpinelinux.org/alpine/aports.git/': The requested URL returned error: 418
+Cloning into '/home/build/aports'...
+Updating files:  30% (6962/22570)Updating files:  31% (6997/22570)Updating files:  32% (7223/22570)Updating files:  33% (7449/22570)Updating files:  34% (7674/22570)Updating files:  35% (7900/22570)Updating files:  36% (8126/22570)Updating files:  37% (8351/22570)Updating files:  38% (8577/22570)Updating files:  39% (8803/22570)Updating files:  40% (9028/22570)Updating files:  41% (9254/22570)Updating files:  42% (9480/22570)Updating files:  43% (9706/22570)Updating files:  44% (9931/22570)Updating files:  45% (10157/22570)Updating files:  46% (10383/22570)Updating files:  47% (10608/22570)Updating files:  48% (10834/22570)Updating files:  49% (11060/22570)Updating files:  50% (11285/22570)Updating files:  51% (11511/22570)Updating files:  52% (11737/22570)Updating files:  53% (11963/22570)Updating files:  54% (12188/22570)Updating files:  55% (12414/22570)Updating files:  56% (12640/22570)Updating files:  57% (12865/22570)Updating files:  58% (13091/22570)Updating files:  59% (13317/22570)Updating files:  60% (13542/22570)Updating files:  61% (13768/22570)Updating files:  61% (13935/22570)Updating files:  62% (13994/22570)Updating files:  63% (14220/22570)Updating files:  64% (14445/22570)Updating files:  65% (14671/22570)Updating files:  66% (14897/22570)Updating files:  67% (15122/22570)Updating files:  68% (15348/22570)Updating files:  69% (15574/22570)Updating files:  70% (15799/22570)Updating files:  71% (16025/22570)Updating files:  72% (16251/22570)Updating files:  73% (16477/22570)Updating files:  74% (16702/22570)Updating files:  75% (16928/22570)Updating files:  76% (17154/22570)Updating files:  77% (17379/22570)Updating files:  78% (17605/22570)Updating files:  79% (17831/22570)Updating files:  80% (18056/22570)Updating files:  81% (18282/22570)Updating files:  82% (18508/22570)Updating files:  83% (18734/22570)Updating files:  84% (18959/22570)Updating files:  85% (19185/22570)Updating files:  86% (19411/22570)Updating files:  87% (19636/22570)Updating files:  88% (19862/22570)Updating files:  89% (20088/22570)Updating files:  90% (20313/22570)Updating files:  91% (20539/22570)Updating files:  92% (20765/22570)Updating files:  93% (20991/22570)Updating files:  93% (21013/22570)Updating files:  94% (21216/22570)Updating files:  95% (21442/22570)Updating files:  96% (21668/22570)Updating files:  97% (21893/22570)Updating files:  98% (22119/22570)Updating files:  99% (22345/22570)Updating files: 100% (22570/22570)Updating files: 100% (22570/22570), done.
+   (skipping rfkill: not in this release)
+   (skipping linux-firmware-iwlwifi: not in this release)
+   cloudflared downloaded
+   bore downloaded
+== rtl8188eu driver (best effort)
+   headers: /usr/src/linux-headers-6.12.119-0-lts  kernel: 6.12.119-0-lts
+   8188eu.ko built from https://github.com/lwfinger/rtl8188eu.git for 6.12.119-0-lts
+== initramfs: boot from an ISO file on an existing disk (dual-boot)
+init patched
+== mkimage
+OK: 0 MiB in 0 packages
+fetch https://dl-cdn.alpinelinux.org/alpine/v3.22/main/x86_64/APKINDEX.tar.gz
+fetch https://dl-cdn.alpinelinux.org/alpine/v3.22/community/x86_64/APKINDEX.tar.gz
+v3.22.8-79-ge984628726a [https://dl-cdn.alpinelinux.org/alpine/v3.22/main]
+v3.22.8-68-g4408cca260d [https://dl-cdn.alpinelinux.org/alpine/v3.22/community]
+OK: 26325 distinct packages available
+>>> mkimage-x86_64: Building butteros
+>>> mkimage-x86_64: --> kernel x86_64 lts 3d48d16a0017b61188aaa1714674e6b66f82f606 linux-lts linux-firmware wireless-regdb xtables-addons-lts
+Parallel mksquashfs: Using 4 processors
+Creating 4.0 filesystem on /tmp/update-kernel.IIluT0/boot/modloop-lts, block size 131072.
+[============-                                               ]  2300/11262  20%[=======================|                                    ]  4500/11262  39%[================================================-           ]  9200/11262  81%[=====================================================|      ] 10200/11262  90%[===========================================================/] 11262/11262 100%
+
+Exportable Squashfs 4.0 filesystem, xz compressed, data block size 131072
+	compressed data, compressed metadata, compressed fragments,
+	compressed xattrs, compressed ids
+	duplicates are removed
+Filesystem size 217384.70 Kbytes (212.29 Mbytes)
+	23.83% of uncompressed filesystem size (912134.56 Kbytes)
+Inode table size 58520 bytes (57.15 Kbytes)
+	23.92% of uncompressed inode table size (244606 bytes)
+Directory table size 62806 bytes (61.33 Kbytes)
+	37.49% of uncompressed directory table size (167534 bytes)
+Number of duplicate files found 528
+Number of inodes 6844
+Number of files 5779
+Number of fragments 1567
+Number of symbolic links 0
+Number of device nodes 0
+Number of fifo nodes 0
+Number of socket nodes 0
+Number of directories 1065
+Number of hard-links 0
+Number of ids (unique uids + gids) 1
+Number of uids 1
+	root (0)
+Number of gids 1
+	root (0)
+Signing: /tmp/update-kernel.IIluT0/boot/modloop-lts
+>>> mkimage-x86_64: --> apks x86_64 1e27e615ff2cea0b41d9b424b392c3fd500d8f36
+Downloading acl-libs-2.3.2-r1
+Downloading ada-libs-2.9.2-r4
+Downloading agetty-2.41.6-r1
+Downloading agetty-openrc-0.62.6-r0
+Downloading alpine-base-3.22.8-r0
+Downloading alpine-baselayout-3.7.0-r0
+Downloading alpine-baselayout-data-3.7.0-r0
+Downloading alpine-conf-3.20.0-r2
+Downloading alpine-keys-2.5-r0
+Downloading alpine-release-3.22.8-r0
+Downloading apk-cron-1.0-r3
+Downloading apk-tools-2.14.13-r0
+Downloading blkid-2.41.6-r1
+Downloading bonding-2.6-r5
+Downloading bridge-1.5-r5
+Downloading brotli-libs-1.1.1-r0
+Downloading busybox-1.37.0-r20
+Downloading busybox-binsh-1.37.0-r20
+Downloading busybox-extras-1.37.0-r20
+Downloading busybox-mdev-openrc-1.37.0-r20
+Downloading busybox-openrc-1.37.0-r20
+Downloading busybox-suid-1.37.0-r20
+Downloading c-ares-1.34.9-r0
+Downloading ca-certificates-20261020-r0
+Downloading ca-certificates-bundle-20261020-r0
+Downloading cfdisk-2.41.6-r1
+Downloading chrony-4.6.1-r1
+Downloading chrony-openrc-4.6.1-r1
+Downloading containerd-2.1.5-r2
+Downloading containerd-openrc-2.1.5-r2
+Downloading curl-8.14.1-r4
+Downloading dbus-libs-1.16.2-r1
+Downloading device-mapper-libs-2.03.32-r0
+Downloading dhcpcd-10.2.3-r0
+Downloading dhcpcd-openrc-10.2.3-r0
+Downloading dialog-1.3.20250116-r1
+Downloading dmesg-2.41.6-r1
+Downloading doas-6.8.2-r8
+Downloading docker-28.3.3-r5
+Downloading docker-cli-28.3.3-r5
+Downloading docker-cli-buildx-0.24.0-r5
+Downloading docker-engine-28.3.3-r5
+Downloading docker-openrc-28.3.3-r5
+Downloading dosfstools-4.2-r2
+Downloading e2fsprogs-1.47.2-r2
+Downloading e2fsprogs-extra-1.47.2-r2
+Downloading e2fsprogs-libs-1.47.2-r2
+Downloading ethtool-6.14.1-r0
+Downloading eudev-3.2.14-r5
+Downloading eudev-libs-3.2.14-r5
+Downloading eudev-openrc-3.2.14-r5
+Downloading exfatprogs-1.2.9-r0
+Downloading findmnt-2.41.6-r1
+Downloading flock-2.41.6-r1
+Downloading font-terminus-4.49.1-r4
+Downloading fstrim-2.41.6-r1
+Downloading glib-2.84.4-r0
+Downloading gmp-6.3.0-r3
+Downloading gnutls-3.8.14-r0
+Downloading hexdump-2.41.6-r1
+Downloading hwdata-pci-0.395-r0
+Downloading hwdata-usb-0.395-r0
+Downloading icu-data-en-76.1-r1
+Downloading icu-libs-76.1-r1
+Downloading ifupdown-ng-0.12.1-r7
+Downloading ifupdown-ng-ethtool-0.12.1-r7
+Downloading ifupdown-ng-ppp-0.12.1-r7
+Downloading ifupdown-ng-wifi-0.12.1-r7
+Downloading iptables-1.8.11-r1
+Downloading iptables-openrc-1.8.11-r1
+Downloading iw-6.9-r0
+Downloading jq-1.8.2-r0
+Downloading kbd-bkeymaps-2.7.1-r1
+Downloading kmod-libs-34.2-r0
+Downloading libapk2-2.14.13-r0
+Downloading libblkid-2.41.6-r1
+Downloading libcap-ng-0.8.5-r0
+Downloading libcap2-2.78-r0
+Downloading libcom_err-1.47.2-r2
+Downloading libcrypto3-3.5.9-r2
+Downloading libcurl-8.14.1-r4
+Downloading libeconf-0.6.3-r0
+Downloading libedit-20250104.3.1-r1
+Downloading libfdisk-2.41.6-r1
+Downloading libffi-3.8.1-r0
+Downloading libgcc-14.2.0-r6
+Downloading libidn2-2.3.7-r0
+Downloading libintl-0.24.1-r0
+Downloading libmnl-1.0.5-r2
+Downloading libmount-2.41.6-r1
+Downloading libncursesw-6.5_p20250503-r0
+Downloading libnftnl-1.2.9-r0
+Downloading libnl3-3.11.0-r0
+Downloading libpcap-1.10.7-r0
+Downloading libpsl-0.21.5-r3
+Downloading libretls-3.7.0-r2
+Downloading libseccomp-2.6.1-r0
+Downloading libsmartcols-2.41.6-r1
+Downloading libssl3-3.5.9-r2
+Downloading libstdc++-14.2.0-r6
+Downloading libtasn1-4.21.0-r0
+Downloading libunistring-1.3-r0
+Downloading libusb-1.0.28-r0
+Downloading libuuid-2.41.6-r1
+Downloading libxtables-1.8.11-r1
+Downloading libxxhash-0.8.3-r0
+Downloading linux-firmware-amdgpu-20250509-r0
+Downloading linux-firmware-ath9k_htc-20250509-r0
+Downloading linux-firmware-brcm-20250509-r0
+Downloading linux-firmware-cypress-20250509-r0
+Downloading linux-firmware-i915-20250509-r0
+Downloading linux-firmware-mediatek-20250509-r0
+Downloading linux-firmware-radeon-20250509-r0
+Downloading linux-firmware-rtl_bt-20250509-r0
+Downloading linux-firmware-rtl_nic-20250509-r0
+Downloading linux-firmware-rtlwifi-20250509-r0
+Downloading linux-firmware-rtw88-20250509-r0
+Downloading linux-firmware-rtw89-20250509-r0
+Downloading linux-firmware-synaptics-20250509-r0
+Downloading linux-pam-1.7.0-r4
+Downloading log_proxy-0.7.4-r0
+Downloading logger-2.41.6-r1
+Downloading losetup-2.41.6-r1
+Downloading lsblk-2.41.6-r1
+Downloading lscpu-2.41.6-r1
+Downloading lz4-libs-1.10.0-r0
+Downloading mcookie-2.41.6-r1
+Downloading mdev-conf-4.8-r0
+Downloading mount-2.41.6-r1
+Downloading musl-1.2.5-r13
+Downloading musl-utils-1.2.5-r13
+Downloading ncurses-terminfo-base-6.5_p20250503-r0
+Downloading nettle-3.10.2-r0
+Downloading network-extras-2.1-r0
+Downloading nghttp2-libs-1.69.0-r0
+Downloading nodejs-22.23.5-r0
+Downloading oniguruma-6.9.10-r0
+Downloading openntpd-6.8_p1-r9
+Downloading openntpd-openrc-6.8_p1-r9
+Downloading openrc-0.62.6-r0
+Downloading openrc-user-0.62.6-r0
+Downloading openssh-10.0_p1-r11
+Downloading openssh-client-common-10.0_p1-r11
+Downloading openssh-client-default-10.0_p1-r11
+Downloading openssh-keygen-10.0_p1-r11
+Downloading openssh-server-10.0_p1-r11
+Downloading openssh-server-common-10.0_p1-r11
+Downloading openssh-server-common-openrc-10.0_p1-r11
+Downloading openssh-sftp-server-10.0_p1-r11
+Downloading openssl-3.5.9-r2
+Downloading p11-kit-0.26.2-r0
+Downloading parted-3.6-r2
+Downloading partx-2.41.6-r1
+Downloading pciutils-3.13.0-r1
+Downloading pciutils-libs-3.13.0-r1
+Downloading pcre2-10.46-r1
+Downloading pcsc-lite-libs-2.3.3-r0
+Downloading popt-1.19-r4
+Downloading ppp-atm-2.5.2-r0
+Downloading ppp-chat-2.5.2-r0
+Downloading ppp-daemon-2.5.2-r0
+Downloading ppp-l2tp-2.5.2-r0
+Downloading ppp-minconn-2.5.2-r0
+Downloading ppp-openrc-2.5.2-r0
+Downloading ppp-passwordfd-2.5.2-r0
+Downloading ppp-pppoe-2.5.2-r0
+Downloading ppp-radius-2.5.2-r0
+Downloading ppp-winbind-2.5.2-r0
+Downloading readline-8.2.13-r1
+Downloading rsync-3.5.2-r1
+Downloading rsync-openrc-3.5.2-r1
+Downloading runc-1.3.7-r0
+Downloading runuser-2.41.6-r1
+Downloading scanelf-1.3.8-r1
+Downloading setarch-2.41.6-r1
+Downloading setpriv-2.41.6-r1
+Downloading sfdisk-2.41.6-r1
+Downloading simdjson-3.12.0-r0
+Downloading simdutf-7.2.1-r0
+Downloading skalibs-libs-2.14.4.0-r0
+Downloading sqlite-libs-3.49.2-r1
+Downloading ssl_client-1.37.0-r20
+Downloading tini-static-0.19.0-r3
+Downloading tiny-cloud-3.2.2-r0
+Downloading tiny-cloud-nocloud-3.2.2-r0
+Downloading tiny-cloud-openrc-3.2.2-r0
+Downloading tzdata-2026f-r0
+Downloading udev-init-scripts-35-r1
+Downloading udev-init-scripts-openrc-35-r1
+Downloading umount-2.41.6-r1
+Downloading usb-modeswitch-2.6.1-r4
+Downloading usbutils-018-r0
+Downloading util-linux-2.41.6-r1
+Downloading util-linux-misc-2.41.6-r1
+Downloading util-linux-openrc-2.41.6-r1
+Downloading utmps-libs-0.1.3.1-r0
+Downloading uuidgen-2.41.6-r1
+Downloading vlan-2.3-r1
+Downloading wget-1.25.0-r1
+Downloading wipefs-2.41.6-r1
+Downloading wireless-regdb-2025.02.20-r0
+Downloading wireless-tools-30_pre9-r5
+Downloading wireless-tools-libs-30_pre9-r5
+Downloading wpa_supplicant-2.11-r2
+Downloading wpa_supplicant-openrc-2.11-r2
+Downloading xz-libs-5.8.4-r0
+Downloading yaml-0.2.5-r2
+Downloading yx-1.0.2-r0
+Downloading zlib-1.4-r0
+Downloading zstd-libs-1.6.0-r1
+Index has 0 packages (of which 210 are new)
+>>> Signed /tmp/mkimage.dzcQdY/apks_x86_64_1e27e615ff2cea0b41d9b424b392c3fd500d8f36.work/apks/x86_64/APKINDEX.tar.gz
+>>> mkimage-x86_64: --> apkovl alpine b3610c1845e8a852c5d04b45a9ff0983d637aed6
+>>> mkimage-x86_64: Generating alpine.apkovl.tar.gz
+>>> mkimage-x86_64: --> syslinux b1db609243c8a56d3a840a0750c5d8482011bb60
+>>> mkimage-x86_64: --> syslinux_cfg boot/syslinux/syslinux.cfg 1f7f7f803bd6492e2ab43ae57d09abadb5557f60
+>>> mkimage-x86_64: --> grub_cfg boot/grub/grub.cfg 06a48979366ae2f74f9a3a3f63fef5131a793fbe
+>>> mkimage-x86_64: --> grub_efi x86_64-efi bootx64.efi 299763d8c8232d52ff07f91ec2009e99134667ba
+>>> mkimage-x86_64: Creating alpine-butteros-butteros-x86_64.iso
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+xorriso : NOTE : Environment variable SOURCE_DATE_EPOCH encountered with value 1795614020
+Images generated in /work/out
+== branded boot menus: /work/out/alpine-butteros-butteros-x86_64.iso
+kernel args: modules=loop,squashfs,sd-mod,usb-storage 
+kernel=/boot/vmlinuz-lts initrd=/boot/initramfs-lts
+Media current: stdio file, overwriteable
+Media status : is written , is appendable
+Boot record  : El Torito , MBR isohybrid cyl-align-on GPT
+Media summary: 1 session, 293344 data blocks,  573m data, 85.1g free
+Volume id    : 'alpine-butteros butteros x86_64'
+branded ISO written: /work/out/ButterOS.iso
+total 574M
+-rw-r--r-- 1 root root 574M Nov 25 13:48 ButterOS.iso
+-rw-r--r-- 1 root root   79 Nov 25 13:48 ButterOS.iso.sha256
+drwxr-xr-x 2 root root 4.0K Nov 25 13:48 diag

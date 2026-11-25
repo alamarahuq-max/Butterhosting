@@ -1,0 +1,33 @@
+#!/bin/sh
+# butter-net status | scan | join SSID [PASSWORD] | forget     (used by the web page and the text menu)
+CONF=/etc/wpa_supplicant/wpa_supplicant.conf
+IF=$(for n in /sys/class/net/*; do [ -d "$n/wireless" ] || [ -d "$n/phy80211" ] && echo "${n##*/}"; done | head -1)
+j() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+case "$1" in
+status)
+  ip=$(ip -4 -o addr show scope global 2>/dev/null | grep -v ' docker\| br-\| veth' | head -1 | sed 's/.* inet \([0-9.]*\).*/\1/')
+  wired=0; for n in /sys/class/net/*; do i=${n##*/}; [ -d "$n/wireless" ] && continue; case "$i" in lo|docker*|veth*|br-*|virbr*) continue;; esac; [ "$(cat "$n/carrier" 2>/dev/null)" = 1 ] && wired=1; done
+  ssid=""; [ -n "$IF" ] && ssid=$(iw dev "$IF" link 2>/dev/null | sed -n 's/^[[:space:]]*SSID: //p')
+  printf '{"ok":true,"ip":"%s","wired":%s,"wifi_adapter":%s,"wifi_iface":"%s","ssid":"%s","saved":%s}\n' "$ip" "$([ $wired = 1 ] && echo true || echo false)" "$([ -n "$IF" ] && echo true || echo false)" "$IF" "$(j "$ssid")" "$(grep -q 'network={' $CONF 2>/dev/null && echo true || echo false)";;
+scan)
+  [ -n "$IF" ] || { echo '{"ok":false,"error":"No Wi-Fi adapter found. Plug one in and wait about 15 seconds, or use a network cable."}'; exit 0; }
+  ip link set "$IF" up 2>/dev/null; iw dev "$IF" scan 2>/dev/null > /run/butter-scan.txt; sleep 1
+  [ -s /run/butter-scan.txt ] || { iw dev "$IF" scan 2>/dev/null > /run/butter-scan.txt; }
+  first=1; printf '{"ok":true,"networks":['
+  awk '/^BSS /{if(s!=""){print s"\t"g"\t"l"\t"p}; s="";g="";l="";p="open"} /signal:/{l=$2} /SSID:/{sub(/^[ \t]*SSID: /,"");s=$0} /RSN:|WPA:/{p="secured"} END{if(s!="")print s"\t"g"\t"l"\t"p}' /run/butter-scan.txt | sort -t"$(printf '\t')" -k3 -n -r | awk -F'\t' '$1!="" && !seen[$1]++' |
+  while IFS="$(printf '\t')" read -r s g l p; do [ $first = 1 ] || printf ','; first=0; printf '{"ssid":"%s","signal":%s,"security":"%s"}' "$(j "$s")" "$(printf '%.0f' "${l:-0}")" "$p"; done
+  printf ']}\n';;
+join)
+  [ -n "$IF" ] || { echo '{"ok":false,"error":"No Wi-Fi adapter found."}'; exit 0; }
+  /usr/lib/butter/wifi-save "$2" "$3" || { echo '{"ok":false,"error":"Could not save the network."}'; exit 0; }
+  [ -s "/run/wpa.$IF.pid" ] && kill "$(cat /run/wpa.$IF.pid)" 2>/dev/null; [ -s "/run/udhcpc.$IF.pid" ] && kill "$(cat /run/udhcpc.$IF.pid)" 2>/dev/null
+  rm -f "/run/wpa.$IF.pid" "/run/udhcpc.$IF.pid"; sleep 1
+  mkdir -p /run/wpa_supplicant; wpa_supplicant -B -i "$IF" -c "$CONF" -P "/run/wpa.$IF.pid" >/dev/null 2>&1
+  i=0; while [ $i -lt 20 ]; do iw dev "$IF" link 2>/dev/null | grep -q '^Connected' && break; sleep 1; i=$((i+1)); done
+  iw dev "$IF" link 2>/dev/null | grep -q '^Connected' || { echo '{"ok":false,"error":"Could not connect. Check the password and try again."}'; exit 0; }
+  udhcpc -i "$IF" -b -t 6 -T 3 -S -p "/run/udhcpc.$IF.pid" >/dev/null 2>&1
+  i=0; while [ $i -lt 15 ]; do ip -4 addr show "$IF" | grep -q inet && break; sleep 1; i=$((i+1)); done
+  ip -4 addr show "$IF" | grep -q inet && echo '{"ok":true}' || echo '{"ok":false,"error":"Joined the network but got no address from it."}';;
+forget) rm -f $CONF; [ -n "$IF" ] && { [ -s "/run/wpa.$IF.pid" ] && kill "$(cat /run/wpa.$IF.pid)" 2>/dev/null; rm -f "/run/wpa.$IF.pid"; }; echo '{"ok":true}';;
+*) echo "usage: butter-net status|scan|join SSID [PASSWORD]|forget" >&2; exit 1;;
+esac

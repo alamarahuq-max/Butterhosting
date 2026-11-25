@@ -19,13 +19,20 @@ function body(req, max = 2 << 20) { return new Promise((resolve, reject) => { le
 }
 const lim = new Map();
 function rate(ip, a) { // slow down heavy actions a little
-  if (!["create", "setversion", "clone", "rename", "restore"].includes(a)) return true; const k = ip + a, t = Date.now(); if (lim.get(k) && t - lim.get(k) < 1500) return false; lim.set(k, t); return true; }
+  if (!["create", "setversion", "clone", "rename", "restore", "wifijoin", "wifiscan"].includes(a)) return true; const k = ip + a, t = Date.now(); if (lim.get(k) && t - lim.get(k) < 1500) return false; lim.set(k, t); return true; }
 
 async function api(a, q, req, res) {
   const n = q.get("n") || "", g = (k) => q.get(k) || "";
   switch (a) {
     case "": case "status": return S.status();
     case "ping": return ok();
+    case "netstatus": case "wifiscan": case "wifijoin": case "wififorget": { // ButterOS only: the app uses the host's own network
+      if (!IS_OS) return ok({ managed: false, wired: true, wifi_adapter: false });
+      const cmd = { netstatus: ["status"], wifiscan: ["scan"], wifijoin: ["join", g("ssid"), g("pass")], wififorget: ["forget"] }[a];
+      if (a === "wifijoin" && !g("ssid")) throw new Fail("Choose a network first.");
+      const r = await run("/usr/local/bin/butter-net", cmd, { timeout: 70000 });
+      try { return JSON.parse(r.out.trim().split("\n").pop()); } catch (e) { throw new Fail("The network tool did not answer. Try again."); }
+    }
     case "versions": return S.versions();
     case "logs": return S.logs(n);
     case "start": case "stop": case "restart": return S.control(a, n);

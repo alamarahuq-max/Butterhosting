@@ -1,28 +1,19 @@
 #!/bin/sh
-# ButterOS Wi-Fi: make sure the adapter is up, then open NetworkManager's menu (Activate a connection -> pick the network -> password).
+# ButterOS Wi-Fi menu: pick a network, type the password once. After that it reconnects by itself on every boot.
 modprobe cfg80211 2>/dev/null; /usr/lib/butter/load-wifi 2>/dev/null
-findif() { ls /sys/class/net 2>/dev/null | while read n; do [ -d /sys/class/net/$n/wireless ] || [ -d /sys/class/net/$n/phy80211 ] && echo $n; done | head -1; }
-IF=$(findif)
-if [ -z "$IF" ]; then
-  # a USB adapter may have been plugged in only seconds ago, or its driver is not loaded yet: try everything, then wait
-  dialog --infobox "Looking for a Wi-Fi adapter ...\n\n(USB adapters can take up to 15 seconds)" 6 50
-  for d in /sys/bus/usb/devices/*; do [ -f "$d/modalias" ] && modprobe -b "$(cat $d/modalias)" 2>/dev/null; done
-  for d in /sys/bus/usb/devices/*:*; do [ -f "$d/modalias" ] && modprobe -b "$(cat $d/modalias)" 2>/dev/null; done
-  grep -q '^8188eu ' /proc/modules 2>/dev/null || { [ -f /usr/lib/butter/8188eu.ko ] && insmod /usr/lib/butter/8188eu.ko 2>/dev/null; }
-  i=0; while [ $i -lt 12 ] && [ -z "$IF" ]; do IF=$(findif); [ -n "$IF" ] || sleep 1; i=$((i+1)); done
-  # nothing with the separate driver: try the kernel's own rtl8xxxu as a fallback
-  if [ -z "$IF" ] && grep -q '^8188eu ' /proc/modules; then rmmod 8188eu 2>/dev/null; /sbin/modprobe --ignore-install rtl8xxxu 2>/dev/null; i=0; while [ $i -lt 10 ] && [ -z "$IF" ]; do IF=$(findif); [ -n "$IF" ] || sleep 1; i=$((i+1)); done; fi
-fi
-if [ -z "$IF" ]; then
-  R=/run/butter-wifi-report.txt
-  { echo "USB devices seen:"; for d in /sys/bus/usb/devices/[0-9]*-[0-9.]*; do [ -f "$d/idVendor" ] || continue; case "$(basename $d)" in *:*) continue;; esac
-      b=$(basename $d); drv=none; for i in $d/*:*; do [ -L "$i/driver" ] && drv=$(basename $(readlink $i/driver)); done
-      echo " $(cat $d/idVendor):$(cat $d/idProduct)  $(cat $d/manufacturer 2>/dev/null) $(cat $d/product 2>/dev/null)  driver=$drv"; done
-    echo; echo "Kernel messages:"; dmesg 2>/dev/null | grep -iE "usb|firmware|8188|rtl|wlan|wifi|cfg80211" | tail -12; } > $R 2>&1
-  H=""; if dmesg 2>/dev/null | grep -q "USB disconnect"; then dmesg | grep -qiE "rtl|8188|wlan" && H="The adapter was seen and then dropped off the USB port by itself. That is almost always power: plug it straight into a USB port on the back of the machine (not a hub, a keyboard, or the front panel) and try again.\n\n"; fi
-  dialog --title "No Wi-Fi adapter found" --msgbox "$H$(cat $R | cut -c1-70)\n\nIf your adapter is listed above with driver=none, this ButterOS build has no driver for it yet: send this screen (photo) with the adapter name. A network cable works with no setup." 24 76; exit 1
-fi
-ip link set "$IF" up 2>/dev/null
-nmcli radio wifi on >/dev/null 2>&1; nmcli device wifi rescan >/dev/null 2>&1
-export NEWT_COLORS='root=white,black;window=white,black;border=yellow,black;title=yellow,black;button=black,yellow;actbutton=black,white;compactbutton=white,black;listbox=white,black;actlistbox=black,yellow;entry=white,black;textbox=white,black;label=white,black;checkbox=white,black;actcheckbox=black,yellow;helpline=black,yellow'
-nmtui
+IF=""; i=0
+dialog --infobox "Looking for a Wi-Fi adapter ...\n\n(USB adapters can take up to 15 seconds)" 6 50
+while [ $i -lt 15 ]; do butter-net status | grep -q '"wifi_adapter":true' && { IF=1; break; }; sleep 1; i=$((i+1)); done
+[ -n "$IF" ] || { dialog --title "No Wi-Fi adapter found" --msgbox "Plug the adapter straight into a USB port on the back of the machine (not a hub) and try again.\n\nA network cable works with no setup." 12 64; exit 1; }
+dialog --infobox "Scanning for networks ..." 5 40
+LIST=$(butter-net scan | tr '{' '\n' | sed -n 's/.*"ssid":"\([^"]*\)","signal":\(-\?[0-9]*\),"security":"\([a-z]*\)".*/\1|\2|\3/p')
+[ -n "$LIST" ] || { dialog --msgbox "No networks found. Move closer to the router and try again." 8 56; exit 1; }
+set --; while IFS='|' read -r s l p; do set -- "$@" "$s" "$p, signal $l"; done <<EOF
+$LIST
+EOF
+SSID=$(dialog --stdout --title "Choose your Wi-Fi" --menu "" 20 64 12 "$@") || exit 0
+PASS=""; SEC=$(echo "$LIST" | awk -F'|' -v s="$SSID" '$1==s{print $3; exit}')
+[ "$SEC" = open ] || PASS=$(dialog --stdout --insecure --passwordbox "Password for $SSID" 8 56) || exit 0
+dialog --infobox "Connecting to $SSID ..." 5 50
+R=$(butter-net join "$SSID" "$PASS")
+case "$R" in *'"ok":true'*) dialog --msgbox "Connected. It will reconnect by itself next time." 7 52;; *) dialog --msgbox "$(echo "$R" | sed 's/.*"error":"\([^"]*\)".*/\1/')" 8 60;; esac

@@ -134,16 +134,6 @@ def main():
             if vm.sh("docker info >/dev/null 2>&1")[0] == 0: break
             time.sleep(3)
         c, o = vm.sh("docker info 2>&1 | grep -E 'Storage Driver|Cgroup|Server Version'"); check("Docker engine runs", c == 0, o.replace("\n", " | "))
-        if os.environ.get("ONLY_NMTUI"):
-            vm.sh("modprobe mac80211_hwsim radios=1 2>&1; sleep 4; nmcli radio wifi on; nmcli device wifi rescan 2>&1; sleep 3; setfont ter-v22b 2>/dev/null; true", 60)
-            vm.sh("NEWT_COLORS='root=white,black;window=white,black;border=yellow,black;title=yellow,black;button=black,yellow;actbutton=black,white;compactbutton=white,black;listbox=white,black;actlistbox=black,yellow;entry=white,black;textbox=white,black;label=white,black;checkbox=white,black;actcheckbox=black,yellow;helpline=black,yellow' TERM=linux openvt -c 3 -s -f -- nmtui >/dev/null 2>&1 &", 20)
-            time.sleep(6); vm.shot("nmtui-main")
-            vm.mon_cmd("sendkey down"); time.sleep(1); vm.mon_cmd("sendkey ret"); time.sleep(4); vm.shot("nmtui-activate")
-            c, o = vm.sh("nmcli -t device 2>&1 | head; nmcli device wifi list 2>&1 | head -5", 30); extra.append("nmcli:\n```\n" + o[-600:] + "\n```")
-            flush_results(); return
-        if os.environ.get("ONLY_NM"):
-            c, o = vm.sh("uptime; nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device 2>&1 | head; ip a | grep -E 'inet|state' ; ip route; echo RESOLV; cat /etc/resolv.conf; echo DNS; T0=$(date +%s); nslookup github.com 2>&1 | tail -3; echo DNSSECS $(( $(date +%s)-T0 )); echo CGI; T0=$(date +%s); QUERY_STRING='a=status' REQUEST_METHOD=GET timeout 100 sh /opt/butterweb/cgi-bin/api | head -c 300; echo; echo CGISECS $(( $(date +%s)-T0 )); echo NMLOG; grep -E 'NetworkManager|dhcp' /var/log/messages | cut -c1-200 | tail -30; echo PS; ps -o pid,rss,args | sort -k2 -rn | head -8 | cut -c1-120", 150)
-            extra.append("NM diagnostics:\n```\n" + o[-6500:] + "\n```"); flush_results(); return
         # web agent
         st = {}
         for _ in range(30):
@@ -221,14 +211,16 @@ def main():
         c, o = vm.sh("modinfo -F alias /usr/lib/butter/8188eu.ko | grep -c '^usb:'; cat /etc/modprobe.d/butter-wifi.conf; GUARD_DRY=1 GUARD_MODALIAS='usb:v0BDAp8179d0200dc00dsc00dp00icFFiscFFipFFin00' sh /usr/lib/butter/rtl8xxxu-guard; GUARD_DRY=1 GUARD_MODALIAS='usb:v0BDAp8178d0200dc00dsc00dp00icFFiscFFipFFin00' sh /usr/lib/butter/rtl8xxxu-guard; modprobe -n -v rtl8xxxu 2>&1 | head -2", 30)
         check("RTL8188EU adapters are steered to the separate 8188eu driver, other chips keep rtl8xxxu", "USE_8188EU" in o and "USE_RTL8XXXU" in o and "rtl8xxxu-guard" in o, o.strip()[-300:])
         c, o = vm.sh("sh -n $(command -v butter-wifi) && echo SYN\"_\"OK; sh -n /usr/lib/butter/load-wifi && echo LW\"_\"OK", 20); check("Wi-Fi tool scripts are valid", "SYN_OK" in o and "LW_OK" in o, o.strip()[-100:])
-        c, o = vm.sh("for i in $(seq 1 30); do ip route | grep -q default && break; sleep 2; done; rc-service networkmanager status 2>&1 | head -1; nmcli -t -f STATE general 2>&1; nmcli -t -f DEVICE,TYPE,STATE device 2>&1 | head -5; ip route | head -2", 90)
-        check("NetworkManager runs the cable connection (gets an address and a route)", "connected" in o and "default" in o, o.strip()[-260:])
-        c, o = vm.sh("for x in iw wpa_supplicant butter-wifi butter-wifid rfkill dialog udhcpc nmcli nmtui; do command -v $x >/dev/null && echo OK\"_\"$x || echo MISSING\"_\"$x; done; echo FW\"_\"$(ls /lib/firmware/rtlwifi/ 2>/dev/null | grep -c 8188eufw)", 30)
-        check("Wi-Fi tools are in the image (iw, wpa_supplicant, dialog, butter-wifi, hot-plug daemon) and Realtek firmware", "MISSING_" not in o and "OK_iw" in o and "OK_butter-wifid" in o and re.search(r"FW_[1-9]", o), o.replace("\n", " ")[-300:])
+        c, o = vm.sh("for i in $(seq 1 30); do ip route | grep -q default && break; sleep 2; done; pgrep -f butter-wifid >/dev/null && echo WIFID\"_\"UP; ip route | head -2", 90)
+        check("butter-wifid brings the cable up by itself (address and default route, no NetworkManager)", "WIFID_UP" in o and "default" in o, o.strip()[-260:])
+        c, o = vm.sh("for x in iw wpa_supplicant butter-wifi butter-wifid butter-net rfkill dialog udhcpc; do command -v $x >/dev/null && echo OK\"_\"$x || echo MISSING\"_\"$x; done; echo FW\"_\"$(ls /lib/firmware/rtlwifi/ 2>/dev/null | grep -c 8188eufw)", 30)
+        check("Wi-Fi tools are in the image (iw, wpa_supplicant, dialog, butter-wifi, hot-plug daemon) and Realtek firmware", "MISSING_" not in o and "OK_iw" in o and "OK_butter-wifid" in o and "OK_butter-net" in o and re.search(r"FW_[1-9]", o), o.replace("\n", " ")[-300:])
         c, o = vm.sh("[ -f /usr/lib/butter/8188eu.ko ] && echo DRV\"_\"FILE; V=$(modinfo -F vermagic /usr/lib/butter/8188eu.ko 2>/dev/null | cut -d' ' -f1); [ -n \"$V\" ] && [ \"$V\" = \"$(uname -r)\" ] && echo DRV\"_\"MATCHES_KERNEL; echo K\"_\"$(uname -r)\"_\"V$V", 30)
         check("RTL8188EU driver is shipped and built for this exact kernel", "DRV_FILE" in o and "DRV_MATCHES_KERNEL" in o, o.replace("\n", " ")[-200:])
         c, o = vm.sh("pgrep -f butter-wifid >/dev/null && echo WIFID\"_\"RUNNING; modprobe mac80211_hwsim radios=1 2>&1; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do grep -q 'wifi adapter ready' /var/log/butter-wifid.log 2>/dev/null && break; sleep 1; done; cat /var/log/butter-wifid.log | tail -4; iw dev 2>&1 | head -3", 60)
         check("Hot-plug works: a Wi-Fi adapter that appears after boot is noticed by the daemon", "WIFID_RUNNING" in o and "adapter ready" in o, o.replace("\n", " ")[-300:])
+        c, o = vm.sh("butter-net status; butter-net scan | head -c 200", 40)
+        check("butter-net sees the Wi-Fi adapter and reports status as JSON", '"wifi_adapter":true' in o and '"ok":true' in o, o.strip()[-260:])
         # Java server
         r = api("a=create&n=test-java&type=java&mem=1024&share=internet", timeout=900) if st.get("ok") else {"ok": False, "error": "skipped, web page is down"}; check("Create Java server via web API", r.get("ok"), r)
         lg = ""

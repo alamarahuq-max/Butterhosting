@@ -8,22 +8,7 @@ rc_add() { mkdir -p "$tmp/etc/runlevels/$2"; ln -sf "/etc/init.d/$1" "$tmp/etc/r
 
 mkdir -p "$tmp/etc/apk" "$tmp/etc/init.d" "$tmp/etc/docker" "$tmp/etc/network" "$tmp/usr/local/bin" "$tmp/opt/butterhosting"
 echo "butter-box" > "$tmp/etc/hostname"
-printf 'auto lo\niface lo inet loopback\n' > "$tmp/etc/network/interfaces"   # NetworkManager runs the cable and Wi-Fi
-mkdir -p "$tmp/etc/NetworkManager"
-cat > "$tmp/etc/NetworkManager/NetworkManager.conf" <<'NM'
-[main]
-dhcp=internal
-plugins=keyfile
-
-[keyfile]
-unmanaged-devices=interface-name:docker0;interface-name:veth*;interface-name:br-*;interface-name:lo
-
-[device]
-wifi.scan-rand-mac-address=no
-
-[connection]
-wifi.powersave=2
-NM
+printf 'auto lo\niface lo inet loopback\n' > "$tmp/etc/network/interfaces"   # butter-wifid runs the cable and Wi-Fi
 
 # packages that must be installed at boot (they are on the ISO)
 cat > "$tmp/etc/apk/world" <<W
@@ -36,6 +21,7 @@ install -m 755 "$SRC/os/butter-tui-lite"       "$tmp/usr/local/bin/butter-tui-li
 install -m 755 "$SRC/os/butter-backup-setup"   "$tmp/usr/local/bin/butter-backup-setup"
 install -m 755 "$SRC/os/butter-wifi"           "$tmp/usr/local/bin/butter-wifi"
 install -m 755 "$SRC/os/butter-wifid"          "$tmp/usr/local/bin/butter-wifid"
+install -m 755 "$SRC/os/butter-net"            "$tmp/usr/local/bin/butter-net"
 install -m 755 "$SRC/os/butterwifi.initd"      "$tmp/etc/init.d/butterwifi"
 mkdir -p "$tmp/usr/local/lib/butter" "$tmp/usr/lib/butter"
 install -m 644 "$SRC/os/tui/tui.js" "$SRC/os/tui/data.js" "$tmp/usr/local/lib/butter/"
@@ -81,7 +67,7 @@ ttyS0::respawn:/usr/local/bin/serial-getty
 I
 for s in devfs dmesg mdev hwdrivers modloop; do rc_add $s sysinit; done
 for s in cgroups modules sysctl hostname bootmisc butterwifi networking syslog chronyd butterpersist butterramsync; do rc_add $s boot; done
-# NetworkManager only manages a network device once udev has announced it, so switch the hotplug manager from mdev to udev
+# udev gives reliable hotplug names for USB/PCI network adapters, so switch the hotplug manager from mdev to udev
 cat > "$tmp/etc/init.d/mdev" <<'MD'
 #!/sbin/openrc-run
 description="(replaced by udev on ButterOS)"
@@ -89,7 +75,6 @@ start() { return 0; }
 MD
 chmod 755 "$tmp/etc/init.d/mdev"
 rc_add udev sysinit; rc_add udev-trigger sysinit; rc_add udev-settle sysinit; rc_add udev-postmount default
-rc_add dbus default; rc_add networkmanager default
 cat > "$tmp/etc/init.d/butterslim" <<'SL'
 #!/sbin/openrc-run
 description="Free RAM: remove docker plugins and docs this box never uses (the root filesystem lives in RAM)"

@@ -87,13 +87,13 @@ B.setDino = (on) => { document.documentElement.classList.toggle("dino", on); try
 function parseHash() { const h = (location.hash || "#overview").slice(1).split("/"); return { p: h[0] || "overview", n: h[1] || "", t: h[2] || "overview" }; }
 B.setView = (html, force) => { const v = $("#view"); if (force || v.dataset.h !== html) { v.innerHTML = html; v.dataset.h = html; return true; } return false; };
 B.typing = () => { const f = document.activeElement; return !!(f && $("#view").contains(f) && /^(INPUT|TEXTAREA|SELECT)$/.test(f.tagName)); };
-const TITLES = { overview: "Overview", servers: "Servers", local: "Local", backup: "Backup", network: "Network", system: "System", settings: "Settings", server: "Server" };
+const TITLES = { overview: "Home", servers: "Servers", local: "Local", backup: "Backup", network: "Network", system: "System", settings: "Settings", server: "Server" };
 B.go = async () => {
   const c = B.cur = parseHash(); const wiz = c.p === "setup";
   document.body.classList.toggle("wiz", wiz); $("#wizard").hidden = !wiz;
   if (wiz) { B.wizard.show(); return; }
   B.wizard && B.wizard.hide();
-  const pg = B.pages[c.p] ? c.p : "overview";
+  const alias = { local: "servers", system: "settings" }; const pg = B.pages[alias[c.p] || c.p] ? (alias[c.p] || c.p) : "overview";
   $$("#nav a").forEach((a) => { const on = a.dataset.p === (pg === "server" ? "servers" : pg); a.classList.toggle("on", on); if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
   $("#title").textContent = pg === "server" ? c.n : TITLES[pg];
   document.title = (pg === "server" ? c.n : TITLES[pg]) + " - Butter Os";
@@ -103,7 +103,7 @@ B.go = async () => {
 B.chrome = () => {
   const S = B.S; if (!S) return;
   $("#host").textContent = (S.machine_name || "butter-box") + " · " + (S.ip || "no network"); $("#up").textContent = fmtUp(S.uptime); $("#rss").textContent = S.web_rss_mb + " MB";
-  $("#me").hidden = !!S.app; if (S.limit_web_mb) $("#lim").textContent = "of RAM (limit " + S.limit_web_mb + " MB)";
+  $("#me").hidden = !!S.app; const nl = document.querySelector('#nav a[data-p="network"]'); if (nl) nl.hidden = !!S.app; if (S.limit_web_mb) $("#lim").textContent = "of RAM (limit " + S.limit_web_mb + " MB)";
 };
 async function tick() {
   const r = await api("a=status"); if (!r.ok) return; B.S = r;

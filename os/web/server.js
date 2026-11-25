@@ -4,7 +4,8 @@ let D = { n: "", conf: {}, props: {}, propsOk: false, path: "/" };
 const srv = () => (B.S.servers || []).find((x) => x.name === D.n);
 const isJava = () => D.conf.type !== "bedrock";
 const modWord = () => D.conf.flavor === "fabric" || D.conf.flavor === "forge" ? "Mods" : "Plugins";
-const TABS = () => [["overview", "Overview", "heartbeat"], ["settings", "Settings", "gear"], ["resources", "Resources", "volcano"]].concat(isJava() ? [["players", "Players", "footprint"], ["plugins", modWord(), "fern"]] : []).concat([["files", "Files", "bone"], ["backups", "Backups", "fossil"], ["version", "Version", "chip"], ["danger", "Danger zone", "meteor"]]);
+const TABS = () => [["overview", "Overview", "heartbeat"], ["settings", "Settings", "gear"]].concat(isJava() ? [["players", "Players", "footprint"]] : []).concat([["files", "Files", "bone"], ["backups", "Backups", "fossil"], ["more", "More", "chip"]]);
+const MORE = ["resources", "plugins", "version", "danger"]; // folded into one "More" tab so there are fewer places to look
 const fld = (l, inner, h) => `<label class="fld">${l}${inner}</label>${h ? `<div class="k hint">${h}</div>` : ""}`;
 
 /* ---------- property schema ---------- */
@@ -226,14 +227,14 @@ B.ACT.del = async (t) => { const n = t.dataset.n; if (!(await ask({ title: "Dele
 async function reload() { const r = await api("a=srvconf&n=" + D.n); if (r.ok) { D.conf = r.conf || {}; D.props = r.props || {}; D.propsOk = !!r.props_available; } return r; }
 const headHtml = () => { const s = srv(); if (!s) return ""; const a = addrList(s)[0];
   return `<div class="shead"><div class="sh-main"><a class="btn sm" href="#servers" aria-label="Back to servers">${ic("back")}Servers</a><span class="sh-name"><b>${esc(s.name)}</b></span>${stBadge(s.state)}<span class="k">${esc(B.jt(s))}</span>${a ? `<code>${esc(a.v)}</code><button class="btn sm" data-do="copy" data-v="${esc(a.v)}" aria-label="Copy address">${ic("copy")}</button>` : ""}</div><div class="row">${B.ctlBtns(s)}</div></div>`; };
-const tabsHtml = () => `<div class="tabs" role="tablist" aria-label="Server sections">${TABS().map((t) => `<a role="tab" href="#server/${D.n}/${t[0]}" aria-selected="${B.cur.t === t[0]}" ${B.cur.t === t[0] ? 'class="on"' : ""}>${ic(t[2])}<span>${t[1]}</span></a>`).join("")}</div>`;
+const tabsHtml = () => `<div class="tabs" role="tablist" aria-label="Server sections">${TABS().map((t) => `<a role="tab" href="#server/${D.n}/${t[0]}" aria-selected="${(B.cur.t === t[0] || (t[0] === "more" && MORE.includes(B.cur.t)))}" ${(B.cur.t === t[0] || (t[0] === "more" && MORE.includes(B.cur.t))) ? 'class="on"' : ""}>${ic(t[2])}<span>${t[1]}</span></a>`).join("")}</div>`;
 async function TAB() {
-  const t = TABS().some((x) => x[0] === B.cur.t) ? B.cur.t : "overview", tok = ++D.tok; if (D.n !== B.cur.n) return;
+  const t = MORE.includes(B.cur.t) ? "more" : TABS().some((x) => x[0] === B.cur.t) ? B.cur.t : "overview", tok = ++D.tok; if (D.n !== B.cur.n) return;
   const body = $("#tabbody"); if (!body) return; body.setAttribute("aria-label", t);
-  const html = await TB[t](); if (tok !== D.tok) return; body.innerHTML = html;
+  const html = t === "more" ? (await Promise.all(MORE.filter((k) => k !== "plugins" || isJava()).map((k) => TB[k]()))).join("") : await TB[t](); if (tok !== D.tok) return; body.innerHTML = html;
   if (t === "overview") logs(true); if (t === "settings") updChg(); if (t === "players") { const s = srv(); if (s) B.fillPlayers(s); LISTS.forEach((l) => fillList(l[0])); }
-  if (t === "plugins") { const s = srv(); if (s && D.conf.flavor !== "vanilla") B.fillPlugins(s); } if (t === "files") loadDir(D.path); if (t === "backups") fillBackups();
-  if (t === "resources" && !B.HI) B.loadHI().then(() => { if (B.cur.t === "resources" && $("#tabbody")) TAB(); });
+  if (t === "more") { const s = srv(); if (s && isJava() && D.conf.flavor !== "vanilla") B.fillPlugins(s); if (!B.HI) B.loadHI().then(() => { if (B.cur.t && $("#tabbody") && (B.cur.t === "more" || MORE.includes(B.cur.t))) TAB(); }); }
+  if (false) { const s = srv(); if (s && D.conf.flavor !== "vanilla") B.fillPlugins(s); } if (t === "files") loadDir(D.path); if (t === "backups") fillBackups();
 }
 B.server = { refreshHead() { const h = $("#sh-head"); if (h) h.innerHTML = headHtml(); } };
 B.pages.server = {

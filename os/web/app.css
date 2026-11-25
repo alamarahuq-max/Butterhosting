@@ -130,3 +130,4 @@ input,select,textarea{border-radius:4px;background:color-mix(in srgb,var(--bg) 8
 #wizard{background:radial-gradient(900px 500px at 15% -10%,color-mix(in srgb,var(--y) 11%,var(--bg)),var(--bg))}.whead h2{font-size:28px;font-weight:400}
 @media(max-width:900px){.machine{grid-template-columns:1fr}nav a.on{border-left-color:transparent;border-bottom:3px solid var(--y)}}
 @media(max-width:620px){.slot{grid-template-columns:52px minmax(0,1fr)}.sav{width:52px;height:52px}.sacts{grid-column:1/-1;justify-content:flex-start}.mnum{font-size:32px}header h1{font-size:28px}.slot.add{grid-template-columns:52px minmax(0,1fr)}}
+.nets{list-style:none;padding:0;margin:8px 0 14px;display:flex;flex-direction:column;align-items:flex-start;gap:8px}.nets li{margin:0}

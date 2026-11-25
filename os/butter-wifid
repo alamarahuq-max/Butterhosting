@@ -1,7 +1,13 @@
 #!/bin/sh
-# ButterOS Wi-Fi daemon: notices USB/PCI adapters plugged in at any time, loads the right driver, and reconnects to a saved network.
+# ButterOS network daemon (replaces NetworkManager). Every few seconds it:
+#  1. loads drivers for any USB/PCI device that appeared (Wi-Fi adapters included),
+#  2. brings every cable port up and asks DHCP for an address when a cable is plugged in,
+#  3. joins the saved Wi-Fi network (wpa_supplicant) and asks DHCP once it is associated.
 LOG=/var/log/butter-wifid.log; SEEN=/run/butter-wifi.seen; : > "$SEEN"
+CONF=/etc/wpa_supplicant/wpa_supplicant.conf
 log() { echo "$(date +%T) $*" >> "$LOG"; }
+alive() { [ -s "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null; }
+dhcp() { alive "/run/udhcpc.$1.pid" || { log "asking DHCP on $1"; udhcpc -i "$1" -b -t 6 -T 3 -S -p "/run/udhcpc.$1.pid" >/dev/null 2>&1; }; }
 modprobe cfg80211 2>/dev/null; modprobe mac80211 2>/dev/null
 log "started"
 while :; do
@@ -13,10 +19,17 @@ while :; do
   done
   /usr/lib/butter/load-wifi 2>/dev/null
   for n in /sys/class/net/*; do
-    i=${n##*/}; [ -d "$n/wireless" ] || [ -d "$n/phy80211" ] || continue
-    if ! grep -qxF "iface:$i" "$SEEN" 2>/dev/null; then echo "iface:$i" >> "$SEEN"; log "wifi adapter ready: $i"; echo "$i" > /run/butter-wifi.new; fi
+    i=${n##*/}
+    case "$i" in lo|docker*|veth*|br-*|virbr*|bore*|tun*|tap*|dummy*|sit*|ip6*) continue;; esac
     ip link set "$i" up 2>/dev/null
-    : # connecting is NetworkManager's job
+    if [ -d "$n/wireless" ] || [ -d "$n/phy80211" ]; then
+      if ! grep -qxF "iface:$i" "$SEEN" 2>/dev/null; then echo "iface:$i" >> "$SEEN"; log "wifi adapter ready: $i"; echo "$i" > /run/butter-wifi.new; fi
+      grep -q 'network={' "$CONF" 2>/dev/null || continue
+      alive "/run/wpa.$i.pid" || { log "joining saved Wi-Fi on $i"; mkdir -p /run/wpa_supplicant; wpa_supplicant -B -i "$i" -c "$CONF" -P "/run/wpa.$i.pid" >/dev/null 2>&1; }
+      iw dev "$i" link 2>/dev/null | grep -q '^Connected' && dhcp "$i"
+    else
+      [ "$(cat "$n/carrier" 2>/dev/null)" = 1 ] && dhcp "$i"
+    fi
   done
   sleep 3
 done

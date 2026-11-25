@@ -58,3 +58,10 @@ Every reply is JSON `{ok:true,...}` or `{ok:false,error:"human readable"}`. Quer
 
 ## Setup wizard state
 `setup_done` in config. The UI shows the wizard while it is false and calls `setconfig {setup_done:true,...}` at the end.
+
+## Network (ButterOS only; the app returns `{managed:false}`)
+- `a=netstatus` -> `{ok, ip, wired, wifi_adapter, wifi_iface, ssid, saved}`
+- `a=wifiscan` -> `{ok, networks:[{ssid, signal (dBm), security:"open"|"secured"}]}` (takes a few seconds)
+- `a=wifijoin&ssid&pass` -> `{ok}` or `{ok:false,error}`; the network is saved and rejoined automatically on every boot
+- `a=wififorget` -> `{ok}`
+Cable needs no setup: `butter-wifid` asks DHCP by itself. Wi-Fi adapters are detected and their drivers loaded automatically.

@@ -21,6 +21,7 @@ while :; do
   for n in /sys/class/net/*; do
     i=${n##*/}
     case "$i" in lo|docker*|veth*|br-*|virbr*|bore*|tun*|tap*|dummy*|sit*|ip6*) continue;; esac
+    [ "$(cat "$n/type" 2>/dev/null)" = 1 ] || continue   # only real Ethernet-type ports (skips hwsim monitor, tunnels)
     ip link set "$i" up 2>/dev/null
     if [ -d "$n/wireless" ] || [ -d "$n/phy80211" ]; then
       if ! grep -qxF "iface:$i" "$SEEN" 2>/dev/null; then echo "iface:$i" >> "$SEEN"; log "wifi adapter ready: $i"; echo "$i" > /run/butter-wifi.new; fi

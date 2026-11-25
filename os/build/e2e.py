@@ -217,7 +217,7 @@ def main():
         check("Wi-Fi tools are in the image (iw, wpa_supplicant, dialog, butter-wifi, hot-plug daemon) and Realtek firmware", "MISSING_" not in o and "OK_iw" in o and "OK_butter-wifid" in o and "OK_butter-net" in o and re.search(r"FW_[1-9]", o), o.replace("\n", " ")[-300:])
         c, o = vm.sh("[ -f /usr/lib/butter/8188eu.ko ] && echo DRV\"_\"FILE; V=$(modinfo -F vermagic /usr/lib/butter/8188eu.ko 2>/dev/null | cut -d' ' -f1); [ -n \"$V\" ] && [ \"$V\" = \"$(uname -r)\" ] && echo DRV\"_\"MATCHES_KERNEL; echo K\"_\"$(uname -r)\"_\"V$V", 30)
         check("RTL8188EU driver is shipped and built for this exact kernel", "DRV_FILE" in o and "DRV_MATCHES_KERNEL" in o, o.replace("\n", " ")[-200:])
-        c, o = vm.sh("pgrep -f butter-wifid >/dev/null && echo WIFID\"_\"RUNNING; modprobe mac80211_hwsim radios=1 2>&1; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do grep -q 'wifi adapter ready' /var/log/butter-wifid.log 2>/dev/null && break; sleep 1; done; cat /var/log/butter-wifid.log | tail -4; iw dev 2>&1 | head -3", 60)
+        c, o = vm.sh("pgrep -f butter-wifid >/dev/null && echo WIFID\"_\"RUNNING; modprobe mac80211_hwsim radios=1 2>&1; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do grep -q 'wifi adapter ready' /var/log/butter-wifid.log 2>/dev/null && break; sleep 1; done; grep 'adapter ready' /var/log/butter-wifid.log | tail -2; iw dev 2>&1 | head -3", 60)
         check("Hot-plug works: a Wi-Fi adapter that appears after boot is noticed by the daemon", "WIFID_RUNNING" in o and "adapter ready" in o, o.replace("\n", " ")[-300:])
         c, o = vm.sh("butter-net status; butter-net scan | head -c 200", 40)
         check("butter-net sees the Wi-Fi adapter and reports status as JSON", '"wifi_adapter":true' in o and '"ok":true' in o, o.strip()[-260:])
